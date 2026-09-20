@@ -12,6 +12,7 @@ kotlin {
         namespace = "ru.nomadbudget"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
+        withHostTestBuilder { }
     }
 
     @OptIn(ExperimentalWasmDsl::class)
@@ -20,6 +21,11 @@ kotlin {
         browser {
             commonWebpackConfig {
                 outputFileName = "composeApp.js"
+            }
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                }
             }
         }
         binaries.executable()
@@ -32,6 +38,10 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(compose.components.resources)
+            implementation(libs.kotlinx.datetime)
+        }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }
