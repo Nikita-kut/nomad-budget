@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-dist",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "composeApp/build/dist/wasmJs/productionExecutable"],
+      "port": 8080
+    },
+    {
+      "name": "web-dev",
+      "runtimeExecutable": "./gradlew",
+      "runtimeArgs": [":composeApp:wasmJsBrowserDevelopmentRun", "--console=plain"],
+      "port": 8080
+    }
+  ]
+}
