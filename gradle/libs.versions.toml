@@ -3,12 +3,14 @@ kotlin = "2.4.20"
 agp = "9.2.1"
 composeMultiplatform = "1.12.0"
 androidx-activityCompose = "1.13.0"
+kotlinx-datetime = "0.8.0"
 android-compileSdk = "37"
 android-minSdk = "33"
 android-targetSdk = "37"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
