@@ -13,6 +13,7 @@ object CategoryMapper {
         name = dto.name,
         kind = CategoryKind.valueOf(dto.kind.uppercase()),
         sortOrder = dto.sortOrder,
+        isArchived = dto.archivedAt != null,
     )
 
     fun toDomain(dto: SubcategoryDto): Subcategory = Subcategory(

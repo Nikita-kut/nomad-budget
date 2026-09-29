@@ -18,6 +18,7 @@ object AccountMapper {
             isSavings = dto.isSavings,
             openingBalance = Money(dto.openingBalance, currency),
             sortOrder = dto.sortOrder,
+            isArchived = dto.archivedAt != null,
         )
     }
 }

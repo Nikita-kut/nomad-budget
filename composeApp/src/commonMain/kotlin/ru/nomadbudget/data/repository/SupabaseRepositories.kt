@@ -88,10 +88,7 @@ class AccountRepositoryImpl(
     override suspend fun getAll(): List<Account> {
         val byCode = currencies.byCode()
         return client.from(Tables.ACCOUNTS)
-            .select {
-                filter { exact("archived_at", null) }
-                order("sort_order", Order.ASCENDING)
-            }
+            .select { order("sort_order", Order.ASCENDING) }
             .decodeList<AccountDto>()
             .map { AccountMapper.toDomain(it, byCode) }
     }
@@ -100,10 +97,7 @@ class AccountRepositoryImpl(
 class CategoryRepositoryImpl(private val client: SupabaseClient) : CategoryRepository {
 
     override suspend fun getCategories(): List<Category> = client.from(Tables.CATEGORIES)
-        .select {
-            filter { exact("archived_at", null) }
-            order("sort_order", Order.ASCENDING)
-        }
+        .select { order("sort_order", Order.ASCENDING) }
         .decodeList<CategoryDto>()
         .map(CategoryMapper::toDomain)
 

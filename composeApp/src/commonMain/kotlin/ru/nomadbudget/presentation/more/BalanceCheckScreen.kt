@@ -40,7 +40,7 @@ import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
 fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, Money, String) -> Unit) {
-    var account by remember(state.accounts) { mutableStateOf(state.accounts.firstOrNull()) }
+    var account by remember(state.activeAccounts) { mutableStateOf(state.activeAccounts.firstOrNull()) }
     var actualText by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     val transformation = remember { ThousandsVisualTransformation() }
@@ -71,7 +71,7 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Dropdown(
                         label = "Счёт",
-                        items = state.accounts,
+                        items = state.activeAccounts,
                         selected = account,
                         itemLabel = { "${it.name} · ${it.currency.code}" },
                         onSelect = { account = it },

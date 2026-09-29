@@ -83,8 +83,8 @@ fun EntryScreen(state: HomeState, onSubmit: (EntryDraft) -> Unit, onDelete: (Str
 private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     var type by remember { mutableStateOf(EntryType.EXPENSE) }
     var date by remember { mutableStateOf(state.today) }
-    var account by remember(state.accounts) {
-        mutableStateOf(state.accounts.firstOrNull { it.kind == AccountKind.CASH && it.currency != Currency.BASE } ?: state.accounts.firstOrNull())
+    var account by remember(state.activeAccounts) {
+        mutableStateOf(state.activeAccounts.firstOrNull { it.kind == AccountKind.CASH && it.currency != Currency.BASE } ?: state.activeAccounts.firstOrNull())
     }
     var toAccount by remember { mutableStateOf<Account?>(null) }
     var category by remember { mutableStateOf<Category?>(null) }
@@ -94,11 +94,11 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     val amountTransformation = remember { ThousandsVisualTransformation() }
 
     val kind = if (type == EntryType.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
-    val categories = state.categories.filter { it.kind == kind }
+    val categories = state.activeCategories.filter { it.kind == kind }
     val selectedCategory = category?.takeIf { it.kind == kind } ?: categories.firstOrNull()
     val currency = account?.currency
     val amount = currency?.let { MoneyFormat.parse(amountText, it) }
-    val transferTargets = state.accounts.filter { it.currency == currency && it.id != account?.id }
+    val transferTargets = state.activeAccounts.filter { it.currency == currency && it.id != account?.id }
     val selectedTo = toAccount?.takeIf { it in transferTargets } ?: transferTargets.firstOrNull()
     val suggestions = selectedCategory?.let { cat ->
         state.subcategories
@@ -159,7 +159,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
                     EntryType.INCOME -> "На счёт"
                     EntryType.TRANSFER -> "Откуда"
                 },
-                items = state.accounts,
+                items = state.activeAccounts,
                 selected = account,
                 itemLabel = { "${it.name} · ${it.currency.code}" },
                 onSelect = { account = it },

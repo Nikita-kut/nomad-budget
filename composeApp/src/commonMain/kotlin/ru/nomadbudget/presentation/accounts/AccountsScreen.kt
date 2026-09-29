@@ -31,8 +31,8 @@ import ru.nomadbudget.presentation.home.HomeState
 
 @Composable
 fun AccountsScreen(state: HomeState) {
-    val daily = state.accounts.filterNot { it.isSavings }
-    val savings = state.accounts.filter { it.isSavings }
+    val daily = state.activeAccounts.filterNot { it.isSavings }
+    val savings = state.activeAccounts.filter { it.isSavings }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

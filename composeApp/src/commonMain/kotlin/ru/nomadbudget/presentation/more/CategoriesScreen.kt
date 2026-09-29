@@ -71,7 +71,7 @@ fun CategoriesScreen(
         item { SubScreenHeader("Категории", onBack) }
         listOf(CategoryKind.EXPENSE to "Расходы", CategoryKind.INCOME to "Доходы").forEach { (kind, title) ->
             item { SectionTitle(title) }
-            items(state.categories.filter { it.kind == kind }, key = Category::id) { category ->
+            items(state.activeCategories.filter { it.kind == kind }, key = Category::id) { category ->
                 CategoryCard(
                     category = category,
                     subcategories = state.subcategories.filter { it.categoryId == category.id },
