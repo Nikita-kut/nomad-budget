@@ -1,5 +1,6 @@
 package ru.nomadbudget.domain.model
 
+import ru.nomadbudget.domain.model.TestCurrencies.JPY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -25,9 +26,9 @@ class MoneyTest {
     }
 
     @Test
-    fun ofMajor_vnd_hasNoFraction() {
-        assertEquals(Money(385_000L, Currency.VND), Money.ofMajor(385_000.0, Currency.VND))
-        assertEquals(385_000.0, Money(385_000L, Currency.VND).toMajor())
+    fun ofMajor_zeroDecimalCurrency_hasNoFraction() {
+        assertEquals(Money(385_000L, JPY), Money.ofMajor(385_000.0, JPY))
+        assertEquals(385_000.0, Money(385_000L, JPY).toMajor())
     }
 
     @Test
@@ -43,6 +44,11 @@ class MoneyTest {
 
     @Test
     fun sumIn_emptyList_isZero() {
-        assertEquals(Money.zero(Currency.VND), emptyList<Money>().sumIn(Currency.VND))
+        assertEquals(Money.zero(JPY), emptyList<Money>().sumIn(JPY))
+    }
+
+    @Test
+    fun currency_rejectsBadCode() {
+        assertFailsWith<IllegalArgumentException> { Currency("EURO", 2, "€") }
     }
 }

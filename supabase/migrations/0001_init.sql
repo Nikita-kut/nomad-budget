@@ -1,6 +1,7 @@
 -- Nomad Budget: базовая схема.
--- Деньги хранятся в минимальных единицах валюты (bigint): копейки, центы, донги.
+-- Деньги хранятся в минимальных единицах валюты (bigint): копейки, центы.
 -- Базовая валюта отчётов — RUB. amount_base всегда в копейках.
+-- Дополнительные валюты добавляются строкой в currencies, приложение подхватывает их само.
 
 create extension if not exists pgcrypto;
 
@@ -14,8 +15,7 @@ create table public.currencies (
 
 insert into public.currencies (code, minor_units, symbol) values
     ('RUB', 2, '₽'),
-    ('USD', 2, '$'),
-    ('VND', 0, '₫');
+    ('USD', 2, '$');
 
 create type public.account_kind  as enum ('card', 'account', 'cash', 'savings', 'investment');
 create type public.category_kind as enum ('expense', 'income');

@@ -20,10 +20,14 @@ class RateTable(rates: List<ExchangeRate>) {
 
     private val byQuote: Map<Currency, ExchangeRate> = rates.associateBy { it.quote }
 
+    val quotes: Set<Currency> = byQuote.keys
+
     fun rateFor(currency: Currency): ExchangeRate? = when (currency) {
         Currency.BASE -> null
         else -> byQuote[currency]
     }
+
+    fun hasRate(currency: Currency): Boolean = currency == Currency.BASE || currency in byQuote
 
     fun basePerUnit(currency: Currency): Double = when (currency) {
         Currency.BASE -> 1.0
@@ -34,6 +38,8 @@ class RateTable(rates: List<ExchangeRate>) {
         val majorInBase = money.toMajor() * basePerUnit(money.currency)
         return Money((majorInBase * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
     }
+
+    fun toBaseOrNull(money: Money): Money? = if (hasRate(money.currency)) toBase(money) else null
 
     fun fromBase(base: Money, target: Currency): Money {
         require(base.currency == Currency.BASE) { "Ожидалась сумма в ${Currency.BASE.code}" }

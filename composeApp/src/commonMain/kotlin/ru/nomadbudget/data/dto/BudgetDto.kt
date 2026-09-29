@@ -1,0 +1,43 @@
+package ru.nomadbudget.data.dto
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class PeriodDto(
+    val id: String,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    val title: String,
+)
+
+@Serializable
+data class PeriodInsertDto(
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    val title: String,
+)
+
+@Serializable
+data class BudgetLineDto(
+    val id: String,
+    @SerialName("period_id") val periodId: String,
+    @SerialName("category_id") val categoryId: String,
+    @SerialName("planned_base") val plannedBase: Long,
+)
+
+@Serializable
+data class BudgetLineUpsertDto(
+    @SerialName("period_id") val periodId: String,
+    @SerialName("category_id") val categoryId: String,
+    @SerialName("planned_base") val plannedBase: Long,
+)
+
+@Serializable
+data class ExchangeRateDto(
+    @SerialName("rate_date") val rateDate: String,
+    val base: String,
+    val quote: String,
+    val rate: Double,
+    val source: String,
+)

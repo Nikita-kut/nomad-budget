@@ -1,10 +1,13 @@
 package ru.nomadbudget.domain.model
 
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.model.TestCurrencies.JPY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RateTableTest {
 
@@ -12,7 +15,7 @@ class RateTableTest {
     private val rates = RateTable(
         listOf(
             ExchangeRate(Currency.USD, basePerUnit = 84.1975, date = date, source = RateSource.API),
-            ExchangeRate(Currency.VND, basePerUnit = 0.00328422, date = date, source = RateSource.API),
+            ExchangeRate(JPY, basePerUnit = 0.5, date = date, source = RateSource.API),
         ),
     )
 
@@ -23,9 +26,9 @@ class RateTableTest {
     }
 
     @Test
-    fun toBase_vnd_roundsToKopecks() {
-        val base = rates.toBase(Money(385_000L, Currency.VND))
-        assertEquals(Money(126_442L, Currency.RUB), base)
+    fun toBase_zeroDecimalCurrency_roundsToKopecks() {
+        val base = rates.toBase(Money(385_001L, JPY))
+        assertEquals(Money(19_250_050L, Currency.RUB), base)
     }
 
     @Test
@@ -35,14 +38,14 @@ class RateTableTest {
     }
 
     @Test
-    fun fromBase_vnd_dropsFraction() {
-        val vnd = rates.fromBase(Money(100_000L, Currency.RUB), Currency.VND)
-        assertEquals(Money(304_486L, Currency.VND), vnd)
+    fun fromBase_zeroDecimalCurrency_dropsFraction() {
+        val jpy = rates.fromBase(Money(100_033L, Currency.RUB), JPY)
+        assertEquals(Money(2_001L, JPY), jpy)
     }
 
     @Test
-    fun cross_usdToVnd_matchesCentralBank() {
-        assertEquals(25_637.0, rates.cross(Currency.USD, Currency.VND), absoluteTolerance = 1.0)
+    fun cross_usdToJpy() {
+        assertEquals(168.395, rates.cross(Currency.USD, JPY), absoluteTolerance = 0.001)
     }
 
     @Test
@@ -51,8 +54,20 @@ class RateTableTest {
     }
 
     @Test
+    fun hasRate_baseAlwaysTrue_unknownFalse() {
+        assertTrue(rates.hasRate(Currency.RUB))
+        assertTrue(rates.hasRate(JPY))
+        assertFalse(rates.hasRate(Currency("EUR", 2, "€")))
+    }
+
+    @Test
+    fun toBaseOrNull_missingRate_returnsNull() {
+        assertNull(rates.toBaseOrNull(Money(1L, Currency("EUR", 2, "€"))))
+    }
+
+    @Test
     fun toBase_missingRate_throws() {
         val onlyUsd = RateTable(listOf(ExchangeRate(Currency.USD, 84.0, date, RateSource.API)))
-        assertFailsWith<IllegalArgumentException> { onlyUsd.toBase(Money(1L, Currency.VND)) }
+        assertFailsWith<IllegalArgumentException> { onlyUsd.toBase(Money(1L, JPY)) }
     }
 }
