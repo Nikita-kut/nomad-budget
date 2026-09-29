@@ -9,6 +9,7 @@ import ru.nomadbudget.domain.logic.MonthSummary
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
+import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.Money
@@ -81,6 +82,18 @@ data class HomeState(
     val totalBase: Money = accounts
         .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
         .sumIn(Currency.BASE)
+
+    val operationalAccounts: List<Account> = accounts.filterNot { it.isSavings }
+
+    val operationalBase: Money = operationalAccounts
+        .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
+        .sumIn(Currency.BASE)
+
+    val operationalAtPeriodStartBase: Money = operationalAccounts
+        .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
+        .sumIn(Currency.BASE)
+
+    val hasExpensePlan: Boolean = budgets.any { it.category.kind == CategoryKind.EXPENSE && it.planned.minor > 0L }
 
     val journal: List<JournalDay> = inPeriod
         .groupBy { it.date }
