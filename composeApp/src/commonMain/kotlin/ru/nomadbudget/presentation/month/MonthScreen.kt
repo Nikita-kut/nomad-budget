@@ -41,6 +41,7 @@ import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 
@@ -48,7 +49,6 @@ import ru.nomadbudget.presentation.theme.AppTheme
 fun MonthScreen(
     state: HomeState,
     onSetPlanned: (String, Money) -> Unit,
-    onSignOut: () -> Unit,
     onRetry: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
@@ -120,11 +120,6 @@ fun MonthScreen(
             }
         }
 
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onSignOut) { Text("Выйти из аккаунта") }
-            }
-        }
     }
 
     editing?.let { category ->
@@ -271,6 +266,7 @@ private fun ExpenseCard(
 @Composable
 private fun PlanDialog(category: Category, current: Money, onDismiss: () -> Unit, onConfirm: (Money) -> Unit) {
     var text by remember { mutableStateOf(if (current.isZero) "" else (current.minor / Currency.BASE.minorFactor).toString()) }
+    val transformation = remember { ThousandsVisualTransformation() }
     val parsed = MoneyFormat.parse(text, Currency.BASE)
     val isZero = text.trim() == "0" || text.isBlank()
     AlertDialog(
@@ -279,9 +275,10 @@ private fun PlanDialog(category: Category, current: Money, onDismiss: () -> Unit
         text = {
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { text = ThousandsVisualTransformation.sanitize(it) },
                 label = { Text("Сумма на месяц, ₽") },
                 singleLine = true,
+                visualTransformation = transformation,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )

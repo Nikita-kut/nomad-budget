@@ -1,7 +1,10 @@
 package ru.nomadbudget.presentation.format
 
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import kotlin.math.abs
@@ -85,6 +88,11 @@ object DateFormat {
 
     fun dayMonth(date: LocalDate): String =
         "${date.day.toString().padStart(2, '0')}.${date.month.number.toString().padStart(2, '0')}"
+
+    fun dayMonthTime(instant: Instant): String {
+        val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
+        return "${dayMonth(local.date)} ${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
+    }
 
     fun weekdayShort(date: LocalDate): String = weekdays[date.dayOfWeek.ordinal]
 

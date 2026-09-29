@@ -13,6 +13,10 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import ru.nomadbudget.domain.logic.BudgetLine
+import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.Category
+import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.CorrectionCategory
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateSource
@@ -20,12 +24,14 @@ import ru.nomadbudget.domain.model.SalaryCycle
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
+import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
+import ru.nomadbudget.presentation.format.MoneyFormat
 import kotlin.time.Clock
 
 class HomeViewModel(
@@ -37,6 +43,7 @@ class HomeViewModel(
     private val transactionRepository: TransactionRepository,
     private val budgetRepository: BudgetRepository,
     private val rateRepository: ExchangeRateRepository,
+    private val balanceCheckRepository: BalanceCheckRepository,
 ) : ViewModel() {
 
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
@@ -61,6 +68,7 @@ class HomeViewModel(
                 val subcategories = categoryRepository.getSubcategories()
                 val transactions = transactionRepository.getAll(accounts)
                 val rates = rateRepository.ratesOnOrBefore(today)
+                val checks = balanceCheckRepository.getRecent(accounts)
                 val period = _state.value.period
                 val periodId = periodRepository.ensure(period)
                 val lines = budgetRepository.getLines(periodId)
@@ -73,6 +81,7 @@ class HomeViewModel(
                         subcategories = subcategories,
                         transactions = transactions,
                         rates = rates,
+                        balanceChecks = checks,
                         periodId = periodId,
                         budgetLines = lines,
                     )
@@ -215,6 +224,122 @@ class HomeViewModel(
         }
     }
 
+    fun addCategory(name: String, kind: CategoryKind) {
+        viewModelScope.launch {
+            try {
+                val trimmed = name.trim()
+                require(trimmed.isNotEmpty()) { "Введи название" }
+                val exists = _state.value.categories.any { it.kind == kind && it.name.equals(trimmed, ignoreCase = true) }
+                require(!exists) { "Такая категория уже есть" }
+                createCategory(trimmed, kind)
+                _messages.send("Категория добавлена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить категорию")
+            }
+        }
+    }
+
+    fun renameCategory(id: String, name: String) {
+        viewModelScope.launch {
+            try {
+                val trimmed = name.trim()
+                require(trimmed.isNotEmpty()) { "Введи название" }
+                categoryRepository.renameCategory(id, trimmed)
+                _state.update { state ->
+                    state.copy(categories = state.categories.map { if (it.id == id) it.copy(name = trimmed) else it })
+                }
+                _messages.send("Переименовано")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось переименовать")
+            }
+        }
+    }
+
+    fun archiveCategory(id: String) {
+        viewModelScope.launch {
+            try {
+                categoryRepository.archiveCategory(id)
+                _state.update { state -> state.copy(categories = state.categories.filterNot { it.id == id }) }
+                _messages.send("Категория убрана в архив")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось архивировать")
+            }
+        }
+    }
+
+    fun addSubcategory(categoryId: String, name: String) {
+        viewModelScope.launch {
+            try {
+                val id = resolveSubcategory(categoryId, name)
+                require(id != null) { "Введи название" }
+                _messages.send("Подкатегория добавлена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить подкатегорию")
+            }
+        }
+    }
+
+    fun renameSubcategory(id: String, name: String) {
+        viewModelScope.launch {
+            try {
+                val trimmed = name.trim()
+                require(trimmed.isNotEmpty()) { "Введи название" }
+                categoryRepository.renameSubcategory(id, trimmed)
+                _state.update { state ->
+                    state.copy(subcategories = state.subcategories.map { if (it.id == id) it.copy(name = trimmed) else it })
+                }
+                _messages.send("Переименовано")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось переименовать")
+            }
+        }
+    }
+
+    fun deleteSubcategory(id: String) {
+        viewModelScope.launch {
+            try {
+                val used = _state.value.transactions.any { it is Transaction.Expense && it.subcategoryId == id }
+                require(!used) { "Подкатегория используется в операциях, удалить нельзя" }
+                categoryRepository.deleteSubcategory(id)
+                _state.update { state -> state.copy(subcategories = state.subcategories.filterNot { it.id == id }) }
+                _messages.send("Подкатегория удалена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось удалить")
+            }
+        }
+    }
+
+    fun checkBalance(accountId: String, actual: Money, note: String) {
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(saving = true) }
+                val current = _state.value
+                val account = requireNotNull(current.accountsById[accountId]) { "Счёт не найден" }
+                val computed = current.balances.getValue(accountId)
+                require(actual.currency == account.currency) { "Валюта не совпадает со счётом" }
+                val check = balanceCheckRepository.add(
+                    BalanceCheck(id = "", accountId = accountId, date = today, actual = actual, computed = computed, note = note),
+                )
+                val difference = actual - computed
+                val correction = if (difference.isZero) null else createCorrection(account.id, difference, computed, actual)
+                _state.update { state ->
+                    state.copy(
+                        saving = false,
+                        balanceChecks = listOf(check) + state.balanceChecks,
+                        transactions = listOfNotNull(correction) + state.transactions,
+                    )
+                }
+                _messages.send(
+                    if (difference.isZero) "Сверка записана, остаток сходится"
+                    else "Сверка записана, корректировка ${MoneyFormat.formatSigned(difference)}",
+                )
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось записать сверку")
+            }
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             try {
@@ -223,6 +348,38 @@ class HomeViewModel(
                 _messages.send(e.message ?: "Не удалось выйти")
             }
         }
+    }
+
+    private suspend fun createCorrection(accountId: String, difference: Money, computed: Money, actual: Money): Transaction {
+        val current = _state.value
+        require(current.rates.hasRate(difference.currency)) { "Нет курса для ${difference.currency.code}, корректировку не записать" }
+        val kind = if (difference.isNegative) CategoryKind.EXPENSE else CategoryKind.INCOME
+        val category = ensureCategory(CorrectionCategory.NAME, kind)
+        val amount = if (difference.isNegative) -difference else difference
+        val note = "Сверка: расчёт ${MoneyFormat.format(computed)}, факт ${MoneyFormat.format(actual)}"
+        val transaction = when (kind) {
+            CategoryKind.EXPENSE -> Transaction.Expense(
+                id = "", date = today, accountId = accountId, amount = amount, categoryId = category.id, subcategoryId = null,
+                amountBase = current.rates.toBase(amount), rateSource = rateSourceFor(amount), note = note,
+            )
+            CategoryKind.INCOME -> Transaction.Income(
+                id = "", date = today, accountId = accountId, amount = amount, categoryId = category.id,
+                amountBase = current.rates.toBase(amount), rateSource = rateSourceFor(amount), note = note,
+            )
+        }
+        return transactionRepository.add(transaction, current.accounts)
+    }
+
+    private suspend fun ensureCategory(name: String, kind: CategoryKind): Category {
+        val existing = _state.value.categories.firstOrNull { it.kind == kind && it.name.equals(name, ignoreCase = true) }
+        return existing ?: createCategory(name, kind, sortOrder = CORRECTION_SORT_ORDER)
+    }
+
+    private suspend fun createCategory(name: String, kind: CategoryKind, sortOrder: Int? = null): Category {
+        val order = sortOrder ?: ((_state.value.categories.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0) + SORT_STEP)
+        val created = categoryRepository.addCategory(name, kind, order)
+        _state.update { it.copy(categories = it.categories + created) }
+        return created
     }
 
     private suspend fun resolveSubcategory(categoryId: String, name: String): String? {
@@ -239,4 +396,9 @@ class HomeViewModel(
 
     private fun rateSourceFor(amount: Money): RateSource =
         _state.value.rates.rateFor(amount.currency)?.source ?: RateSource.API
+
+    private companion object {
+        const val SORT_STEP = 10
+        const val CORRECTION_SORT_ORDER = 900
+    }
 }

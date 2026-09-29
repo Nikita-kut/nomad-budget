@@ -13,6 +13,13 @@ data class CategoryDto(
 )
 
 @Serializable
+data class CategoryInsertDto(
+    val name: String,
+    val kind: String,
+    @SerialName("sort_order") val sortOrder: Int,
+)
+
+@Serializable
 data class SubcategoryDto(
     val id: String,
     @SerialName("category_id") val categoryId: String,

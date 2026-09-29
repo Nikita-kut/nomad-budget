@@ -43,6 +43,7 @@ import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.ExchangeDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -76,6 +77,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     var receivedText by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(state.today) }
     var note by remember { mutableStateOf("") }
+    val transformation = remember { ThousandsVisualTransformation() }
 
     val given = from?.let { MoneyFormat.parse(givenText, it.currency) }
     val received = to?.let { MoneyFormat.parse(receivedText, it.currency) }
@@ -106,17 +108,19 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = givenText,
-                    onValueChange = { givenText = it },
+                    onValueChange = { givenText = ThousandsVisualTransformation.sanitize(it) },
                     label = { Text("Отдал${from?.let { ", ${it.currency.code}" }.orEmpty()}") },
                     singleLine = true,
+                    visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
                     value = receivedText,
-                    onValueChange = { receivedText = it },
+                    onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it) },
                     label = { Text("Получил${to?.let { ", ${it.currency.code}" }.orEmpty()}") },
                     singleLine = true,
+                    visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                 )
