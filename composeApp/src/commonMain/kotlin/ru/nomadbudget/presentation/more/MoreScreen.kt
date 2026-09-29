@@ -40,7 +40,7 @@ fun MoreScreen(state: HomeState, onCategories: () -> Unit, onBalanceCheck: () ->
         item { SectionTitle("Настройки") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                MenuRow("Категории и подкатегории", "${state.categories.size} категорий, ${state.subcategories.size} подкатегорий", onCategories)
+                MenuRow("Категории и подкатегории", "${state.activeCategories.size} категорий, ${state.subcategories.size} подкатегорий", onCategories)
                 HorizontalDivider()
                 MenuRow(
                     "Сверка остатков",

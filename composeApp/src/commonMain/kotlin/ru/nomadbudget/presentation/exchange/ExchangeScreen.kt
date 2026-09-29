@@ -68,7 +68,7 @@ fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete
 
 @Composable
 private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
-    val daily = state.accounts.filterNot { it.isSavings }
+    val daily = state.activeAccounts.filterNot { it.isSavings }
     var from by remember(daily) { mutableStateOf(daily.firstOrNull { it.currency == Currency.USD } ?: daily.firstOrNull()) }
     var to by remember(daily) {
         mutableStateOf(daily.firstOrNull { it.currency != Currency.BASE && it.currency != Currency.USD } ?: daily.lastOrNull())

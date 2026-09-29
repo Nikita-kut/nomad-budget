@@ -233,7 +233,7 @@ class HomeViewModel(
                 val previousId = periodRepository.ensure(SalaryCycle.previous(current.period))
                 val previousLines = budgetRepository.getLines(previousId).filter { it.planned.minor > 0L }
                 require(previousLines.isNotEmpty()) { "В прошлом месяце план не заполнен" }
-                val activeIds = current.categories.map { it.id }.toSet()
+                val activeIds = current.activeCategories.map { it.id }.toSet()
                 val toCopy = previousLines.filter { it.categoryId in activeIds }
                 toCopy.forEach { budgetRepository.setPlanned(periodId, it) }
                 _state.update { state ->
@@ -257,7 +257,7 @@ class HomeViewModel(
             try {
                 val trimmed = name.trim()
                 require(trimmed.isNotEmpty()) { "Введи название" }
-                val exists = _state.value.categories.any { it.kind == kind && it.name.equals(trimmed, ignoreCase = true) }
+                val exists = _state.value.activeCategories.any { it.kind == kind && it.name.equals(trimmed, ignoreCase = true) }
                 require(!exists) { "Такая категория уже есть" }
                 createCategory(trimmed, kind)
                 _messages.send("Категория добавлена")
@@ -287,7 +287,9 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 categoryRepository.archiveCategory(id)
-                _state.update { state -> state.copy(categories = state.categories.filterNot { it.id == id }) }
+                _state.update { state ->
+                    state.copy(categories = state.categories.map { if (it.id == id) it.copy(isArchived = true) else it })
+                }
                 _messages.send("Категория убрана в архив")
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось архивировать")
@@ -399,7 +401,7 @@ class HomeViewModel(
     }
 
     private suspend fun ensureCategory(name: String, kind: CategoryKind): Category {
-        val existing = _state.value.categories.firstOrNull { it.kind == kind && it.name.equals(name, ignoreCase = true) }
+        val existing = _state.value.activeCategories.firstOrNull { it.kind == kind && it.name.equals(name, ignoreCase = true) }
         return existing ?: createCategory(name, kind, sortOrder = CORRECTION_SORT_ORDER)
     }
 

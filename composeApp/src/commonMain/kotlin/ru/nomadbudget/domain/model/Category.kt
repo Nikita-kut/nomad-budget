@@ -7,6 +7,7 @@ data class Category(
     val name: String,
     val kind: CategoryKind,
     val sortOrder: Int = 0,
+    val isArchived: Boolean = false,
 )
 
 data class Subcategory(

@@ -10,6 +10,7 @@ data class Account(
     val isSavings: Boolean,
     val openingBalance: Money,
     val sortOrder: Int = 0,
+    val isArchived: Boolean = false,
 ) {
     init {
         require(openingBalance.currency == currency) { "Валюта начального остатка не совпадает со счётом" }
