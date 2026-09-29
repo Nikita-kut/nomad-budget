@@ -161,7 +161,13 @@ private fun SummaryRow(state: HomeState) {
     val summary = state.summary
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SummaryCard("Потрачено", MoneyFormat.format(summary.expenseFact, false), "план ${MoneyFormat.format(summary.expensePlanned, false)}", Modifier.weight(1f))
-        SummaryCard("Отложено себе", MoneyFormat.format(summary.savedToSavings, false), "в накопления", Modifier.weight(1f))
+        SummaryCard(
+            "Отложено себе",
+            MoneyFormat.format(summary.netSaved, false),
+            if (summary.takenFromSavings.isZero) "в накопления" else "взято ${MoneyFormat.format(summary.takenFromSavings, false)}",
+            Modifier.weight(1f),
+            negative = summary.netSaved.isNegative,
+        )
         SummaryCard(
             "Остаток месяца",
             MoneyFormat.format(summary.remaining, false),

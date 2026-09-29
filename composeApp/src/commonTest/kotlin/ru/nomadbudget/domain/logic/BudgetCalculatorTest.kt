@@ -91,6 +91,30 @@ class BudgetCalculatorTest {
         assertEquals(Money.rub(30_000_000L), summary.incomePlanned)
         assertEquals(Money.rub(11_246_342L), summary.expenseFact)
         assertEquals(Money.rub(12_000_000L), summary.savedToSavings)
+        assertEquals(Money.zero(Currency.RUB), summary.takenFromSavings)
         assertEquals(Money.rub(3_101_658L), summary.remaining)
+    }
+
+    @Test
+    fun monthSummary_takenFromSavings_reducesNetSaved_andRaisesRemaining() {
+        val taken = Transaction.Transfer("t2", LocalDate(2026, 9, 15), "ru_invest", "ru_card", Money.rub(3_000_000L), Money.rub(3_000_000L))
+        val all = transactions + taken
+        val budgets = BudgetCalculator.categoryBudgets(categories, lines, all, period)
+        val summary = BudgetCalculator.monthSummary(budgets, all, listOf(ruCard, invest), period)
+        assertEquals(Money.rub(12_000_000L), summary.savedToSavings)
+        assertEquals(Money.rub(3_000_000L), summary.takenFromSavings)
+        assertEquals(Money.rub(9_000_000L), summary.netSaved)
+        assertEquals(Money.rub(6_101_658L), summary.remaining)
+    }
+
+    @Test
+    fun monthSummary_transferBetweenSavings_isNeitherSavedNorTaken() {
+        val podushka = Account("ru_podushka", "Подушка", Currency.RUB, AccountKind.SAVINGS, true, Money.zero(Currency.RUB))
+        val move = Transaction.Transfer("t3", LocalDate(2026, 9, 16), "ru_invest", "ru_podushka", Money.rub(500_000L), Money.rub(500_000L))
+        val all = transactions + move
+        val budgets = BudgetCalculator.categoryBudgets(categories, lines, all, period)
+        val summary = BudgetCalculator.monthSummary(budgets, all, listOf(ruCard, invest, podushka), period)
+        assertEquals(Money.rub(12_000_000L), summary.savedToSavings)
+        assertEquals(Money.zero(Currency.RUB), summary.takenFromSavings)
     }
 }
