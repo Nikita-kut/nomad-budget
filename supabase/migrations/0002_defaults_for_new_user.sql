@@ -12,13 +12,12 @@ declare
     v_cat uuid;
 begin
     insert into public.accounts (user_id, name, currency, kind, is_savings, sort_order) values
-        (p_user, 'RU карта',          'RUB', 'card',       false, 10),
-        (p_user, 'RU счёт',           'RUB', 'account',    false, 20),
-        (p_user, 'RU наличка',        'RUB', 'cash',       false, 30),
-        (p_user, 'USD карта Freedom', 'USD', 'card',       false, 40),
-        (p_user, 'USD наличка',       'USD', 'cash',       false, 50),
-        (p_user, 'VND наличка',       'VND', 'cash',       false, 60),
-        (p_user, 'Инвесткопилка',     'RUB', 'investment', true,  70);
+        (p_user, 'RU карта',      'RUB', 'card',       false, 10),
+        (p_user, 'RU счёт',       'RUB', 'account',    false, 20),
+        (p_user, 'RU наличка',    'RUB', 'cash',       false, 30),
+        (p_user, 'USD карта',     'USD', 'card',       false, 40),
+        (p_user, 'USD наличка',   'USD', 'cash',       false, 50),
+        (p_user, 'Инвесткопилка', 'RUB', 'investment', true,  70);
 
     insert into public.categories (user_id, name, kind, sort_order) values
         (p_user, 'Зарплата',           'income', 10),
@@ -46,11 +45,11 @@ begin
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Транспорт';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'Grab и такси'), (p_user, v_cat, 'аренда байка'), (p_user, v_cat, 'бензин'), (p_user, v_cat, 'авиабилеты');
+        (p_user, v_cat, 'такси'), (p_user, v_cat, 'аренда транспорта'), (p_user, v_cat, 'бензин'), (p_user, v_cat, 'авиабилеты');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Жильё';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'кв плата РФ'), (p_user, v_cat, 'кв плата Вьетнам'), (p_user, v_cat, 'аренда');
+        (p_user, v_cat, 'кв плата РФ'), (p_user, v_cat, 'кв плата за границей'), (p_user, v_cat, 'аренда');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Здоровье';
     insert into public.subcategories (user_id, category_id, name) values
@@ -58,11 +57,11 @@ begin
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Документы';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'виза'), (p_user, v_cat, 'визаран'), (p_user, v_cat, 'нотариус и переводы'), (p_user, v_cat, 'ВНЖ');
+        (p_user, v_cat, 'виза'), (p_user, v_cat, 'продление визы'), (p_user, v_cat, 'нотариус и переводы'), (p_user, v_cat, 'ВНЖ');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Связь';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'SIM VN'), (p_user, v_cat, 'SIM RU'), (p_user, v_cat, 'VPN'), (p_user, v_cat, 'подписки');
+        (p_user, v_cat, 'SIM местная'), (p_user, v_cat, 'SIM RU'), (p_user, v_cat, 'VPN'), (p_user, v_cat, 'подписки');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Комиссии';
     insert into public.subcategories (user_id, category_id, name) values

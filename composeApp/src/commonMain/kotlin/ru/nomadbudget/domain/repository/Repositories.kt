@@ -5,6 +5,7 @@ import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Category
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
@@ -16,6 +17,10 @@ interface AuthRepository {
     val state: Flow<AuthState>
     suspend fun signIn(email: String, password: String)
     suspend fun signOut()
+}
+
+interface CurrencyRepository {
+    suspend fun getAll(): List<Currency>
 }
 
 interface AccountRepository {

@@ -52,6 +52,7 @@ data class HomeState(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val error: String? = null,
+    val currencies: List<Currency> = Currency.builtIn,
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val subcategories: List<Subcategory> = emptyList(),
@@ -63,6 +64,10 @@ data class HomeState(
     val categoriesById: Map<String, Category> = categories.associateBy { it.id }
     val subcategoriesById: Map<String, Subcategory> = subcategories.associateBy { it.id }
 
+    val foreignCurrencies: List<Currency> = currencies.filter { it != Currency.BASE }
+
+    val currenciesWithoutRate: List<Currency> = foreignCurrencies.filterNot(rates::hasRate)
+
     val inPeriod: List<Transaction> = transactions.filter { it.date in period }
 
     val budgets: List<CategoryBudget> = BudgetCalculator.categoryBudgets(categories, budgetLines, inPeriod, period)
@@ -72,7 +77,7 @@ data class HomeState(
     val balances: Map<String, Money> = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
 
     val totalBase: Money = accounts
-        .map { rates.toBase(balances.getValue(it.id)) }
+        .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
         .sumIn(Currency.BASE)
 
     val journal: List<JournalDay> = inPeriod

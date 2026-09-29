@@ -64,7 +64,7 @@ private fun AccountsCard(accounts: List<Account>, state: HomeState, totalLabel: 
             AccountRow(account, state)
         }
         HorizontalDivider()
-        val total = accounts.map { state.rates.toBase(state.balances.getValue(it.id)) }.sumIn(Currency.BASE)
+        val total = accounts.mapNotNull { state.rates.toBaseOrNull(state.balances.getValue(it.id)) }.sumIn(Currency.BASE)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -92,8 +92,9 @@ private fun AccountRow(account: Account, state: HomeState) {
         Column(horizontalAlignment = Alignment.End) {
             Text(MoneyFormat.format(balance), fontWeight = FontWeight.SemiBold)
             if (account.currency != Currency.BASE) {
+                val inBase = state.rates.toBaseOrNull(balance)
                 Text(
-                    "≈ ${MoneyFormat.format(state.rates.toBase(balance), false)}",
+                    if (inBase != null) "≈ ${MoneyFormat.format(inBase, false)}" else "нет курса",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -114,9 +115,28 @@ private fun kindLabel(kind: AccountKind): String = when (kind) {
 private fun RatesCard(state: HomeState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-            KeyValueRow("USD → RUB", "${MoneyFormat.formatRate(state.rates.basePerUnit(Currency.USD))} ₽")
-            KeyValueRow("10 000 VND → RUB", "${MoneyFormat.formatRate(state.rates.basePerUnit(Currency.VND) * 10_000)} ₽")
-            KeyValueRow("USD → VND (кросс)", "${MoneyFormat.formatRate(state.rates.cross(Currency.USD, Currency.VND))} ₫")
+            state.foreignCurrencies.forEach { currency ->
+                if (state.rates.hasRate(currency)) {
+                    val perUnit = state.rates.basePerUnit(currency)
+                    val units = if (perUnit < SMALL_RATE) 1_000 else 1
+                    KeyValueRow(
+                        "${if (units > 1) "$units " else ""}${currency.code} → ${Currency.BASE.code}",
+                        "${MoneyFormat.formatRate(perUnit * units)} ${Currency.BASE.symbol}",
+                    )
+                } else {
+                    KeyValueRow("${currency.code} → ${Currency.BASE.code}", "нет курса")
+                }
+            }
+            state.foreignCurrencies
+                .filter { it != Currency.USD && state.rates.hasRate(it) }
+                .forEach { currency ->
+                    KeyValueRow(
+                        "${Currency.USD.code} → ${currency.code} (кросс)",
+                        "${MoneyFormat.formatRate(state.rates.cross(Currency.USD, currency))} ${currency.symbol}",
+                    )
+                }
         }
     }
 }
+
+private const val SMALL_RATE = 0.01

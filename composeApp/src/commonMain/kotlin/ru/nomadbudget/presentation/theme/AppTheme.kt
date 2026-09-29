@@ -11,20 +11,21 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import ru.nomadbudget.domain.logic.BudgetStatus
 import ru.nomadbudget.domain.model.Currency
+import kotlin.math.abs
 
 data class AppColors(
-    val rub: Color,
+    val base: Color,
     val usd: Color,
-    val vnd: Color,
+    val extraCurrencies: List<Color>,
     val good: Color,
     val warning: Color,
     val bad: Color,
     val muted: Color,
 ) {
-    fun currency(currency: Currency): Color = when (currency) {
-        Currency.RUB -> rub
-        Currency.USD -> usd
-        Currency.VND -> vnd
+    fun currency(currency: Currency): Color = when (currency.code) {
+        Currency.BASE.code -> base
+        Currency.USD.code -> usd
+        else -> extraCurrencies[abs(currency.code.hashCode()) % extraCurrencies.size]
     }
 
     fun status(status: BudgetStatus): Color = when (status) {
@@ -35,9 +36,9 @@ data class AppColors(
 }
 
 private val LightAppColors = AppColors(
-    rub = Color(0xFF4A5FA8),
+    base = Color(0xFF4A5FA8),
     usd = Color(0xFF2F7D4F),
-    vnd = Color(0xFFB8791B),
+    extraCurrencies = listOf(Color(0xFFB8791B), Color(0xFF8A4FA8), Color(0xFF1F7F8A), Color(0xFFB04A6E)),
     good = Color(0xFF3A8F5C),
     warning = Color(0xFFC98A1C),
     bad = Color(0xFFC4463A),
@@ -45,9 +46,9 @@ private val LightAppColors = AppColors(
 )
 
 private val DarkAppColors = AppColors(
-    rub = Color(0xFF8C9BD8),
+    base = Color(0xFF8C9BD8),
     usd = Color(0xFF6CBF8A),
-    vnd = Color(0xFFDDA64E),
+    extraCurrencies = listOf(Color(0xFFDDA64E), Color(0xFFC29BE0), Color(0xFF6FC4CF), Color(0xFFE08AA8)),
     good = Color(0xFF5DB57F),
     warning = Color(0xFFDDA64E),
     bad = Color(0xFFE0695D),

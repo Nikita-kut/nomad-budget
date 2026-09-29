@@ -69,7 +69,9 @@ fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete
 private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     val daily = state.accounts.filterNot { it.isSavings }
     var from by remember(daily) { mutableStateOf(daily.firstOrNull { it.currency == Currency.USD } ?: daily.firstOrNull()) }
-    var to by remember(daily) { mutableStateOf(daily.firstOrNull { it.currency == Currency.VND } ?: daily.lastOrNull()) }
+    var to by remember(daily) {
+        mutableStateOf(daily.firstOrNull { it.currency != Currency.BASE && it.currency != Currency.USD } ?: daily.lastOrNull())
+    }
     var givenText by remember { mutableStateOf("") }
     var receivedText by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(state.today) }
@@ -79,7 +81,10 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     val received = to?.let { MoneyFormat.parse(receivedText, it.currency) }
     val sameCurrency = from != null && to != null && from?.currency == to?.currency
     val sameAccount = from != null && from?.id == to?.id
-    val canSubmit = !state.saving && given != null && received != null && !sameCurrency && !sameAccount
+    val fromCurrency = from?.currency
+    val toCurrency = to?.currency
+    val hasRates = fromCurrency != null && toCurrency != null && state.rates.hasRate(fromCurrency) && state.rates.hasRate(toCurrency)
+    val canSubmit = !state.saving && given != null && received != null && !sameCurrency && !sameAccount && hasRates
 
     fun submit() {
         val f = from ?: return
@@ -152,6 +157,8 @@ private fun RateHints(
         from == null || to == null -> Unit
         sameAccount -> Text("Выбери разные счета", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
         sameCurrency -> Text("Одна валюта — это перевод, не обмен. Вкладка «Ввод».", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
+        !state.rates.hasRate(from.currency) || !state.rates.hasRate(to.currency) ->
+            Text("Нет курса для одной из валют, заполни таблицу курсов", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
         else -> {
             val reference = state.rates.cross(from.currency, to.currency)
             KeyValueRow("Кросс-курс по таблице", "1 ${from.currency.code} = ${MoneyFormat.formatRate(reference)} ${to.currency.code}")
@@ -171,7 +178,11 @@ private fun RateHints(
 
 @Composable
 private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDelete: (String) -> Unit) {
-    val analysis = ExchangeAnalyzer.analyze(exchange, state.rates)
+    val analysis = if (state.rates.hasRate(exchange.given.currency) && state.rates.hasRate(exchange.received.currency)) {
+        ExchangeAnalyzer.analyze(exchange, state.rates)
+    } else {
+        null
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
@@ -189,12 +200,14 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(MoneyFormat.formatRate(analysis.effectiveRate), fontWeight = FontWeight.SemiBold)
-                Text(
-                    "${MoneyFormat.formatPercent(-analysis.spreadPercent)} к таблице",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (analysis.spreadPercent > 0) AppTheme.colors.bad else AppTheme.colors.good,
-                )
+                Text(MoneyFormat.formatRate(exchange.effectiveRate), fontWeight = FontWeight.SemiBold)
+                if (analysis != null) {
+                    Text(
+                        "${MoneyFormat.formatPercent(-analysis.spreadPercent)} к таблице",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (analysis.spreadPercent > 0) AppTheme.colors.bad else AppTheme.colors.good,
+                    )
+                }
             }
             IconButton(onClick = { onDelete(exchange.id) }) {
                 Icon(Icons.Filled.Clear, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onSurfaceVariant)

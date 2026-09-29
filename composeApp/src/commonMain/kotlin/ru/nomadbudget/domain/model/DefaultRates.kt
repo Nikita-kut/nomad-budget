@@ -8,7 +8,6 @@ object DefaultRates {
 
     val rates: List<ExchangeRate> = listOf(
         ExchangeRate(Currency.USD, basePerUnit = 84.1975, date = asOf, source = RateSource.MANUAL),
-        ExchangeRate(Currency.VND, basePerUnit = 0.00328422, date = asOf, source = RateSource.MANUAL),
     )
 
     fun table(): RateTable = RateTable(rates)

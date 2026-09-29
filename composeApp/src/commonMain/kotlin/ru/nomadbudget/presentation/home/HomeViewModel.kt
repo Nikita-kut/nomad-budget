@@ -22,6 +22,7 @@ import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
+import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
@@ -29,6 +30,7 @@ import kotlin.time.Clock
 
 class HomeViewModel(
     private val auth: AuthRepository,
+    private val currencyRepository: CurrencyRepository,
     private val accountRepository: AccountRepository,
     private val categoryRepository: CategoryRepository,
     private val periodRepository: PeriodRepository,
@@ -53,6 +55,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 _state.update { it.copy(loading = true, error = null) }
+                val currencies = currencyRepository.getAll()
                 val accounts = accountRepository.getAll()
                 val categories = categoryRepository.getCategories()
                 val subcategories = categoryRepository.getSubcategories()
@@ -64,6 +67,7 @@ class HomeViewModel(
                 _state.update {
                     it.copy(
                         loading = false,
+                        currencies = currencies,
                         accounts = accounts,
                         categories = categories,
                         subcategories = subcategories,
@@ -104,6 +108,7 @@ class HomeViewModel(
                 _state.update { it.copy(saving = true) }
                 val current = _state.value
                 val rates = current.rates
+                require(rates.hasRate(draft.amount.currency)) { "Нет курса для ${draft.amount.currency.code}, заполни таблицу курсов" }
                 val rateSource = rateSourceFor(draft.amount)
                 val transaction = when (draft.type) {
                     EntryType.EXPENSE -> Transaction.Expense(
@@ -158,6 +163,7 @@ class HomeViewModel(
             try {
                 _state.update { it.copy(saving = true) }
                 val current = _state.value
+                require(current.rates.hasRate(draft.given.currency)) { "Нет курса для ${draft.given.currency.code}, заполни таблицу курсов" }
                 val transaction = Transaction.Exchange(
                     id = "",
                     date = draft.date,

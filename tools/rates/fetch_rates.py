@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Тянет курсы RUB→USD/VND из open.er-api.com и кладёт в Supabase exchange_rates.
+"""Тянет курсы к RUB из open.er-api.com для всех валют из таблицы currencies и кладёт в exchange_rates.
 
 Переменные окружения:
   SUPABASE_URL          https://<ref>.supabase.co
   SUPABASE_SERVICE_KEY  секретный ключ (обходит RLS), только в GitHub Secrets
+
+В лог не печатаются коды валют и значения: логи публичного репозитория видны всем.
 """
 import datetime as dt
 import json
@@ -11,56 +13,60 @@ import os
 import sys
 import urllib.request
 
-RATES_URL = "https://open.er-api.com/v6/latest/RUB"
-QUOTES = ("USD", "VND")
+BASE = "RUB"
+RATES_URL = f"https://open.er-api.com/v6/latest/{BASE}"
 SOURCE = "er-api"
 
 
-def fetch_rates() -> tuple[str, dict[str, float]]:
+def supabase_request(path: str, method: str = "GET", body: bytes | None = None, prefer: str | None = None):
+    url = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/" + path
+    key = os.environ["SUPABASE_SERVICE_KEY"]
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        headers["Prefer"] = prefer
+    request = urllib.request.Request(url, data=body, method=method, headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw = response.read()
+        return json.loads(raw) if raw else None
+
+
+def quote_currencies() -> list[str]:
+    rows = supabase_request(f"currencies?select=code&code=neq.{BASE}")
+    return [row["code"] for row in rows]
+
+
+def fetch_rates(quotes: list[str]) -> tuple[str, dict[str, float]]:
     with urllib.request.urlopen(RATES_URL, timeout=30) as response:
         payload = json.load(response)
     if payload.get("result") != "success":
-        raise SystemExit(f"API error: {payload}")
+        raise SystemExit("rates API returned an error")
     updated = dt.datetime.fromtimestamp(payload["time_last_update_unix"], tz=dt.timezone.utc)
-    rate_date = updated.date().isoformat()
-    quotes_per_rub = payload["rates"]
-    rub_per_quote = {q: 1.0 / quotes_per_rub[q] for q in QUOTES}
-    return rate_date, rub_per_quote
-
-
-def upsert(rows: list[dict]) -> None:
-    url = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/exchange_rates"
-    key = os.environ["SUPABASE_SERVICE_KEY"]
-    body = json.dumps(rows).encode()
-    request = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "apikey": key,
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates,return=minimal",
-        },
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        if response.status not in (200, 201, 204):
-            raise SystemExit(f"Supabase error: {response.status} {response.read()}")
+    quotes_per_base = payload["rates"]
+    missing = [q for q in quotes if q not in quotes_per_base]
+    if missing:
+        raise SystemExit(f"rates API has no data for {len(missing)} of {len(quotes)} currencies")
+    return updated.date().isoformat(), {q: 1.0 / quotes_per_base[q] for q in quotes}
 
 
 def main() -> None:
-    rate_date, rates = fetch_rates()
+    dry_run = "--dry-run" in sys.argv
+    quotes = quote_currencies()
+    rate_date, rates = fetch_rates(quotes)
     rows = [
-        {"rate_date": rate_date, "base": "RUB", "quote": quote, "rate": round(rate, 10), "source": SOURCE}
+        {"rate_date": rate_date, "base": BASE, "quote": quote, "rate": round(rate, 10), "source": SOURCE}
         for quote, rate in rates.items()
     ]
-    for row in rows:
-        print(f"{row['rate_date']} 1 {row['quote']} = {row['rate']:.6f} RUB")
-    if "--dry-run" in sys.argv:
+    print(f"{rate_date}: {len(rows)} rate(s) prepared")
+    if dry_run:
         print("dry run, nothing written")
         return
-    upsert(rows)
-    print(f"upserted {len(rows)} rows")
+    supabase_request("exchange_rates", method="POST", body=json.dumps(rows).encode(),
+                     prefer="resolution=merge-duplicates,return=minimal")
+    print(f"upserted {len(rows)} row(s)")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ package ru.nomadbudget.presentation.format
 
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.model.TestCurrencies.JPY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -21,8 +22,8 @@ class MoneyFormatTest {
     }
 
     @Test
-    fun format_vnd_noFraction() {
-        assertEquals("5 180 000 ₫", MoneyFormat.format(Money(5_180_000L, Currency.VND)))
+    fun format_zeroDecimalCurrency_noFraction() {
+        assertEquals("5 180 000 ¥", MoneyFormat.format(Money(5_180_000L, JPY)))
     }
 
     @Test
@@ -34,12 +35,12 @@ class MoneyFormatTest {
     fun parse_acceptsSpacesAndComma() {
         assertEquals(Money.rub(123_456L), MoneyFormat.parse("1 234,56", Currency.RUB))
         assertEquals(Money.rub(123_450L), MoneyFormat.parse("1234.5", Currency.RUB))
-        assertEquals(Money(385_000L, Currency.VND), MoneyFormat.parse("385000", Currency.VND))
+        assertEquals(Money(385_000L, JPY), MoneyFormat.parse("385000", JPY))
     }
 
     @Test
-    fun parse_vnd_dropsFraction() {
-        assertEquals(Money(385_000L, Currency.VND), MoneyFormat.parse("385000,9", Currency.VND))
+    fun parse_zeroDecimalCurrency_dropsFraction() {
+        assertEquals(Money(385_000L, JPY), MoneyFormat.parse("385000,9", JPY))
     }
 
     @Test

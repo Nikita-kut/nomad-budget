@@ -41,6 +41,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
@@ -81,7 +82,9 @@ fun EntryScreen(state: HomeState, onSubmit: (EntryDraft) -> Unit, onDelete: (Str
 private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     var type by remember { mutableStateOf(EntryType.EXPENSE) }
     var date by remember { mutableStateOf(state.today) }
-    var account by remember(state.accounts) { mutableStateOf(state.accounts.firstOrNull { it.currency == Currency.VND } ?: state.accounts.firstOrNull()) }
+    var account by remember(state.accounts) {
+        mutableStateOf(state.accounts.firstOrNull { it.kind == AccountKind.CASH && it.currency != Currency.BASE } ?: state.accounts.firstOrNull())
+    }
     var toAccount by remember { mutableStateOf<Account?>(null) }
     var category by remember { mutableStateOf<Category?>(null) }
     var amountText by remember { mutableStateOf("") }
@@ -250,6 +253,7 @@ private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Mon
     val text = when {
         amount == null -> "В рублях по курсу на сегодня: —"
         amount.currency == Currency.BASE -> "Счёт в рублях, курс не нужен"
+        !state.rates.hasRate(amount.currency) -> "Нет курса для ${amount.currency.code}, записать нельзя"
         else -> "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.formatRate(state.rates.basePerUnit(amount.currency))} ₽ за 1 ${amount.currency.code}"
     }
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

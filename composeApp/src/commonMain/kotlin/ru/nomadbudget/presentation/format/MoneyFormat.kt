@@ -25,9 +25,9 @@ object MoneyFormat {
             }
         }
         val sign = if (money.minor < 0) MINUS else ""
-        return when (currency) {
-            Currency.USD -> "$sign$${body}"
-            Currency.RUB, Currency.VND -> "$sign$body$THIN_SPACE${currency.symbol}"
+        return when {
+            currency.symbolBeforeAmount -> "$sign${currency.symbol}$body"
+            else -> "$sign$body$THIN_SPACE${currency.symbol}"
         }
     }
 

@@ -8,8 +8,8 @@ import ru.nomadbudget.domain.model.Money
 
 object AccountMapper {
 
-    fun toDomain(dto: AccountDto): Account {
-        val currency = Currency.fromCode(dto.currency)
+    fun toDomain(dto: AccountDto, currencies: Map<String, Currency>): Account {
+        val currency = requireNotNull(currencies[dto.currency]) { "Неизвестная валюта ${dto.currency}" }
         return Account(
             id = dto.id,
             name = dto.name,

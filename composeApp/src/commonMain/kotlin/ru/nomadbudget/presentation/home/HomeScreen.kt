@@ -203,13 +203,21 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
             } else {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TotalCard(Currency.RUB, MoneyFormat.format(state.totalBase, showFraction = false), Modifier.weight(1f))
-                    TotalCard(Currency.USD, MoneyFormat.format(state.rates.fromBase(state.totalBase, Currency.USD), showFraction = false), Modifier.weight(1f))
-                    TotalCard(Currency.VND, MoneyFormat.format(state.rates.fromBase(state.totalBase, Currency.VND)), Modifier.weight(1f))
+                    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), Modifier.weight(1f))
+                    state.foreignCurrencies.filter(state.rates::hasRate).forEach { currency ->
+                        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), Modifier.weight(1f))
+                    }
                 }
-                if (state.rates.rateFor(Currency.USD)?.source == RateSource.MANUAL) {
+                val warning = when {
+                    state.currenciesWithoutRate.isNotEmpty() ->
+                        "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: заполни таблицу курсов"
+                    state.rates.rateFor(Currency.USD)?.source == RateSource.MANUAL ->
+                        "Курсы по умолчанию: таблица курсов ещё пуста"
+                    else -> null
+                }
+                warning?.let {
                     Text(
-                        "Курсы по умолчанию: таблица курсов ещё пуста",
+                        it,
                         style = MaterialTheme.typography.labelSmall,
                         color = AppTheme.colors.warning,
                         modifier = Modifier.padding(top = 4.dp),

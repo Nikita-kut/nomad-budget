@@ -3,11 +3,14 @@ package ru.nomadbudget.data.repository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.data.dto.AccountDto
 import ru.nomadbudget.data.dto.BudgetLineDto
 import ru.nomadbudget.data.dto.BudgetLineUpsertDto
 import ru.nomadbudget.data.dto.CategoryDto
+import ru.nomadbudget.data.dto.CurrencyDto
 import ru.nomadbudget.data.dto.ExchangeRateDto
 import ru.nomadbudget.data.dto.PeriodDto
 import ru.nomadbudget.data.dto.PeriodInsertDto
@@ -16,6 +19,7 @@ import ru.nomadbudget.data.dto.SubcategoryInsertDto
 import ru.nomadbudget.data.dto.TransactionDto
 import ru.nomadbudget.data.mapper.AccountMapper
 import ru.nomadbudget.data.mapper.CategoryMapper
+import ru.nomadbudget.data.mapper.CurrencyMapper
 import ru.nomadbudget.data.mapper.RateMapper
 import ru.nomadbudget.data.mapper.TransactionMapper
 import ru.nomadbudget.domain.logic.BudgetLine
@@ -31,11 +35,13 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
+import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
 
 private object Tables {
+    const val CURRENCIES = "currencies"
     const val ACCOUNTS = "accounts"
     const val CATEGORIES = "categories"
     const val SUBCATEGORIES = "subcategories"
@@ -45,15 +51,42 @@ private object Tables {
     const val EXCHANGE_RATES = "exchange_rates"
 }
 
-class AccountRepositoryImpl(private val client: SupabaseClient) : AccountRepository {
+class CurrencyRepositoryImpl(private val client: SupabaseClient) : CurrencyRepository {
 
-    override suspend fun getAll(): List<Account> = client.from(Tables.ACCOUNTS)
-        .select {
-            filter { exact("archived_at", null) }
-            order("sort_order", Order.ASCENDING)
-        }
-        .decodeList<AccountDto>()
-        .map(AccountMapper::toDomain)
+    private val mutex = Mutex()
+    private var cached: List<Currency>? = null
+
+    override suspend fun getAll(): List<Currency> = mutex.withLock {
+        cached ?: loadFromRemote().also { cached = it }
+    }
+
+    private suspend fun loadFromRemote(): List<Currency> {
+        val remote = client.from(Tables.CURRENCIES)
+            .select { order("code", Order.ASCENDING) }
+            .decodeList<CurrencyDto>()
+            .map(CurrencyMapper::toDomain)
+        val codes = remote.map { it.code }.toSet()
+        return remote + Currency.builtIn.filter { it.code !in codes }
+    }
+}
+
+suspend fun CurrencyRepository.byCode(): Map<String, Currency> = getAll().associateBy { it.code }
+
+class AccountRepositoryImpl(
+    private val client: SupabaseClient,
+    private val currencies: CurrencyRepository,
+) : AccountRepository {
+
+    override suspend fun getAll(): List<Account> {
+        val byCode = currencies.byCode()
+        return client.from(Tables.ACCOUNTS)
+            .select {
+                filter { exact("archived_at", null) }
+                order("sort_order", Order.ASCENDING)
+            }
+            .decodeList<AccountDto>()
+            .map { AccountMapper.toDomain(it, byCode) }
+    }
 }
 
 class CategoryRepositoryImpl(private val client: SupabaseClient) : CategoryRepository {
@@ -153,9 +186,13 @@ class BudgetRepositoryImpl(private val client: SupabaseClient) : BudgetRepositor
     }
 }
 
-class ExchangeRateRepositoryImpl(private val client: SupabaseClient) : ExchangeRateRepository {
+class ExchangeRateRepositoryImpl(
+    private val client: SupabaseClient,
+    private val currencies: CurrencyRepository,
+) : ExchangeRateRepository {
 
     override suspend fun ratesOnOrBefore(date: LocalDate): RateTable {
+        val byCode = currencies.byCode()
         val rows = client.from(Tables.EXCHANGE_RATES)
             .select {
                 filter {
@@ -167,10 +204,10 @@ class ExchangeRateRepositoryImpl(private val client: SupabaseClient) : ExchangeR
             }
             .decodeList<ExchangeRateDto>()
         val latestPerQuote = rows.groupBy { it.quote }.values.map { it.first() }
-        return DefaultRates.fill(latestPerQuote.map(RateMapper::toDomain))
+        return DefaultRates.fill(latestPerQuote.mapNotNull { RateMapper.toDomain(it, byCode) })
     }
 
     private companion object {
-        const val RECENT_ROWS: Long = 20
+        const val RECENT_ROWS: Long = 50
     }
 }
