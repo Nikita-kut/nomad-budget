@@ -27,7 +27,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Build Wasm distribution
         run: ./gradlew :composeApp:wasmJsBrowserDistribution
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: composeApp/build/dist/wasmJs/productionExecutable
 
