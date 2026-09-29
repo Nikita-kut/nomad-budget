@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +59,9 @@ import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.month.MonthScreen
+import ru.nomadbudget.presentation.more.BalanceCheckScreen
+import ru.nomadbudget.presentation.more.CategoriesScreen
+import ru.nomadbudget.presentation.more.MoreScreen
 import ru.nomadbudget.presentation.theme.AppTheme
 
 @Serializable
@@ -71,6 +75,15 @@ object ExchangeRoute
 
 @Serializable
 object AccountsRoute
+
+@Serializable
+object MoreRoute
+
+@Serializable
+object CategoriesRoute
+
+@Serializable
+object BalanceCheckRoute
 
 private data class Tab(val route: Any, val title: String, val icon: ImageVector, val isSelected: (NavHostController) -> Boolean)
 
@@ -93,6 +106,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle) { it.isOn<EntryRoute>() },
             Tab(ExchangeRoute, "Обмен", Icons.Filled.Refresh) { it.isOn<ExchangeRoute>() },
             Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox) { it.isOn<AccountsRoute>() },
+            Tab(MoreRoute, "Ещё", Icons.Filled.Settings) { it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() },
         )
     }
 
@@ -135,12 +149,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                     Box(modifier = Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize()) {
                         NavHost(navController = navController, startDestination = MonthRoute) {
                             composable<MonthRoute> {
-                                MonthScreen(
-                                    state = state,
-                                    onSetPlanned = viewModel::setPlanned,
-                                    onSignOut = viewModel::signOut,
-                                    onRetry = viewModel::load,
-                                )
+                                MonthScreen(state = state, onSetPlanned = viewModel::setPlanned, onRetry = viewModel::load)
                             }
                             composable<EntryRoute> {
                                 EntryScreen(state = state, onSubmit = viewModel::addEntry, onDelete = viewModel::deleteTransaction)
@@ -150,6 +159,29 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             }
                             composable<AccountsRoute> {
                                 AccountsScreen(state = state)
+                            }
+                            composable<MoreRoute> {
+                                MoreScreen(
+                                    state = state,
+                                    onCategories = { navController.navigate(CategoriesRoute) },
+                                    onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
+                                    onSignOut = viewModel::signOut,
+                                )
+                            }
+                            composable<CategoriesRoute> {
+                                CategoriesScreen(
+                                    state = state,
+                                    onBack = navController::popBackStack,
+                                    onAddCategory = viewModel::addCategory,
+                                    onRenameCategory = viewModel::renameCategory,
+                                    onArchiveCategory = viewModel::archiveCategory,
+                                    onAddSubcategory = viewModel::addSubcategory,
+                                    onRenameSubcategory = viewModel::renameSubcategory,
+                                    onDeleteSubcategory = viewModel::deleteSubcategory,
+                                )
+                            }
+                            composable<BalanceCheckRoute> {
+                                BalanceCheckScreen(state = state, onBack = navController::popBackStack, onCheck = viewModel::checkBalance)
                             }
                         }
                     }

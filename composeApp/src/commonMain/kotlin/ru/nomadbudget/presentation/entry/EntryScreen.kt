@@ -51,6 +51,7 @@ import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.EntryDraft
 import ru.nomadbudget.presentation.home.EntryType
 import ru.nomadbudget.presentation.home.HomeState
@@ -90,6 +91,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     var amountText by remember { mutableStateOf("") }
     var subcategory by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    val amountTransformation = remember { ThousandsVisualTransformation() }
 
     val kind = if (type == EntryType.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
     val categories = state.categories.filter { it.kind == kind }
@@ -178,9 +180,10 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
 
             OutlinedTextField(
                 value = amountText,
-                onValueChange = { amountText = it },
+                onValueChange = { amountText = ThousandsVisualTransformation.sanitize(it) },
                 label = { Text("Сумма${currency?.let { ", ${it.code}" }.orEmpty()}") },
                 singleLine = true,
+                visualTransformation = amountTransformation,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )

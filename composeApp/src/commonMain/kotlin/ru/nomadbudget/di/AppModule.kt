@@ -4,6 +4,7 @@ import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 import ru.nomadbudget.data.repository.AccountRepositoryImpl
 import ru.nomadbudget.data.repository.AuthRepositoryImpl
+import ru.nomadbudget.data.repository.BalanceCheckRepositoryImpl
 import ru.nomadbudget.data.repository.BudgetRepositoryImpl
 import ru.nomadbudget.data.repository.CategoryRepositoryImpl
 import ru.nomadbudget.data.repository.CurrencyRepositoryImpl
@@ -13,6 +14,7 @@ import ru.nomadbudget.data.repository.TransactionRepositoryImpl
 import ru.nomadbudget.data.supabase.SupabaseClientFactory
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
+import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
@@ -32,6 +34,7 @@ val appModule = module {
     single<TransactionRepository> { TransactionRepositoryImpl(get()) }
     single<BudgetRepository> { BudgetRepositoryImpl(get()) }
     single<ExchangeRateRepository> { ExchangeRateRepositoryImpl(get(), get()) }
+    single<BalanceCheckRepository> { BalanceCheckRepositoryImpl(get()) }
 
     viewModelOf(::HomeViewModel)
 }

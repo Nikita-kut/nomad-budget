@@ -6,10 +6,13 @@ import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
+import kotlin.time.Clock
 import ru.nomadbudget.data.dto.AccountDto
+import ru.nomadbudget.data.dto.BalanceCheckDto
 import ru.nomadbudget.data.dto.BudgetLineDto
 import ru.nomadbudget.data.dto.BudgetLineUpsertDto
 import ru.nomadbudget.data.dto.CategoryDto
+import ru.nomadbudget.data.dto.CategoryInsertDto
 import ru.nomadbudget.data.dto.CurrencyDto
 import ru.nomadbudget.data.dto.ExchangeRateDto
 import ru.nomadbudget.data.dto.PeriodDto
@@ -18,13 +21,16 @@ import ru.nomadbudget.data.dto.SubcategoryDto
 import ru.nomadbudget.data.dto.SubcategoryInsertDto
 import ru.nomadbudget.data.dto.TransactionDto
 import ru.nomadbudget.data.mapper.AccountMapper
+import ru.nomadbudget.data.mapper.BalanceCheckMapper
 import ru.nomadbudget.data.mapper.CategoryMapper
 import ru.nomadbudget.data.mapper.CurrencyMapper
 import ru.nomadbudget.data.mapper.RateMapper
 import ru.nomadbudget.data.mapper.TransactionMapper
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
+import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.Money
@@ -33,6 +39,7 @@ import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.AccountRepository
+import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
@@ -49,6 +56,7 @@ private object Tables {
     const val TRANSACTIONS = "transactions"
     const val BUDGET_LINES = "budget_lines"
     const val EXCHANGE_RATES = "exchange_rates"
+    const val BALANCE_CHECKS = "balance_checks"
 }
 
 class CurrencyRepositoryImpl(private val client: SupabaseClient) : CurrencyRepository {
@@ -104,10 +112,55 @@ class CategoryRepositoryImpl(private val client: SupabaseClient) : CategoryRepos
         .decodeList<SubcategoryDto>()
         .map(CategoryMapper::toDomain)
 
+    override suspend fun addCategory(name: String, kind: CategoryKind, sortOrder: Int): Category = client.from(Tables.CATEGORIES)
+        .insert(CategoryInsertDto(name = name, kind = kind.name.lowercase(), sortOrder = sortOrder)) { select() }
+        .decodeSingle<CategoryDto>()
+        .let(CategoryMapper::toDomain)
+
+    override suspend fun renameCategory(id: String, name: String) {
+        client.from(Tables.CATEGORIES).update({ set("name", name) }) { filter { eq("id", id) } }
+    }
+
+    override suspend fun archiveCategory(id: String) {
+        client.from(Tables.CATEGORIES).update({ set("archived_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
+    }
+
     override suspend fun addSubcategory(categoryId: String, name: String): Subcategory = client.from(Tables.SUBCATEGORIES)
         .insert(SubcategoryInsertDto(categoryId = categoryId, name = name)) { select() }
         .decodeSingle<SubcategoryDto>()
         .let(CategoryMapper::toDomain)
+
+    override suspend fun renameSubcategory(id: String, name: String) {
+        client.from(Tables.SUBCATEGORIES).update({ set("name", name) }) { filter { eq("id", id) } }
+    }
+
+    override suspend fun deleteSubcategory(id: String) {
+        client.from(Tables.SUBCATEGORIES).delete { filter { eq("id", id) } }
+    }
+}
+
+class BalanceCheckRepositoryImpl(private val client: SupabaseClient) : BalanceCheckRepository {
+
+    override suspend fun getRecent(accounts: List<Account>): List<BalanceCheck> {
+        val byId = accounts.associateBy { it.id }
+        return client.from(Tables.BALANCE_CHECKS)
+            .select {
+                order("check_date", Order.DESCENDING)
+                order("created_at", Order.DESCENDING)
+                limit(RECENT_CHECKS)
+            }
+            .decodeList<BalanceCheckDto>()
+            .mapNotNull { BalanceCheckMapper.toDomain(it, byId) }
+    }
+
+    override suspend fun add(check: BalanceCheck): BalanceCheck = client.from(Tables.BALANCE_CHECKS)
+        .insert(BalanceCheckMapper.toInsert(check)) { select() }
+        .decodeSingle<BalanceCheckDto>()
+        .let { check.copy(id = it.id) }
+
+    private companion object {
+        const val RECENT_CHECKS: Long = 30
+    }
 }
 
 class PeriodRepositoryImpl(private val client: SupabaseClient) : PeriodRepository {

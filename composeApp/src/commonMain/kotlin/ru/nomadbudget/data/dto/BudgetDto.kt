@@ -40,4 +40,24 @@ data class ExchangeRateDto(
     val quote: String,
     val rate: Double,
     val source: String,
+    @SerialName("fetched_at") val fetchedAt: String? = null,
+)
+
+@Serializable
+data class BalanceCheckDto(
+    val id: String,
+    @SerialName("account_id") val accountId: String,
+    @SerialName("check_date") val checkDate: String,
+    @SerialName("actual_balance") val actualBalance: Long,
+    @SerialName("computed_balance") val computedBalance: Long,
+    val note: String? = null,
+)
+
+@Serializable
+data class BalanceCheckInsertDto(
+    @SerialName("account_id") val accountId: String,
+    @SerialName("check_date") val checkDate: String,
+    @SerialName("actual_balance") val actualBalance: Long,
+    @SerialName("computed_balance") val computedBalance: Long,
+    val note: String? = null,
 )

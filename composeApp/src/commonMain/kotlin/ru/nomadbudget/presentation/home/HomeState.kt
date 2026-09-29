@@ -7,6 +7,7 @@ import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CategoryBudget
 import ru.nomadbudget.domain.logic.MonthSummary
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.DefaultRates
@@ -59,6 +60,7 @@ data class HomeState(
     val transactions: List<Transaction> = emptyList(),
     val budgetLines: List<BudgetLine> = emptyList(),
     val rates: RateTable = DefaultRates.table(),
+    val balanceChecks: List<BalanceCheck> = emptyList(),
 ) {
     val accountsById: Map<String, Account> = accounts.associateBy { it.id }
     val categoriesById: Map<String, Category> = categories.associateBy { it.id }

@@ -49,10 +49,10 @@ fun AccountsScreen(state: HomeState) {
 }
 
 private fun rateHint(state: HomeState): String {
-    val usd = state.rates.rateFor(Currency.USD) ?: return "нет данных"
-    return when (usd.source) {
-        RateSource.MANUAL -> "по умолчанию, таблица пуста"
-        RateSource.API -> "снимок за ${DateFormat.dayMonth(usd.date)}"
+    val fromApi = state.rates.all.firstOrNull { it.source == RateSource.API } ?: return "по умолчанию, таблица пуста"
+    return buildString {
+        append("${fromApi.sourceName} · за ${DateFormat.dayMonth(fromApi.date)}")
+        fromApi.fetchedAt?.let { append(" · получен ${DateFormat.dayMonthTime(it)}") }
     }
 }
 

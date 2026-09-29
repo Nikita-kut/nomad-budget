@@ -2,6 +2,7 @@ package ru.nomadbudget.domain.model
 
 import kotlinx.datetime.LocalDate
 import kotlin.math.roundToLong
+import kotlin.time.Instant
 
 enum class RateSource { API, MANUAL }
 
@@ -10,6 +11,8 @@ data class ExchangeRate(
     val basePerUnit: Double,
     val date: LocalDate,
     val source: RateSource,
+    val sourceName: String = source.name.lowercase(),
+    val fetchedAt: Instant? = null,
 ) {
     init {
         require(basePerUnit > 0.0) { "Курс должен быть положительным" }
@@ -19,6 +22,8 @@ data class ExchangeRate(
 class RateTable(rates: List<ExchangeRate>) {
 
     private val byQuote: Map<Currency, ExchangeRate> = rates.associateBy { it.quote }
+
+    val all: List<ExchangeRate> = byQuote.values.sortedBy { it.quote.code }
 
     val quotes: Set<Currency> = byQuote.keys
 
