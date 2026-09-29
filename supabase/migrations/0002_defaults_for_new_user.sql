@@ -20,10 +20,9 @@ begin
         (p_user, 'Инвесткопилка', 'RUB', 'investment', true,  70);
 
     insert into public.categories (user_id, name, kind, sort_order) values
-        (p_user, 'Зарплата',           'income', 10),
-        (p_user, 'С прошлого месяца',  'income', 20),
-        (p_user, 'Возврат',            'income', 30),
-        (p_user, 'Кешбек',             'income', 40);
+        (p_user, 'Зарплата', 'income', 10),
+        (p_user, 'Возврат',  'income', 30),
+        (p_user, 'Кешбек',   'income', 40);
 
     insert into public.categories (user_id, name, kind, sort_order) values
         (p_user, 'Еда',                     'expense', 10),

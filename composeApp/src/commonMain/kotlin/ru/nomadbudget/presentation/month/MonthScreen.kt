@@ -49,6 +49,7 @@ import ru.nomadbudget.presentation.theme.AppTheme
 fun MonthScreen(
     state: HomeState,
     onSetPlanned: (String, Money) -> Unit,
+    onCopyPlan: () -> Unit,
     onRetry: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
@@ -74,6 +75,25 @@ fun MonthScreen(
         }
 
         item { SummaryRow(state) }
+        item { OperationalRow(state) }
+
+        if (!state.hasExpensePlan && !state.loading) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("План на этот месяц пока пустой", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Скопируй лимиты с прошлого месяца и поправь, что изменилось, или задай их по одному, нажимая на «план» у категории.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
+                            Text("Скопировать план с прошлого месяца")
+                        }
+                    }
+                }
+            }
+        }
 
         item { SectionTitle("Доходы", hint = "план · факт") }
         item {
@@ -149,6 +169,35 @@ private fun SummaryRow(state: HomeState) {
             Modifier.weight(1f),
             negative = summary.remaining.isNegative,
         )
+    }
+}
+
+@Composable
+private fun OperationalRow(state: HomeState) {
+    val delta = state.operationalBase - state.operationalAtPeriodStartBase
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("На жизнь, без накоплений", fontWeight = FontWeight.Medium)
+                Text(
+                    "на начало месяца ${MoneyFormat.format(state.operationalAtPeriodStartBase, false)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(MoneyFormat.format(state.operationalBase, false), fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${MoneyFormat.formatSigned(delta)} за месяц",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (delta.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
+                )
+            }
+        }
     }
 }
 

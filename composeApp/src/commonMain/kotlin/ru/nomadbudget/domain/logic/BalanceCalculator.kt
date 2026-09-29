@@ -1,5 +1,6 @@
 package ru.nomadbudget.domain.logic
 
+import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
@@ -8,6 +9,9 @@ object BalanceCalculator {
 
     fun balance(account: Account, transactions: List<Transaction>): Money =
         transactions.fold(account.openingBalance) { acc, tx -> acc + effectOn(account, tx) }
+
+    fun balanceBefore(account: Account, transactions: List<Transaction>, date: LocalDate): Money =
+        balance(account, transactions.filter { it.date < date })
 
     private fun effectOn(account: Account, tx: Transaction): Money = when (tx) {
         is Transaction.Expense -> if (tx.accountId == account.id) -tx.amount else zero(account)

@@ -149,7 +149,12 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                     Box(modifier = Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize()) {
                         NavHost(navController = navController, startDestination = MonthRoute) {
                             composable<MonthRoute> {
-                                MonthScreen(state = state, onSetPlanned = viewModel::setPlanned, onRetry = viewModel::load)
+                                MonthScreen(
+                                    state = state,
+                                    onSetPlanned = viewModel::setPlanned,
+                                    onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
+                                    onRetry = viewModel::load,
+                                )
                             }
                             composable<EntryRoute> {
                                 EntryScreen(state = state, onSubmit = viewModel::addEntry, onDelete = viewModel::deleteTransaction)

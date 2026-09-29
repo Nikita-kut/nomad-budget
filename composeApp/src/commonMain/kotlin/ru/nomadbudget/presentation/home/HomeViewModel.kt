@@ -224,6 +224,34 @@ class HomeViewModel(
         }
     }
 
+    fun copyPlanFromPreviousPeriod() {
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(saving = true) }
+                val current = _state.value
+                val periodId = current.periodId ?: periodRepository.ensure(current.period)
+                val previousId = periodRepository.ensure(SalaryCycle.previous(current.period))
+                val previousLines = budgetRepository.getLines(previousId).filter { it.planned.minor > 0L }
+                require(previousLines.isNotEmpty()) { "В прошлом месяце план не заполнен" }
+                val activeIds = current.categories.map { it.id }.toSet()
+                val toCopy = previousLines.filter { it.categoryId in activeIds }
+                toCopy.forEach { budgetRepository.setPlanned(periodId, it) }
+                _state.update { state ->
+                    val copiedIds = toCopy.map { it.categoryId }.toSet()
+                    state.copy(
+                        saving = false,
+                        periodId = periodId,
+                        budgetLines = state.budgetLines.filterNot { it.categoryId in copiedIds } + toCopy,
+                    )
+                }
+                _messages.send("План скопирован: ${toCopy.size} категорий")
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось скопировать план")
+            }
+        }
+    }
+
     fun addCategory(name: String, kind: CategoryKind) {
         viewModelScope.launch {
             try {
