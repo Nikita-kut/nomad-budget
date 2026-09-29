@@ -42,8 +42,11 @@ data class MonthSummary(
     val expensePlanned: Money,
     val expenseFact: Money,
     val savedToSavings: Money,
+    val takenFromSavings: Money,
 ) {
-    val remaining: Money get() = incomeFact - expenseFact - savedToSavings
+    val netSaved: Money get() = savedToSavings - takenFromSavings
+
+    val remaining: Money get() = incomeFact - expenseFact - netSaved
 }
 
 object BudgetCalculator {
@@ -80,9 +83,13 @@ object BudgetCalculator {
         val income = budgets.filter { it.category.kind == CategoryKind.INCOME }
         val expense = budgets.filter { it.category.kind == CategoryKind.EXPENSE }
         val savingsIds = accounts.filter { it.isSavings }.map { it.id }.toSet()
-        val saved = transactions
-            .filterIsInstance<Transaction.Transfer>()
-            .filter { it.date in period && it.toAccountId in savingsIds && it.fromAccountId !in savingsIds }
+        val transfers = transactions.filterIsInstance<Transaction.Transfer>().filter { it.date in period }
+        val saved = transfers
+            .filter { it.toAccountId in savingsIds && it.fromAccountId !in savingsIds }
+            .map { it.amountBase }
+            .sumIn(Currency.BASE)
+        val taken = transfers
+            .filter { it.fromAccountId in savingsIds && it.toAccountId !in savingsIds }
             .map { it.amountBase }
             .sumIn(Currency.BASE)
         return MonthSummary(
@@ -91,6 +98,7 @@ object BudgetCalculator {
             expensePlanned = expense.map { it.planned }.sumIn(Currency.BASE),
             expenseFact = expense.map { it.fact }.sumIn(Currency.BASE),
             savedToSavings = saved,
+            takenFromSavings = taken,
         )
     }
 

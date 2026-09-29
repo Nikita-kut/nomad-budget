@@ -245,6 +245,12 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel) {
                         TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), Modifier.weight(1f))
                     }
                 }
+                Text(
+                    "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
                 val warning = when {
                     state.currenciesWithoutRate.isNotEmpty() ->
                         "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: заполни таблицу курсов"
