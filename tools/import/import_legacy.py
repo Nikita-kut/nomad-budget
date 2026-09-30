@@ -249,8 +249,17 @@ def load_workbook(path: str) -> list[MonthSheet]:
 
 class Supabase:
     def __init__(self) -> None:
-        self.url = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/"
-        self.key = os.environ["SUPABASE_SERVICE_KEY"]
+        url = os.environ.get("SUPABASE_URL", "").strip()
+        key = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
+        if not url.startswith("https://"):
+            raise SystemExit("SUPABASE_URL не задан или не начинается с https://")
+        if not key or not key.isascii() or not (key.startswith("sb_secret_") or key.startswith("eyJ")):
+            raise SystemExit(
+                "SUPABASE_SERVICE_KEY не похож на ключ service_role: ожидается sb_secret_… или eyJ…, только латиница. "
+                "Возьми его в Supabase → Project Settings → API Keys и подставь вместо плейсхолдера."
+            )
+        self.url = url.rstrip("/") + "/rest/v1/"
+        self.key = key
 
     def request(self, path: str, method: str = "GET", body=None, prefer: str | None = None):
         headers = {"apikey": self.key, "Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
@@ -366,6 +375,7 @@ def main() -> None:
     report(sheets)
     if "--dry-run" in sys.argv:
         return
+    Supabase()
     import_sheets(sheets)
 
 
