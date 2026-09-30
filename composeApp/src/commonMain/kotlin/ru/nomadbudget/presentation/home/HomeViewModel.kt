@@ -431,6 +431,48 @@ class HomeViewModel(
         }
     }
 
+    fun renameAccount(id: String, name: String) {
+        viewModelScope.launch {
+            try {
+                val trimmed = name.trim()
+                require(trimmed.isNotEmpty()) { "Введи название счёта" }
+                accountRepository.rename(id, trimmed)
+                _state.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(name = trimmed) else it }) }
+                _messages.send("Счёт переименован")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось переименовать счёт")
+            }
+        }
+    }
+
+    fun moveAccount(id: String, up: Boolean) {
+        viewModelScope.launch {
+            try {
+                val current = _state.value
+                val target = current.accountsById[id] ?: return@launch
+                val group = current.activeAccounts.filter { it.isSavings == target.isSavings }.sortedBy { it.sortOrder }
+                val index = group.indexOfFirst { it.id == id }
+                val neighbourIndex = if (up) index - 1 else index + 1
+                val neighbour = group.getOrNull(neighbourIndex) ?: return@launch
+                val reordered = group.toMutableList().apply {
+                    this[index] = neighbour
+                    this[neighbourIndex] = target
+                }
+                val orders = reordered.mapIndexed { position, account -> account.id to (position + 1) * SORT_STEP }.toMap()
+                orders.forEach { (accountId, order) -> accountRepository.setSortOrder(accountId, order) }
+                _state.update { state ->
+                    state.copy(
+                        accounts = state.accounts
+                            .map { account -> orders[account.id]?.let { account.copy(sortOrder = it) } ?: account }
+                            .sortedBy { it.sortOrder },
+                    )
+                }
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось переставить счёт")
+            }
+        }
+    }
+
     fun archiveAccount(id: String) {
         viewModelScope.launch {
             try {

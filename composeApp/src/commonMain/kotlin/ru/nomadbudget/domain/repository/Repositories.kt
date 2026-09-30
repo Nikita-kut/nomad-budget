@@ -31,6 +31,8 @@ interface CurrencyRepository {
 interface AccountRepository {
     suspend fun getAll(): List<Account>
     suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, sortOrder: Int): Account
+    suspend fun rename(id: String, name: String)
+    suspend fun setSortOrder(id: String, sortOrder: Int)
     suspend fun archive(id: String)
 }
 

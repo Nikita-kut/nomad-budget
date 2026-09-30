@@ -109,6 +109,14 @@ class AccountRepositoryImpl(
             .let { AccountMapper.toDomain(it, byCode) }
     }
 
+    override suspend fun rename(id: String, name: String) {
+        client.from(Tables.ACCOUNTS).update({ set("name", name) }) { filter { eq("id", id) } }
+    }
+
+    override suspend fun setSortOrder(id: String, sortOrder: Int) {
+        client.from(Tables.ACCOUNTS).update({ set("sort_order", sortOrder) }) { filter { eq("id", id) } }
+    }
+
     override suspend fun archive(id: String) {
         client.from(Tables.ACCOUNTS).update({ set("archived_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
     }
