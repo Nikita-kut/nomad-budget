@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -46,21 +49,38 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 
 @Composable
-fun AccountsScreen(state: HomeState, onAdd: (String, Currency, Boolean) -> Unit, onArchive: (String) -> Unit) {
-    val daily = state.activeAccounts.filterNot { it.isSavings }
-    val savings = state.activeAccounts.filter { it.isSavings }
+fun AccountsScreen(
+    state: HomeState,
+    onAdd: (String, Currency, Boolean) -> Unit,
+    onRename: (String, String) -> Unit,
+    onMove: (String, Boolean) -> Unit,
+    onArchive: (String) -> Unit,
+) {
+    val daily = state.activeAccounts.filterNot { it.isSavings }.sortedBy { it.sortOrder }
+    val savings = state.activeAccounts.filter { it.isSavings }.sortedBy { it.sortOrder }
     var adding by remember { mutableStateOf(false) }
     var archiving by remember { mutableStateOf<Account?>(null) }
+    var renaming by remember { mutableStateOf<Account?>(null) }
+    var editMode by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { SectionTitle("Ежедневные", hint = "в валюте счёта · в ₽") }
-        item { AccountsCard(daily, state, totalLabel = "Итого ежедневные", onArchive = { archiving = it }) }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                SectionTitle("Ежедневные", hint = if (editMode) "стрелки меняют порядок" else "в валюте счёта · в ₽", modifier = Modifier.weight(1f))
+                TextButton(onClick = { editMode = !editMode }) { Text(if (editMode) "Готово" else "Изменить") }
+            }
+        }
+        item {
+            AccountsCard(daily, state, totalLabel = "Итого ежедневные", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it })
+        }
         item { SectionTitle("Накопления") }
-        item { AccountsCard(savings, state, totalLabel = "Итого накопления", onArchive = { archiving = it }) }
+        item {
+            AccountsCard(savings, state, totalLabel = "Итого накопления", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it })
+        }
         item {
             OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить счёт") }
         }
@@ -72,6 +92,12 @@ fun AccountsScreen(state: HomeState, onAdd: (String, Currency, Boolean) -> Unit,
         AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { name, currency, isSavings ->
             onAdd(name, currency, isSavings)
             adding = false
+        }
+    }
+    renaming?.let { account ->
+        RenameDialog(initial = account.name, onDismiss = { renaming = null }) { name ->
+            onRename(account.id, name)
+            renaming = null
         }
     }
     archiving?.let { account ->
@@ -106,12 +132,30 @@ private fun rateHint(state: HomeState): String {
 }
 
 @Composable
-private fun AccountsCard(accounts: List<Account>, state: HomeState, totalLabel: String, onArchive: (Account) -> Unit) {
+private fun AccountsCard(
+    accounts: List<Account>,
+    state: HomeState,
+    totalLabel: String,
+    editMode: Boolean,
+    onRename: (Account) -> Unit,
+    onMove: (String, Boolean) -> Unit,
+    onArchive: (Account) -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         if (accounts.isEmpty()) EmptyHint("Счетов нет")
         accounts.forEachIndexed { index, account ->
             if (index > 0) HorizontalDivider()
-            AccountRow(account, state, onArchive = { onArchive(account) })
+            AccountRow(
+                account = account,
+                state = state,
+                editMode = editMode,
+                canMoveUp = index > 0,
+                canMoveDown = index < accounts.lastIndex,
+                onRename = { onRename(account) },
+                onMoveUp = { onMove(account.id, true) },
+                onMoveDown = { onMove(account.id, false) },
+                onArchive = { onArchive(account) },
+            )
         }
         HorizontalDivider()
         val total = accounts.mapNotNull { state.rates.toBaseOrNull(state.balances.getValue(it.id)) }.sumIn(Currency.BASE)
@@ -126,12 +170,28 @@ private fun AccountsCard(accounts: List<Account>, state: HomeState, totalLabel: 
 }
 
 @Composable
-private fun AccountRow(account: Account, state: HomeState, onArchive: () -> Unit) {
+private fun AccountRow(
+    account: Account,
+    state: HomeState,
+    editMode: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onRename: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onArchive: () -> Unit,
+) {
     val balance = state.balances.getValue(account.id)
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (editMode) {
+            Column {
+                IconButton(onClick = onMoveUp, enabled = canMoveUp) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Выше") }
+                IconButton(onClick = onMoveDown, enabled = canMoveDown) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Ниже") }
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(account.name, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -150,10 +210,29 @@ private fun AccountRow(account: Account, state: HomeState, onArchive: () -> Unit
                 )
             }
         }
-        IconButton(onClick = onArchive) {
-            Icon(Icons.Filled.Delete, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (editMode) {
+            IconButton(onClick = onRename) {
+                Icon(Icons.Filled.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onArchive) {
+                Icon(Icons.Filled.Delete, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
+}
+
+@Composable
+private fun RenameDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Переименовать счёт") },
+        text = {
+            OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Название") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        },
+        confirmButton = { Button(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }
 
 @Composable

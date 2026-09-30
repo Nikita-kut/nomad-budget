@@ -190,7 +190,13 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 ExchangeScreen(state = state, onSubmit = viewModel::addExchange, onDelete = viewModel::deleteTransaction)
                             }
                             composable<AccountsRoute> {
-                                AccountsScreen(state = state, onAdd = viewModel::addAccount, onArchive = viewModel::archiveAccount)
+                                AccountsScreen(
+                                    state = state,
+                                    onAdd = viewModel::addAccount,
+                                    onRename = viewModel::renameAccount,
+                                    onMove = viewModel::moveAccount,
+                                    onArchive = viewModel::archiveAccount,
+                                )
                             }
                             composable<RatesRoute> { RatesScreen(state = state) }
                             composable<ChartsRoute> { ChartsScreen(state = state) }
