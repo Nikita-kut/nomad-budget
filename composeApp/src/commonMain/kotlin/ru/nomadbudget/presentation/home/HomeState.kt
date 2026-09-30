@@ -85,7 +85,9 @@ data class HomeState(
     val categoriesById: Map<String, Category> = categories.associateBy { it.id }
     val subcategoriesById: Map<String, Subcategory> = subcategories.associateBy { it.id }
 
-    val activeAccounts: List<Account> = accounts.filterNot { it.isArchived }
+    val activeAccounts: List<Account> = accounts
+        .filterNot { it.isArchived }
+        .sortedWith(compareBy<Account> { it.isSavings }.thenBy { it.sortOrder })
     val activeCategories: List<Category> = categories.filterNot { it.isArchived }
 
     val foreignCurrencies: List<Currency> = currencies.filter { it != Currency.BASE }

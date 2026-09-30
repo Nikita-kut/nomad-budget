@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.RateSource
+import ru.nomadbudget.presentation.charts.ChartLegend
+import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.currencyColor
@@ -31,6 +33,7 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 
 private const val CHART_POINTS = 90
+private const val RATE_VISIBLE_POINTS = 30
 private const val TABLE_ROWS = 14
 
 @Composable
@@ -52,12 +55,17 @@ fun RatesScreen(state: HomeState) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         val tail = history.takeLast(CHART_POINTS)
-                        LineChart(
-                            values = tail.map { it.basePerUnit * unitsFor(it.basePerUnit) },
-                            labels = tail.map { DateFormat.dayMonth(it.date) },
-                            formatY = { MoneyFormat.formatRate(it) },
-                            modifier = Modifier.padding(8.dp),
-                        )
+                        val color = currencyColor(currency, state)
+                        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ChartLegend(listOf(LegendEntry("${unitsLabel(currency, current?.basePerUnit)} по дням", color)))
+                            LineChart(
+                                values = tail.map { it.basePerUnit * unitsFor(it.basePerUnit) },
+                                color = color,
+                                labels = tail.map { DateFormat.dayMonth(it.date) },
+                                formatY = { MoneyFormat.formatRate(it) },
+                                visibleCount = tail.size.coerceIn(1, RATE_VISIBLE_POINTS),
+                            )
+                        }
                     }
                 }
             }

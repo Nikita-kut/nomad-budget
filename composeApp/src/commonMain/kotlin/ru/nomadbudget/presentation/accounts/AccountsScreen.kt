@@ -184,7 +184,7 @@ private fun AccountRow(
 ) {
     val balance = state.balances.getValue(account.id)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = if (editMode) 4.dp else 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (editMode) {
