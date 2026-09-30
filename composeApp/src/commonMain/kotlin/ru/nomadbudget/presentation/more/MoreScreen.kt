@@ -31,7 +31,7 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.home.HomeState
 
 @Composable
-fun MoreScreen(state: HomeState, onCategories: () -> Unit, onBalanceCheck: () -> Unit, onSignOut: () -> Unit) {
+fun MoreScreen(state: HomeState, onCategories: () -> Unit, onBalanceCheck: () -> Unit, onDebts: () -> Unit, onSignOut: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
@@ -46,6 +46,12 @@ fun MoreScreen(state: HomeState, onCategories: () -> Unit, onBalanceCheck: () ->
                     "Сверка остатков",
                     state.balanceChecks.firstOrNull()?.let { "последняя ${DateFormat.dayMonth(it.date)}" } ?: "ещё не сверялись",
                     onBalanceCheck,
+                )
+                HorizontalDivider()
+                MenuRow(
+                    "Кредиты",
+                    if (state.openDebts.isEmpty()) "нет открытых" else "${state.openDebts.size} открытых",
+                    onDebts,
                 )
             }
         }

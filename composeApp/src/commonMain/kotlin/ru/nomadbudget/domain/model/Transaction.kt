@@ -18,6 +18,7 @@ sealed interface Transaction {
         override val amountBase: Money,
         val rateSource: RateSource,
         override val note: String = "",
+        val debtId: String? = null,
     ) : Transaction
 
     data class Income(

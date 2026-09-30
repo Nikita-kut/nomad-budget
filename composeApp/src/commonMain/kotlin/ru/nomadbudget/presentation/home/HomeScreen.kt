@@ -61,6 +61,7 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.month.MonthScreen
 import ru.nomadbudget.presentation.more.BalanceCheckScreen
 import ru.nomadbudget.presentation.more.CategoriesScreen
+import ru.nomadbudget.presentation.more.DebtsScreen
 import ru.nomadbudget.presentation.more.MoreScreen
 import ru.nomadbudget.presentation.theme.AppTheme
 
@@ -85,6 +86,9 @@ object CategoriesRoute
 @Serializable
 object BalanceCheckRoute
 
+@Serializable
+object DebtsRoute
+
 private data class Tab(val route: Any, val title: String, val icon: ImageVector, val isSelected: (NavHostController) -> Boolean)
 
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
@@ -106,7 +110,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle) { it.isOn<EntryRoute>() },
             Tab(ExchangeRoute, "Обмен", Icons.Filled.Refresh) { it.isOn<ExchangeRoute>() },
             Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox) { it.isOn<AccountsRoute>() },
-            Tab(MoreRoute, "Ещё", Icons.Filled.Settings) { it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() },
+            Tab(MoreRoute, "Ещё", Icons.Filled.Settings) {
+                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() || it.isOn<DebtsRoute>()
+            },
         )
     }
 
@@ -172,6 +178,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     state = state,
                                     onCategories = { navController.navigate(CategoriesRoute) },
                                     onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
+                                    onDebts = { navController.navigate(DebtsRoute) },
                                     onSignOut = viewModel::signOut,
                                 )
                             }
@@ -189,6 +196,15 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             }
                             composable<BalanceCheckRoute> {
                                 BalanceCheckScreen(state = state, onBack = navController::popBackStack, onCheck = viewModel::checkBalance)
+                            }
+                            composable<DebtsRoute> {
+                                DebtsScreen(
+                                    state = state,
+                                    onBack = navController::popBackStack,
+                                    onSave = viewModel::saveDebt,
+                                    onClose = viewModel::closeDebt,
+                                    onPlanIntoMonth = viewModel::planDebtsIntoMonth,
+                                )
                             }
                         }
                     }

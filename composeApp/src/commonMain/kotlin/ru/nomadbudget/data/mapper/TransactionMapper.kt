@@ -32,6 +32,7 @@ object TransactionMapper {
                 amountBase = amountBase,
                 rateSource = RateSource.valueOf(dto.rateSource.uppercase()),
                 note = note,
+                debtId = dto.debtId,
             )
             TYPE_INCOME -> Transaction.Income(
                 id = dto.id,
@@ -78,6 +79,7 @@ object TransactionMapper {
             amount = tx.amount.minor,
             categoryId = tx.categoryId,
             subcategoryId = tx.subcategoryId,
+            debtId = tx.debtId,
             note = tx.note.ifBlank { null },
             rateToBase = rateOf(tx.amount, tx.amountBase),
             amountBase = tx.amountBase.minor,

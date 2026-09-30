@@ -14,6 +14,7 @@ import ru.nomadbudget.data.dto.BudgetLineUpsertDto
 import ru.nomadbudget.data.dto.CategoryDto
 import ru.nomadbudget.data.dto.CategoryInsertDto
 import ru.nomadbudget.data.dto.CurrencyDto
+import ru.nomadbudget.data.dto.DebtDto
 import ru.nomadbudget.data.dto.ExchangeRateDto
 import ru.nomadbudget.data.dto.PeriodDto
 import ru.nomadbudget.data.dto.PeriodInsertDto
@@ -24,6 +25,7 @@ import ru.nomadbudget.data.mapper.AccountMapper
 import ru.nomadbudget.data.mapper.BalanceCheckMapper
 import ru.nomadbudget.data.mapper.CategoryMapper
 import ru.nomadbudget.data.mapper.CurrencyMapper
+import ru.nomadbudget.data.mapper.DebtMapper
 import ru.nomadbudget.data.mapper.RateMapper
 import ru.nomadbudget.data.mapper.TransactionMapper
 import ru.nomadbudget.domain.logic.BudgetLine
@@ -32,6 +34,7 @@ import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
@@ -43,6 +46,7 @@ import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
+import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
@@ -57,6 +61,7 @@ private object Tables {
     const val BUDGET_LINES = "budget_lines"
     const val EXCHANGE_RATES = "exchange_rates"
     const val BALANCE_CHECKS = "balance_checks"
+    const val DEBTS = "debts"
 }
 
 class CurrencyRepositoryImpl(private val client: SupabaseClient) : CurrencyRepository {
@@ -130,6 +135,36 @@ class CategoryRepositoryImpl(private val client: SupabaseClient) : CategoryRepos
 
     override suspend fun deleteSubcategory(id: String) {
         client.from(Tables.SUBCATEGORIES).delete { filter { eq("id", id) } }
+    }
+}
+
+class DebtRepositoryImpl(
+    private val client: SupabaseClient,
+    private val currencies: CurrencyRepository,
+) : DebtRepository {
+
+    override suspend fun getAll(): List<Debt> {
+        val byCode = currencies.byCode()
+        return client.from(Tables.DEBTS)
+            .select { order("created_at", Order.ASCENDING) }
+            .decodeList<DebtDto>()
+            .mapNotNull { DebtMapper.toDomain(it, byCode) }
+    }
+
+    override suspend fun add(debt: Debt): Debt {
+        val byCode = currencies.byCode()
+        val saved = client.from(Tables.DEBTS)
+            .insert(DebtMapper.toInsert(debt)) { select() }
+            .decodeSingle<DebtDto>()
+        return requireNotNull(DebtMapper.toDomain(saved, byCode)) { "Неизвестная валюта кредита" }
+    }
+
+    override suspend fun update(debt: Debt) {
+        client.from(Tables.DEBTS).update(DebtMapper.toInsert(debt)) { filter { eq("id", debt.id) } }
+    }
+
+    override suspend fun close(id: String) {
+        client.from(Tables.DEBTS).update({ set("closed_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
     }
 }
 

@@ -17,6 +17,8 @@ import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.CorrectionCategory
+import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateSource
@@ -28,6 +30,7 @@ import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
+import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
@@ -44,6 +47,7 @@ class HomeViewModel(
     private val budgetRepository: BudgetRepository,
     private val rateRepository: ExchangeRateRepository,
     private val balanceCheckRepository: BalanceCheckRepository,
+    private val debtRepository: DebtRepository,
 ) : ViewModel() {
 
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
@@ -69,6 +73,7 @@ class HomeViewModel(
                 val transactions = transactionRepository.getAll(accounts)
                 val rates = rateRepository.ratesOnOrBefore(today)
                 val checks = balanceCheckRepository.getRecent(accounts)
+                val debts = debtRepository.getAll()
                 val period = _state.value.period
                 val periodId = periodRepository.ensure(period)
                 val lines = budgetRepository.getLines(periodId)
@@ -82,6 +87,7 @@ class HomeViewModel(
                         transactions = transactions,
                         rates = rates,
                         balanceChecks = checks,
+                        debts = debts,
                         periodId = periodId,
                         budgetLines = lines,
                     )
@@ -130,6 +136,7 @@ class HomeViewModel(
                         amountBase = rates.toBase(draft.amount),
                         rateSource = rateSource,
                         note = draft.note,
+                        debtId = draft.debtId,
                     )
                     EntryType.INCOME -> Transaction.Income(
                         id = "",
@@ -153,9 +160,10 @@ class HomeViewModel(
                 }
                 val saved = transactionRepository.add(transaction, current.accounts)
                 _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions) }
+                val debtNote = draft.debtId?.let { applyDebtPayment(it, draft.amount) }
                 _messages.send(
                     when (draft.type) {
-                        EntryType.EXPENSE -> "Расход записан"
+                        EntryType.EXPENSE -> "Расход записан" + debtNote.orEmpty()
                         EntryType.INCOME -> "Доход записан"
                         EntryType.TRANSFER -> "Перевод записан"
                     },
@@ -399,6 +407,78 @@ class HomeViewModel(
                 _state.update { it.copy(saving = false) }
                 _messages.send(e.message ?: "Не удалось записать сверку")
             }
+        }
+    }
+
+    fun saveDebt(debt: Debt) {
+        viewModelScope.launch {
+            try {
+                require(debt.name.isNotBlank()) { "Введи название кредита" }
+                if (debt.id.isEmpty()) {
+                    val created = debtRepository.add(debt)
+                    _state.update { it.copy(debts = it.debts + created) }
+                    _messages.send("Кредит добавлен")
+                } else {
+                    debtRepository.update(debt)
+                    _state.update { state -> state.copy(debts = state.debts.map { if (it.id == debt.id) debt else it }) }
+                    _messages.send("Кредит обновлён")
+                }
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить кредит")
+            }
+        }
+    }
+
+    fun closeDebt(id: String) {
+        viewModelScope.launch {
+            try {
+                debtRepository.close(id)
+                _state.update { state -> state.copy(debts = state.debts.map { if (it.id == id) it.copy(isClosed = true) else it }) }
+                _messages.send("Кредит закрыт")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось закрыть кредит")
+            }
+        }
+    }
+
+    fun planDebtsIntoMonth(categoryId: String) {
+        viewModelScope.launch {
+            try {
+                val current = _state.value
+                val debts = current.openDebts
+                require(debts.isNotEmpty()) { "Открытых кредитов нет" }
+                val periodId = current.periodId ?: periodRepository.ensure(current.period)
+                var count = 0
+                debts.forEach { debt ->
+                    require(current.rates.hasRate(debt.currency)) { "Нет курса для ${debt.currency.code}" }
+                    val subcategoryId = requireNotNull(resolveSubcategory(categoryId, debt.name))
+                    val line = BudgetLine(categoryId, current.rates.toBase(debt.monthlyPayment), subcategoryId)
+                    budgetRepository.setPlanned(periodId, line)
+                    _state.update { state ->
+                        state.copy(
+                            periodId = periodId,
+                            budgetLines = state.budgetLines.filterNot { it.categoryId == categoryId && it.subcategoryId == subcategoryId } + line,
+                        )
+                    }
+                    count++
+                }
+                _messages.send("В план добавлено строк: $count")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить кредиты в план")
+            }
+        }
+    }
+
+    private suspend fun applyDebtPayment(debtId: String, payment: Money): String? {
+        val debt = _state.value.debts.firstOrNull { it.id == debtId } ?: return null
+        if (debt.currency != payment.currency) return ", остаток кредита не менял: другая валюта"
+        val updated = DebtCalculator.afterPayment(debt, payment)
+        return try {
+            debtRepository.update(updated)
+            _state.update { state -> state.copy(debts = state.debts.map { if (it.id == debtId) updated else it }) }
+            ", остаток по кредиту ${MoneyFormat.format(updated.principalRemaining, false)}"
+        } catch (e: Exception) {
+            ", остаток кредита обновить не удалось"
         }
     }
 

@@ -8,6 +8,7 @@ import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
@@ -59,6 +60,13 @@ interface BudgetRepository {
 
 interface ExchangeRateRepository {
     suspend fun ratesOnOrBefore(date: LocalDate): RateTable
+}
+
+interface DebtRepository {
+    suspend fun getAll(): List<Debt>
+    suspend fun add(debt: Debt): Debt
+    suspend fun update(debt: Debt)
+    suspend fun close(id: String)
 }
 
 interface BalanceCheckRepository {

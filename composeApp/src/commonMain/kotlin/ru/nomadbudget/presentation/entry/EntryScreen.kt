@@ -45,6 +45,7 @@ import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
@@ -91,6 +92,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     var amountText by remember { mutableStateOf("") }
     var subcategory by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var debt by remember { mutableStateOf<Debt?>(null) }
     val amountTransformation = remember { ThousandsVisualTransformation() }
 
     val kind = if (type == EntryType.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
@@ -124,11 +126,13 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
                 categoryId = selectedCategory?.id.takeIf { type != EntryType.TRANSFER },
                 subcategoryName = if (type == EntryType.EXPENSE) subcategory else "",
                 note = note,
+                debtId = debt?.id.takeIf { type == EntryType.EXPENSE },
             ),
         )
         amountText = ""
         subcategory = ""
         note = ""
+        debt = null
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -196,6 +200,23 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
                     selected = selectedCategory,
                     itemLabel = Category::name,
                     onSelect = { category = it },
+                )
+            }
+            if (type == EntryType.EXPENSE && state.openDebts.isNotEmpty()) {
+                Dropdown(
+                    label = "Кредит, если это платёж по нему",
+                    items = listOf<Debt?>(null) + state.openDebts,
+                    selected = debt,
+                    itemLabel = { it?.let { d -> "${d.name} · ${MoneyFormat.format(d.monthlyPayment, false)}" } ?: "не платёж по кредиту" },
+                    onSelect = { selected ->
+                        debt = selected
+                        selected?.let { d ->
+                            subcategory = d.name
+                            if (amountText.isBlank() && account?.currency == d.currency) {
+                                amountText = (d.monthlyPayment.minor / d.currency.minorFactor).toString()
+                            }
+                        }
+                    },
                 )
             }
             if (type == EntryType.EXPENSE) {
