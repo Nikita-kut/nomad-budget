@@ -28,7 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.presentation.components.Dropdown
+import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
@@ -69,11 +69,11 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Dropdown(
+                    AccountDropdown(
                         label = "Счёт",
-                        items = state.activeAccounts,
+                        accounts = state.activeAccounts,
                         selected = account,
-                        itemLabel = { "${it.name} · ${it.currency.code}" },
+                        state = state,
                         onSelect = { account = it },
                     )
                     computed?.let { KeyValueRow("По записям в приложении", MoneyFormat.format(it)) }

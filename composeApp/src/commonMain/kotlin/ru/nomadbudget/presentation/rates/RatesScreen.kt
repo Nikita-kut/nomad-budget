@@ -22,6 +22,7 @@ import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.CurrencyChip
+import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
@@ -46,7 +47,7 @@ fun RatesScreen(state: HomeState) {
         state.foreignCurrencies.forEach { currency ->
             val history = byCurrency[currency].orEmpty().sortedBy { it.date }
             val current = state.rates.rateFor(currency)
-            item { CurrencyHeader(currency, current, history) }
+            item { CurrencyHeader(currency, current, state) }
             if (history.size >= 2) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -67,7 +68,7 @@ fun RatesScreen(state: HomeState) {
 }
 
 @Composable
-private fun CurrencyHeader(currency: Currency, current: ExchangeRate?, history: List<ExchangeRate>) {
+private fun CurrencyHeader(currency: Currency, current: ExchangeRate?, state: HomeState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -76,7 +77,7 @@ private fun CurrencyHeader(currency: Currency, current: ExchangeRate?, history: 
         ) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CurrencyChip(currency)
+                    CurrencyChip(currency, state)
                     Text(unitsLabel(currency, current?.basePerUnit), fontWeight = FontWeight.SemiBold)
                 }
                 Text(
@@ -97,7 +98,7 @@ private fun CurrencyHeader(currency: Currency, current: ExchangeRate?, history: 
                     "${MoneyFormat.formatRate(rate.basePerUnit * unitsFor(rate.basePerUnit))} ${Currency.BASE.symbol}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = AppTheme.colors.currency(currency),
+                    color = currencyColor(currency, state),
                 )
             }
         }

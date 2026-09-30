@@ -90,6 +90,10 @@ data class HomeState(
 
     val foreignCurrencies: List<Currency> = currencies.filter { it != Currency.BASE }
 
+    private val extraCurrencyOrder: List<String> = foreignCurrencies.filter { it != Currency.USD }.map { it.code }.sorted()
+
+    fun currencyOrdinal(currency: Currency): Int = extraCurrencyOrder.indexOf(currency.code).coerceAtLeast(0)
+
     val currenciesWithoutRate: List<Currency> = foreignCurrencies.filterNot(rates::hasRate)
 
     val inPeriod: List<Transaction> = transactions.filter { it.date in period }

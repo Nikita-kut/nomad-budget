@@ -22,10 +22,10 @@ data class AppColors(
     val bad: Color,
     val muted: Color,
 ) {
-    fun currency(currency: Currency): Color = when (currency.code) {
+    fun currency(currency: Currency, ordinal: Int = 0): Color = when (currency.code) {
         Currency.BASE.code -> base
         Currency.USD.code -> usd
-        else -> extraCurrencies[abs(currency.code.hashCode()) % extraCurrencies.size]
+        else -> extraCurrencies[abs(ordinal) % extraCurrencies.size]
     }
 
     fun status(status: BudgetStatus): Color = when (status) {
@@ -36,9 +36,9 @@ data class AppColors(
 }
 
 private val LightAppColors = AppColors(
-    base = Color(0xFF4A5FA8),
+    base = Color(0xFFB8443F),
     usd = Color(0xFF2F7D4F),
-    extraCurrencies = listOf(Color(0xFFB8791B), Color(0xFF8A4FA8), Color(0xFF1F7F8A), Color(0xFFB04A6E)),
+    extraCurrencies = listOf(Color(0xFFD97B1F), Color(0xFF8A4FA8), Color(0xFF1F7F8A), Color(0xFF4A5FA8)),
     good = Color(0xFF3A8F5C),
     warning = Color(0xFFC98A1C),
     bad = Color(0xFFC4463A),
@@ -46,9 +46,9 @@ private val LightAppColors = AppColors(
 )
 
 private val DarkAppColors = AppColors(
-    base = Color(0xFF8C9BD8),
+    base = Color(0xFFE57A72),
     usd = Color(0xFF6CBF8A),
-    extraCurrencies = listOf(Color(0xFFDDA64E), Color(0xFFC29BE0), Color(0xFF6FC4CF), Color(0xFFE08AA8)),
+    extraCurrencies = listOf(Color(0xFFF0A24A), Color(0xFFC29BE0), Color(0xFF6FC4CF), Color(0xFF8C9BD8)),
     good = Color(0xFF5DB57F),
     warning = Color(0xFFDDA64E),
     bad = Color(0xFFE0695D),

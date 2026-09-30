@@ -39,6 +39,7 @@ import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.domain.model.sumIn
+import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
@@ -196,11 +197,11 @@ private fun AccountRow(
             Text(account.name, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(kindLabel(account.kind), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                CurrencyChip(account.currency)
+                CurrencyChip(account.currency, state)
             }
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(MoneyFormat.format(balance), fontWeight = FontWeight.SemiBold)
+            CurrencyAmount(MoneyFormat.format(balance), account.currency, state, MaterialTheme.typography.bodyLarge, FontWeight.SemiBold)
             if (account.currency != Currency.BASE) {
                 val inBase = state.rates.toBaseOrNull(balance)
                 Text(

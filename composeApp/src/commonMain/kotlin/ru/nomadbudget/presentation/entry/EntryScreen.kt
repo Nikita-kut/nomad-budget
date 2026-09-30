@@ -46,6 +46,8 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.presentation.components.AccountDropdown
+import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
@@ -157,24 +159,24 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
 
             DateRow(date, today = state.today, onChange = { date = it })
 
-            Dropdown(
+            AccountDropdown(
                 label = when (type) {
                     EntryType.EXPENSE -> "Со счёта"
                     EntryType.INCOME -> "На счёт"
                     EntryType.TRANSFER -> "Откуда"
                 },
-                items = state.activeAccounts,
+                accounts = state.activeAccounts,
                 selected = account,
-                itemLabel = { "${it.name} · ${it.currency.code}" },
+                state = state,
                 onSelect = { account = it },
             )
 
             if (type == EntryType.TRANSFER) {
-                Dropdown(
+                AccountDropdown(
                     label = "Куда",
-                    items = transferTargets,
+                    accounts = transferTargets,
                     selected = selectedTo,
-                    itemLabel = { "${it.name} · ${it.currency.code}" },
+                    state = state,
                     onSelect = { toAccount = it },
                 )
                 if (transferTargets.isEmpty()) {
@@ -327,7 +329,10 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(primary, fontWeight = FontWeight.SemiBold, color = primaryColor)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CurrencyChip(txCurrency(tx), state)
+                Text(primary, fontWeight = FontWeight.SemiBold, color = primaryColor)
+            }
             if (secondary.isNotEmpty()) {
                 Text(secondary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -339,6 +344,13 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
 }
 
 private data class RowText(val title: String, val subtitle: String, val primary: String, val secondary: String)
+
+private fun txCurrency(tx: Transaction): Currency = when (tx) {
+    is Transaction.Expense -> tx.amount.currency
+    is Transaction.Income -> tx.amount.currency
+    is Transaction.Transfer -> tx.amount.currency
+    is Transaction.Exchange -> tx.given.currency
+}
 
 private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
     is Transaction.Expense -> RowText(
