@@ -12,12 +12,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,12 +47,23 @@ private enum class Range(val months: Int?, val title: String) {
     ALL(null, "всё время"),
 }
 
+private const val MIN_VISIBLE = 3
+private const val DEFAULT_VISIBLE = 12
+private const val ZOOM_STEP = 3
+
 @Composable
 fun ChartsScreen(state: HomeState) {
     var range by remember { mutableStateOf(Range.YEAR) }
+    var visible by remember { mutableIntStateOf(DEFAULT_VISIBLE) }
     val all = state.monthlyHistory
     val points = range.months?.let { all.takeLast(it) } ?: all
     val labels = points.map { monthLabel(it) }
+    val maxVisible = points.size.coerceAtLeast(MIN_VISIBLE)
+    val visibleCount = visible.coerceIn(MIN_VISIBLE, maxVisible)
+
+    val incomeColor = AppTheme.colors.good
+    val expenseColor = AppTheme.colors.bad
+    val savedColor = AppTheme.colors.usd
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -73,29 +86,50 @@ fun ChartsScreen(state: HomeState) {
             return@LazyColumn
         }
         item { Totals(points) }
-        item { SectionTitle("Доходы и расходы по месяцам", hint = "тыс. ₽ · доход слева, расход справа") }
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                ColumnsChart(
-                    series = listOf(points.map { it.income.toThousands() }, points.map { it.expense.toThousands() }),
-                    labels = labels,
-                    formatY = ::thousandsLabel,
-                    modifier = Modifier.padding(8.dp),
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Масштаб: $visibleCount мес. на экране",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { visible = (visibleCount + ZOOM_STEP).coerceAtMost(maxVisible) }, enabled = visibleCount < maxVisible) { Text("−") }
+                    OutlinedButton(onClick = { visible = (visibleCount - ZOOM_STEP).coerceAtLeast(MIN_VISIBLE) }, enabled = visibleCount > MIN_VISIBLE) { Text("+") }
+                }
             }
         }
-        item { SectionTitle("Отложено накопительно", hint = "тыс. ₽, чистое: отложено минус взято") }
+        item { SectionTitle("Доходы и расходы по месяцам", hint = "тыс. ₽ · прокрутка по горизонтали") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                LineChart(
-                    values = HistoryCalculator.cumulative(points) { it.netSaved }.map { it.toThousands() },
-                    labels = labels,
-                    formatY = ::thousandsLabel,
-                    modifier = Modifier.padding(8.dp),
-                )
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ChartLegend(listOf(LegendEntry("Доход за месяц", incomeColor), LegendEntry("Расход за месяц", expenseColor)))
+                    ColumnsChart(
+                        series = listOf(points.map { it.income.toThousands() }, points.map { it.expense.toThousands() }),
+                        colors = listOf(incomeColor, expenseColor),
+                        labels = labels,
+                        formatY = ::thousandsLabel,
+                        visibleCount = visibleCount,
+                    )
+                }
             }
         }
-        item { SectionTitle("Расходы по категориям", hint = "за выбранный диапазон") }
+        item { SectionTitle("Отложено накопительно", hint = "тыс. ₽") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ChartLegend(listOf(LegendEntry("Сумма отложенного с начала диапазона: переводы в накопления минус взятое из них", savedColor)))
+                    LineChart(
+                        values = HistoryCalculator.cumulative(points) { it.netSaved }.map { it.toThousands() },
+                        color = savedColor,
+                        labels = labels,
+                        formatY = ::thousandsLabel,
+                        visibleCount = visibleCount,
+                    )
+                }
+            }
+        }
+        item { SectionTitle("Расходы по категориям", hint = "за выбранный диапазон, доля от всех расходов") }
         val totals = HistoryCalculator.expensesByCategory(
             state.transactions,
             state.categories,
@@ -117,7 +151,7 @@ fun ChartsScreen(state: HomeState) {
                     }
                     LinearProgressIndicator(
                         progress = { total.share.toFloat() },
-                        color = AppTheme.colors.currency(Currency.BASE),
+                        color = expenseColor,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     )
