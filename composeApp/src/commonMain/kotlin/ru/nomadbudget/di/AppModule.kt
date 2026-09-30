@@ -8,6 +8,7 @@ import ru.nomadbudget.data.repository.BalanceCheckRepositoryImpl
 import ru.nomadbudget.data.repository.BudgetRepositoryImpl
 import ru.nomadbudget.data.repository.CategoryRepositoryImpl
 import ru.nomadbudget.data.repository.CurrencyRepositoryImpl
+import ru.nomadbudget.data.repository.DebtRepositoryImpl
 import ru.nomadbudget.data.repository.ExchangeRateRepositoryImpl
 import ru.nomadbudget.data.repository.PeriodRepositoryImpl
 import ru.nomadbudget.data.repository.TransactionRepositoryImpl
@@ -18,6 +19,7 @@ import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
+import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
@@ -35,6 +37,7 @@ val appModule = module {
     single<BudgetRepository> { BudgetRepositoryImpl(get()) }
     single<ExchangeRateRepository> { ExchangeRateRepositoryImpl(get(), get()) }
     single<BalanceCheckRepository> { BalanceCheckRepositoryImpl(get()) }
+    single<DebtRepository> { DebtRepositoryImpl(get(), get()) }
 
     viewModelOf(::HomeViewModel)
 }

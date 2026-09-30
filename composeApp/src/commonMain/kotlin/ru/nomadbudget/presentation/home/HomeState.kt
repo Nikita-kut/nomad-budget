@@ -11,6 +11,7 @@ import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
@@ -30,6 +31,7 @@ data class EntryDraft(
     val categoryId: String? = null,
     val subcategoryName: String = "",
     val note: String = "",
+    val debtId: String? = null,
 )
 
 data class ExchangeDraft(
@@ -62,7 +64,17 @@ data class HomeState(
     val budgetLines: List<BudgetLine> = emptyList(),
     val rates: RateTable = DefaultRates.table(),
     val balanceChecks: List<BalanceCheck> = emptyList(),
+    val debts: List<Debt> = emptyList(),
 ) {
+    val openDebts: List<Debt> = debts.filterNot { it.isClosed }
+
+    fun paidThisPeriod(debt: Debt): Money = inPeriod
+        .filterIsInstance<Transaction.Expense>()
+        .filter { it.debtId == debt.id }
+        .map { it.amount }
+        .filter { it.currency == debt.currency }
+        .sumIn(debt.currency)
+
     val accountsById: Map<String, Account> = accounts.associateBy { it.id }
     val categoriesById: Map<String, Category> = categories.associateBy { it.id }
     val subcategoriesById: Map<String, Subcategory> = subcategories.associateBy { it.id }

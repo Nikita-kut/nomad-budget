@@ -32,6 +32,7 @@ data class TransactionInsertDto(
     @SerialName("counter_amount") val counterAmount: Long? = null,
     @SerialName("category_id") val categoryId: String? = null,
     @SerialName("subcategory_id") val subcategoryId: String? = null,
+    @SerialName("debt_id") val debtId: String? = null,
     val note: String? = null,
     @SerialName("rate_to_base") val rateToBase: Double,
     @SerialName("amount_base") val amountBase: Long,
