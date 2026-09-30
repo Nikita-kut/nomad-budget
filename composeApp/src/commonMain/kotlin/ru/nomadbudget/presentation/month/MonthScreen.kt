@@ -19,7 +19,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +42,7 @@ import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
@@ -421,8 +421,8 @@ private fun ItemPlanDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     if (filtered.isNotEmpty()) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            filtered.forEach { s -> SuggestionChip(onClick = { name = s }, label = { Text(s) }) }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            filtered.forEach { s -> TagChip(text = s, selected = s.equals(name, ignoreCase = true), onClick = { name = s }) }
                         }
                     }
                 }

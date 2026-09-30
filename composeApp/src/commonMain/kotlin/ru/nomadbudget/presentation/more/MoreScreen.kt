@@ -31,12 +31,31 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.home.HomeState
 
 @Composable
-fun MoreScreen(state: HomeState, onCategories: () -> Unit, onBalanceCheck: () -> Unit, onDebts: () -> Unit, onSignOut: () -> Unit) {
+fun MoreScreen(
+    state: HomeState,
+    onCategories: () -> Unit,
+    onBalanceCheck: () -> Unit,
+    onDebts: () -> Unit,
+    onRates: () -> Unit,
+    onCharts: () -> Unit,
+    showAnalytics: Boolean,
+    onSignOut: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (showAnalytics) {
+            item { SectionTitle("Аналитика") }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    MenuRow("Графики", "доходы, расходы, накопления по месяцам", onCharts)
+                    HorizontalDivider()
+                    MenuRow("Курсы валют", "текущие и история по дням", onRates)
+                }
+            }
+        }
         item { SectionTitle("Настройки") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {

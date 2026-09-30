@@ -4,11 +4,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
@@ -28,6 +30,8 @@ interface CurrencyRepository {
 
 interface AccountRepository {
     suspend fun getAll(): List<Account>
+    suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, sortOrder: Int): Account
+    suspend fun archive(id: String)
 }
 
 interface CategoryRepository {
@@ -60,6 +64,7 @@ interface BudgetRepository {
 
 interface ExchangeRateRepository {
     suspend fun ratesOnOrBefore(date: LocalDate): RateTable
+    suspend fun history(): List<ExchangeRate>
 }
 
 interface DebtRepository {

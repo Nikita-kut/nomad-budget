@@ -5,6 +5,8 @@ import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.domain.logic.BudgetCalculator
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CategoryBudget
+import ru.nomadbudget.domain.logic.HistoryCalculator
+import ru.nomadbudget.domain.logic.MonthPoint
 import ru.nomadbudget.domain.logic.MonthSummary
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -13,6 +15,7 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DefaultRates
+import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
@@ -65,7 +68,10 @@ data class HomeState(
     val rates: RateTable = DefaultRates.table(),
     val balanceChecks: List<BalanceCheck> = emptyList(),
     val debts: List<Debt> = emptyList(),
+    val rateHistory: List<ExchangeRate> = emptyList(),
 ) {
+    val monthlyHistory: List<MonthPoint> = HistoryCalculator.monthly(transactions, accounts, period)
+
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
 
     fun paidThisPeriod(debt: Debt): Money = inPeriod
