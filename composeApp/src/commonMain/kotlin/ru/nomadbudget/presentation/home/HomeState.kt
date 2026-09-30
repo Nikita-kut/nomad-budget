@@ -87,7 +87,8 @@ data class HomeState(
         activeCategories + categories.filter { it.isArchived && it.id in usedInPeriod }
     }
 
-    val budgets: List<CategoryBudget> = BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period)
+    val budgets: List<CategoryBudget> =
+        BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories)
 
     val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
 

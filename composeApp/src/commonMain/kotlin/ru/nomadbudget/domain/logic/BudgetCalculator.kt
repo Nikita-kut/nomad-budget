@@ -6,18 +6,33 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
+import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
 
 enum class BudgetStatus { OK, WARNING, OVER }
 
-data class BudgetLine(val categoryId: String, val planned: Money)
+data class BudgetLine(
+    val categoryId: String,
+    val planned: Money,
+    val subcategoryId: String? = null,
+)
+
+data class SubcategoryBudget(
+    val subcategory: Subcategory?,
+    val planned: Money?,
+    val fact: Money,
+) {
+    val remaining: Money? get() = planned?.minus(fact)
+}
 
 data class CategoryBudget(
     val category: Category,
     val planned: Money,
     val fact: Money,
     val transactionCount: Int,
+    val items: List<SubcategoryBudget> = emptyList(),
+    val plannedByItems: Boolean = false,
 ) {
     val remaining: Money get() = planned - fact
 
@@ -58,20 +73,54 @@ object BudgetCalculator {
         lines: List<BudgetLine>,
         transactions: List<Transaction>,
         period: Period,
+        subcategories: List<Subcategory> = emptyList(),
     ): List<CategoryBudget> {
-        val plannedByCategory = lines.associate { it.categoryId to it.planned }
+        val subcategoriesById = subcategories.associateBy { it.id }
         val inPeriod = transactions.filter { it.date in period }
         return categories
             .sortedBy { it.sortOrder }
             .map { category ->
                 val related = inPeriod.filter { it.belongsTo(category.id) }
+                val categoryLines = lines.filter { it.categoryId == category.id }
+                val itemLines = categoryLines.filter { it.subcategoryId != null }
+                val items = buildItems(related, itemLines, subcategoriesById)
+                val plannedByItems = itemLines.isNotEmpty()
+                val planned = when {
+                    plannedByItems -> itemLines.map { it.planned }.sumIn(Currency.BASE)
+                    else -> categoryLines.firstOrNull { it.subcategoryId == null }?.planned ?: Money.zero(Currency.BASE)
+                }
                 CategoryBudget(
                     category = category,
-                    planned = plannedByCategory[category.id] ?: Money.zero(Currency.BASE),
+                    planned = planned,
                     fact = related.map { it.amountBase }.sumIn(Currency.BASE),
                     transactionCount = related.size,
+                    items = items,
+                    plannedByItems = plannedByItems,
                 )
             }
+    }
+
+    private fun buildItems(
+        related: List<Transaction>,
+        itemLines: List<BudgetLine>,
+        subcategoriesById: Map<String, Subcategory>,
+    ): List<SubcategoryBudget> {
+        val factBySubcategory = related
+            .filterIsInstance<Transaction.Expense>()
+            .groupBy { it.subcategoryId }
+            .mapValues { (_, list) -> list.map { it.amountBase }.sumIn(Currency.BASE) }
+        val plannedBySubcategory = itemLines.associate { it.subcategoryId to it.planned }
+        val ids = (plannedBySubcategory.keys + factBySubcategory.keys).filterNotNull().distinct()
+        if (ids.isEmpty() && factBySubcategory[null] == null) return emptyList()
+        val items = ids.map { id ->
+            SubcategoryBudget(
+                subcategory = subcategoriesById[id],
+                planned = plannedBySubcategory[id],
+                fact = factBySubcategory[id] ?: Money.zero(Currency.BASE),
+            )
+        }.sortedWith(compareByDescending<SubcategoryBudget> { it.planned?.minor ?: -1L }.thenBy { it.subcategory?.name.orEmpty() })
+        val withoutSubcategory = factBySubcategory[null]?.let { SubcategoryBudget(subcategory = null, planned = null, fact = it) }
+        return items + listOfNotNull(withoutSubcategory)
     }
 
     fun monthSummary(

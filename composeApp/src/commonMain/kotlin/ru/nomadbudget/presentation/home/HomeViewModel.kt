@@ -205,21 +205,53 @@ class HomeViewModel(
         }
     }
 
-    fun setPlanned(categoryId: String, planned: Money) {
+    fun setPlanned(categoryId: String, planned: Money) = setItemPlanned(categoryId, null, planned)
+
+    fun setItemPlanned(categoryId: String, subcategoryId: String?, planned: Money) {
         viewModelScope.launch {
             try {
                 val periodId = _state.value.periodId ?: periodRepository.ensure(_state.value.period)
-                val line = BudgetLine(categoryId, planned)
+                val line = BudgetLine(categoryId, planned, subcategoryId)
                 budgetRepository.setPlanned(periodId, line)
                 _state.update { state ->
                     state.copy(
                         periodId = periodId,
-                        budgetLines = state.budgetLines.filterNot { it.categoryId == categoryId } + line,
+                        budgetLines = state.budgetLines.filterNot { it.categoryId == categoryId && it.subcategoryId == subcategoryId } + line,
                     )
                 }
                 _messages.send("План обновлён")
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось сохранить план")
+            }
+        }
+    }
+
+    fun setPlannedForSubcategoryName(categoryId: String, subcategoryName: String, planned: Money) {
+        viewModelScope.launch {
+            try {
+                val subcategoryId = resolveSubcategory(categoryId, subcategoryName)
+                require(subcategoryId != null) { "Введи название подкатегории" }
+                setItemPlanned(categoryId, subcategoryId, planned)
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить план")
+            }
+        }
+    }
+
+    fun removePlanLine(categoryId: String, subcategoryId: String?) {
+        viewModelScope.launch {
+            try {
+                val periodId = _state.value.periodId ?: periodRepository.ensure(_state.value.period)
+                budgetRepository.deleteLine(periodId, categoryId, subcategoryId)
+                _state.update { state ->
+                    state.copy(
+                        periodId = periodId,
+                        budgetLines = state.budgetLines.filterNot { it.categoryId == categoryId && it.subcategoryId == subcategoryId },
+                    )
+                }
+                _messages.send("Строка плана удалена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось удалить строку")
             }
         }
     }
@@ -237,11 +269,11 @@ class HomeViewModel(
                 val toCopy = previousLines.filter { it.categoryId in activeIds }
                 toCopy.forEach { budgetRepository.setPlanned(periodId, it) }
                 _state.update { state ->
-                    val copiedIds = toCopy.map { it.categoryId }.toSet()
+                    val copiedKeys = toCopy.map { it.categoryId to it.subcategoryId }.toSet()
                     state.copy(
                         saving = false,
                         periodId = periodId,
-                        budgetLines = state.budgetLines.filterNot { it.categoryId in copiedIds } + toCopy,
+                        budgetLines = state.budgetLines.filterNot { (it.categoryId to it.subcategoryId) in copiedKeys } + toCopy,
                     )
                 }
                 _messages.send("План скопирован: ${toCopy.size} категорий")
