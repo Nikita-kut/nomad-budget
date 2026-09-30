@@ -34,10 +34,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 
 private sealed interface Dialog {
@@ -56,7 +62,7 @@ fun CategoriesScreen(
     onAddCategory: (String, CategoryKind) -> Unit,
     onRenameCategory: (String, String) -> Unit,
     onArchiveCategory: (String) -> Unit,
-    onAddSubcategory: (String, String) -> Unit,
+    onAddSubcategory: (String, String, Money?) -> Unit,
     onRenameSubcategory: (String, String) -> Unit,
     onDeleteSubcategory: (String) -> Unit,
 ) {
@@ -113,11 +119,11 @@ fun CategoriesScreen(
             onDismiss = { dialog = null },
             onConfirm = { onArchiveCategory(d.category.id); dialog = null },
         )
-        is Dialog.AddSubcategory -> TextDialog(
-            title = "Подкатегория для «${d.category.name}»",
-            initial = "",
+        is Dialog.AddSubcategory -> AddSubcategoryDialog(
+            category = d.category,
+            periodTitle = state.period.title(),
             onDismiss = { dialog = null },
-            onConfirm = { onAddSubcategory(d.category.id, it); dialog = null },
+            onConfirm = { name, planned -> onAddSubcategory(d.category.id, name, planned); dialog = null },
         )
         is Dialog.RenameSubcategory -> TextDialog(
             title = "Переименовать подкатегорию",
@@ -181,6 +187,44 @@ private fun CategoryCard(
             }
         }
     }
+}
+
+@Composable
+private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDismiss: () -> Unit, onConfirm: (String, Money?) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    val transformation = remember { ThousandsVisualTransformation() }
+    val planned = MoneyFormat.parse(amount, Currency.BASE)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Подкатегория для «${category.name}»") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Название") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (category.kind == CategoryKind.EXPENSE) {
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it) },
+                        label = { Text("План на $periodTitle, ₽ (необязательно)") },
+                        singleLine = true,
+                        visualTransformation = transformation,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(name, planned) }, enabled = name.isNotBlank() && (amount.isBlank() || planned != null)) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }
 
 @Composable

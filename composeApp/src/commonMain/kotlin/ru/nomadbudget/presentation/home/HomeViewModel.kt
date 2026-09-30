@@ -13,7 +13,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import ru.nomadbudget.domain.logic.BudgetLine
+import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.CorrectionCategory
@@ -74,6 +76,7 @@ class HomeViewModel(
                 val rates = rateRepository.ratesOnOrBefore(today)
                 val checks = balanceCheckRepository.getRecent(accounts)
                 val debts = debtRepository.getAll()
+                val rateHistory = rateRepository.history()
                 val period = _state.value.period
                 val periodId = periodRepository.ensure(period)
                 val lines = budgetRepository.getLines(periodId)
@@ -88,6 +91,7 @@ class HomeViewModel(
                         rates = rates,
                         balanceChecks = checks,
                         debts = debts,
+                        rateHistory = rateHistory,
                         periodId = periodId,
                         budgetLines = lines,
                     )
@@ -406,6 +410,47 @@ class HomeViewModel(
             } catch (e: Exception) {
                 _state.update { it.copy(saving = false) }
                 _messages.send(e.message ?: "Не удалось записать сверку")
+            }
+        }
+    }
+
+    fun addAccount(name: String, currency: Currency, isSavings: Boolean) {
+        viewModelScope.launch {
+            try {
+                val trimmed = name.trim()
+                require(trimmed.isNotEmpty()) { "Введи название счёта" }
+                require(_state.value.activeAccounts.none { it.name.equals(trimmed, ignoreCase = true) }) { "Счёт с таким именем уже есть" }
+                val order = (_state.value.accounts.maxOfOrNull { it.sortOrder } ?: 0) + SORT_STEP
+                val kind = if (isSavings) AccountKind.SAVINGS else AccountKind.ACCOUNT
+                val created = accountRepository.add(trimmed, currency, kind, isSavings, order)
+                _state.update { it.copy(accounts = it.accounts + created) }
+                _messages.send("Счёт добавлен")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить счёт")
+            }
+        }
+    }
+
+    fun archiveAccount(id: String) {
+        viewModelScope.launch {
+            try {
+                accountRepository.archive(id)
+                _state.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(isArchived = true) else it }) }
+                _messages.send("Счёт убран в архив")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось архивировать счёт")
+            }
+        }
+    }
+
+    fun addSubcategoryWithPlan(categoryId: String, name: String, planned: Money?) {
+        viewModelScope.launch {
+            try {
+                val id = resolveSubcategory(categoryId, name)
+                require(id != null) { "Введи название" }
+                if (planned != null && planned.minor > 0L) setItemPlanned(categoryId, id, planned) else _messages.send("Подкатегория добавлена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить подкатегорию")
             }
         }
     }

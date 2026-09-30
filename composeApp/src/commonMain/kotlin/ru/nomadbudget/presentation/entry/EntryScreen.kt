@@ -25,7 +25,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,6 +49,7 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
@@ -229,9 +229,9 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (suggestions.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         suggestions.forEach { name ->
-                            SuggestionChip(onClick = { subcategory = name }, label = { Text(name) })
+                            TagChip(text = name, selected = name.equals(subcategory, ignoreCase = true), onClick = { subcategory = name })
                         }
                     }
                 }

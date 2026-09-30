@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
 import ru.nomadbudget.data.dto.AccountDto
+import ru.nomadbudget.data.dto.AccountInsertDto
 import ru.nomadbudget.data.dto.BalanceCheckDto
 import ru.nomadbudget.data.dto.BudgetLineDto
 import ru.nomadbudget.data.dto.BudgetLineUpsertDto
@@ -30,12 +31,14 @@ import ru.nomadbudget.data.mapper.RateMapper
 import ru.nomadbudget.data.mapper.TransactionMapper
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DefaultRates
+import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
@@ -96,6 +99,18 @@ class AccountRepositoryImpl(
             .select { order("sort_order", Order.ASCENDING) }
             .decodeList<AccountDto>()
             .map { AccountMapper.toDomain(it, byCode) }
+    }
+
+    override suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, sortOrder: Int): Account {
+        val byCode = currencies.byCode()
+        return client.from(Tables.ACCOUNTS)
+            .insert(AccountInsertDto(name, currency.code, kind.name.lowercase(), isSavings, sortOrder)) { select() }
+            .decodeSingle<AccountDto>()
+            .let { AccountMapper.toDomain(it, byCode) }
+    }
+
+    override suspend fun archive(id: String) {
+        client.from(Tables.ACCOUNTS).update({ set("archived_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
     }
 }
 
@@ -300,7 +315,20 @@ class ExchangeRateRepositoryImpl(
         return DefaultRates.fill(latestPerQuote.mapNotNull { RateMapper.toDomain(it, byCode) })
     }
 
+    override suspend fun history(): List<ExchangeRate> {
+        val byCode = currencies.byCode()
+        return client.from(Tables.EXCHANGE_RATES)
+            .select {
+                filter { eq("base", Currency.BASE.code) }
+                order("rate_date", Order.ASCENDING)
+                limit(HISTORY_ROWS)
+            }
+            .decodeList<ExchangeRateDto>()
+            .mapNotNull { RateMapper.toDomain(it, byCode) }
+    }
+
     private companion object {
         const val RECENT_ROWS: Long = 50
+        const val HISTORY_ROWS: Long = 5000
     }
 }

@@ -15,8 +15,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -55,6 +57,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.presentation.accounts.AccountsScreen
+import ru.nomadbudget.presentation.charts.ChartsScreen
 import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -63,6 +66,7 @@ import ru.nomadbudget.presentation.more.BalanceCheckScreen
 import ru.nomadbudget.presentation.more.CategoriesScreen
 import ru.nomadbudget.presentation.more.DebtsScreen
 import ru.nomadbudget.presentation.more.MoreScreen
+import ru.nomadbudget.presentation.rates.RatesScreen
 import ru.nomadbudget.presentation.theme.AppTheme
 
 @Serializable
@@ -78,6 +82,12 @@ object ExchangeRoute
 object AccountsRoute
 
 @Serializable
+object RatesRoute
+
+@Serializable
+object ChartsRoute
+
+@Serializable
 object MoreRoute
 
 @Serializable
@@ -89,7 +99,13 @@ object BalanceCheckRoute
 @Serializable
 object DebtsRoute
 
-private data class Tab(val route: Any, val title: String, val icon: ImageVector, val isSelected: (NavHostController) -> Boolean)
+private data class Tab(
+    val route: Any,
+    val title: String,
+    val icon: ImageVector,
+    val primary: Boolean,
+    val isSelected: (NavHostController) -> Boolean,
+)
 
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
 private val CONTENT_MAX_WIDTH = 760.dp
@@ -106,11 +122,13 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
 
     val tabs = remember {
         listOf(
-            Tab(MonthRoute, "Месяц", Icons.Filled.DateRange) { it.isOn<MonthRoute>() },
-            Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle) { it.isOn<EntryRoute>() },
-            Tab(ExchangeRoute, "Обмен", Icons.Filled.Refresh) { it.isOn<ExchangeRoute>() },
-            Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox) { it.isOn<AccountsRoute>() },
-            Tab(MoreRoute, "Ещё", Icons.Filled.Settings) {
+            Tab(MonthRoute, "Месяц", Icons.Filled.DateRange, primary = true) { it.isOn<MonthRoute>() },
+            Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle, primary = true) { it.isOn<EntryRoute>() },
+            Tab(ExchangeRoute, "Обмен", Icons.Filled.Refresh, primary = true) { it.isOn<ExchangeRoute>() },
+            Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox, primary = true) { it.isOn<AccountsRoute>() },
+            Tab(RatesRoute, "Курсы", Icons.Filled.Info, primary = false) { it.isOn<RatesRoute>() },
+            Tab(ChartsRoute, "Графики", Icons.Filled.Star, primary = false) { it.isOn<ChartsRoute>() },
+            Tab(MoreRoute, "Ещё", Icons.Filled.Settings, primary = true) {
                 it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() || it.isOn<DebtsRoute>()
             },
         )
@@ -122,13 +140,14 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
-            topBar = { HeaderBar(state, viewModel) },
+            topBar = { HeaderBar(state, viewModel, wide) },
             bottomBar = {
                 if (!wide) {
                     NavigationBar {
-                        tabs.forEach { tab ->
+                        tabs.filter { it.primary }.forEach { tab ->
                             NavigationBarItem(
-                                selected = backStack != null && tab.isSelected(navController),
+                                selected = backStack != null && (tab.isSelected(navController) ||
+                                    tab.route == MoreRoute && (navController.isOn<RatesRoute>() || navController.isOn<ChartsRoute>())),
                                 onClick = { navController.switchTo(tab.route) },
                                 icon = { Icon(tab.icon, contentDescription = tab.title) },
                                 label = { Text(tab.title) },
@@ -171,14 +190,19 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 ExchangeScreen(state = state, onSubmit = viewModel::addExchange, onDelete = viewModel::deleteTransaction)
                             }
                             composable<AccountsRoute> {
-                                AccountsScreen(state = state)
+                                AccountsScreen(state = state, onAdd = viewModel::addAccount, onArchive = viewModel::archiveAccount)
                             }
+                            composable<RatesRoute> { RatesScreen(state = state) }
+                            composable<ChartsRoute> { ChartsScreen(state = state) }
                             composable<MoreRoute> {
                                 MoreScreen(
                                     state = state,
                                     onCategories = { navController.navigate(CategoriesRoute) },
                                     onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
                                     onDebts = { navController.navigate(DebtsRoute) },
+                                    onRates = { navController.navigate(RatesRoute) },
+                                    onCharts = { navController.navigate(ChartsRoute) },
+                                    showAnalytics = !wide,
                                     onSignOut = viewModel::signOut,
                                 )
                             }
@@ -189,7 +213,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onAddCategory = viewModel::addCategory,
                                     onRenameCategory = viewModel::renameCategory,
                                     onArchiveCategory = viewModel::archiveCategory,
-                                    onAddSubcategory = viewModel::addSubcategory,
+                                    onAddSubcategory = viewModel::addSubcategoryWithPlan,
                                     onRenameSubcategory = viewModel::renameSubcategory,
                                     onDeleteSubcategory = viewModel::deleteSubcategory,
                                 )
@@ -226,63 +250,53 @@ private fun NavHostController.switchTo(route: Any) {
 }
 
 @Composable
-private fun HeaderBar(state: HomeState, viewModel: HomeViewModel) {
+private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean) {
     Surface(tonalElevation = 1.dp) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().widthIn(max = CONTENT_MAX_WIDTH),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = viewModel::showPreviousPeriod) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущий месяц")
-                    }
-                    TextButton(onClick = viewModel::showCurrentPeriod) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(state.period.title(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = state.dayNumber?.let { "день $it из ${state.period.lengthDays}" } ?: "${state.period.lengthDays} дней",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+            if (wide) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (state.loading) {
+                        LinearProgressIndicator(modifier = Modifier.weight(1f))
+                    } else {
+                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TotalsInline(state)
                         }
+                        Text(
+                            "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    IconButton(onClick = viewModel::showNextPeriod) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Следующий месяц")
-                    }
+                    PeriodSwitcher(state, viewModel)
                 }
-            }
-            if (state.loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                RatesWarning(state)
             } else {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), Modifier.weight(1f))
-                    state.foreignCurrencies.filter(state.rates::hasRate).forEach { currency ->
-                        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    PeriodSwitcher(state, viewModel)
+                }
+                if (state.loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TotalsInline(state, Modifier.weight(1f))
                     }
-                }
-                Text(
-                    "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                val warning = when {
-                    state.currenciesWithoutRate.isNotEmpty() ->
-                        "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: заполни таблицу курсов"
-                    state.rates.rateFor(Currency.USD)?.source == RateSource.MANUAL ->
-                        "Курсы по умолчанию: таблица курсов ещё пуста"
-                    else -> null
-                }
-                warning?.let {
                     Text(
-                        it,
+                        "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = AppTheme.colors.warning,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
                     )
+                    RatesWarning(state)
                 }
             }
             HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
@@ -291,11 +305,55 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel) {
 }
 
 @Composable
+private fun TotalsInline(state: HomeState, cardModifier: Modifier = Modifier) {
+    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), cardModifier)
+    state.foreignCurrencies.filter(state.rates::hasRate).forEach { currency ->
+        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), cardModifier)
+    }
+}
+
+@Composable
+private fun RatesWarning(state: HomeState) {
+    val warning = when {
+        state.currenciesWithoutRate.isNotEmpty() ->
+            "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: заполни таблицу курсов"
+        state.rates.rateFor(Currency.USD)?.source == RateSource.MANUAL ->
+            "Курсы по умолчанию: таблица курсов ещё пуста"
+        else -> null
+    }
+    warning?.let {
+        Text(it, style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.warning, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = viewModel::showPreviousPeriod) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущий месяц")
+        }
+        TextButton(onClick = viewModel::showCurrentPeriod) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(state.period.title(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = state.dayNumber?.let { "день $it из ${state.period.lengthDays}" } ?: "${state.period.lengthDays} дней",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        IconButton(onClick = viewModel::showNextPeriod) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Следующий месяц")
+        }
+    }
+}
+
+@Composable
 private fun TotalCard(currency: Currency, value: String, modifier: Modifier = Modifier) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = if (currency == Currency.BASE) "Всего · ${currency.code}" else "в ${currency.code}",
+                text = if (currency == Currency.BASE) "Всего" else "в ${currency.code}",
                 style = MaterialTheme.typography.labelSmall,
                 color = AppTheme.colors.currency(currency),
             )

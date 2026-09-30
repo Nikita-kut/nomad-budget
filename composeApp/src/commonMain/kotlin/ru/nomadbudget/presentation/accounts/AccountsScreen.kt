@@ -8,11 +8,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +37,8 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.CurrencyChip
+import ru.nomadbudget.presentation.components.Dropdown
+import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
@@ -30,9 +46,11 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 
 @Composable
-fun AccountsScreen(state: HomeState) {
+fun AccountsScreen(state: HomeState, onAdd: (String, Currency, Boolean) -> Unit, onArchive: (String) -> Unit) {
     val daily = state.activeAccounts.filterNot { it.isSavings }
     val savings = state.activeAccounts.filter { it.isSavings }
+    var adding by remember { mutableStateOf(false) }
+    var archiving by remember { mutableStateOf<Account?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -40,11 +58,42 @@ fun AccountsScreen(state: HomeState) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { SectionTitle("Ежедневные", hint = "в валюте счёта · в ₽") }
-        item { AccountsCard(daily, state, totalLabel = "Итого ежедневные") }
+        item { AccountsCard(daily, state, totalLabel = "Итого ежедневные", onArchive = { archiving = it }) }
         item { SectionTitle("Накопления") }
-        item { AccountsCard(savings, state, totalLabel = "Итого накопления") }
+        item { AccountsCard(savings, state, totalLabel = "Итого накопления", onArchive = { archiving = it }) }
+        item {
+            OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить счёт") }
+        }
         item { SectionTitle("Курсы", hint = rateHint(state)) }
         item { RatesCard(state) }
+    }
+
+    if (adding) {
+        AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { name, currency, isSavings ->
+            onAdd(name, currency, isSavings)
+            adding = false
+        }
+    }
+    archiving?.let { account ->
+        val balance = state.balances[account.id]
+        AlertDialog(
+            onDismissRequest = { archiving = null },
+            title = { Text("Убрать «${account.name}» в архив?") },
+            text = {
+                Text(
+                    buildString {
+                        append("Счёт исчезнет из списков и итогов, операции по нему останутся в истории.")
+                        if (balance != null && !balance.isZero) {
+                            append(" На счёте сейчас ${MoneyFormat.format(balance)}: сначала переведи деньги на другой счёт или сверь остаток в ноль.")
+                        }
+                    },
+                )
+            },
+            confirmButton = {
+                Button(onClick = { onArchive(account.id); archiving = null }, enabled = balance?.isZero != false) { Text("В архив") }
+            },
+            dismissButton = { TextButton(onClick = { archiving = null }) { Text("Отмена") } },
+        )
     }
 }
 
@@ -57,11 +106,12 @@ private fun rateHint(state: HomeState): String {
 }
 
 @Composable
-private fun AccountsCard(accounts: List<Account>, state: HomeState, totalLabel: String) {
+private fun AccountsCard(accounts: List<Account>, state: HomeState, totalLabel: String, onArchive: (Account) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
+        if (accounts.isEmpty()) EmptyHint("Счетов нет")
         accounts.forEachIndexed { index, account ->
             if (index > 0) HorizontalDivider()
-            AccountRow(account, state)
+            AccountRow(account, state, onArchive = { onArchive(account) })
         }
         HorizontalDivider()
         val total = accounts.mapNotNull { state.rates.toBaseOrNull(state.balances.getValue(it.id)) }.sumIn(Currency.BASE)
@@ -76,10 +126,10 @@ private fun AccountsCard(accounts: List<Account>, state: HomeState, totalLabel: 
 }
 
 @Composable
-private fun AccountRow(account: Account, state: HomeState) {
+private fun AccountRow(account: Account, state: HomeState, onArchive: () -> Unit) {
     val balance = state.balances.getValue(account.id)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -100,7 +150,48 @@ private fun AccountRow(account: Account, state: HomeState) {
                 )
             }
         }
+        IconButton(onClick = onArchive) {
+            Icon(Icons.Filled.Delete, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
+}
+
+@Composable
+private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (String, Currency, Boolean) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var currency by remember { mutableStateOf(Currency.BASE) }
+    var isSavings by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Новый счёт") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Название") },
+                    placeholder = { Text("карта, наличные, вклад…") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Dropdown("Валюта", currencies, currency, { "${it.code} · ${it.symbol}" }, { currency = it })
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Накопительный", fontWeight = FontWeight.Medium)
+                        Text("не входит в «на жизнь», переводы на него считаются отложенными", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = isSavings, onCheckedChange = { isSavings = it })
+                }
+                Text(
+                    "Начальный остаток задаётся сверкой: «Ещё → Сверка остатков», введи фактическую сумму.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(name, currency, isSavings) }, enabled = name.isNotBlank()) { Text("Добавить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }
 
 private fun kindLabel(kind: AccountKind): String = when (kind) {
