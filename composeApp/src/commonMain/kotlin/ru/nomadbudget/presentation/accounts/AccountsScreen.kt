@@ -43,6 +43,7 @@ import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
@@ -71,7 +72,7 @@ fun AccountsScreen(
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("Ежедневные", hint = if (editMode) "стрелки меняют порядок" else "в валюте счёта · в ₽", modifier = Modifier.weight(1f))
+                SectionTitle("Ежедневные", hint = if (editMode) "стрелки меняют порядок" else "в валюте счёта · в ₽", modifier = Modifier.weight(1f), info = Hints.ACCOUNTS_TOTAL)
                 TextButton(onClick = { editMode = !editMode }) { Text(if (editMode) "Готово" else "Изменить") }
             }
         }
@@ -85,7 +86,7 @@ fun AccountsScreen(
         item {
             OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить счёт") }
         }
-        item { SectionTitle("Курсы", hint = rateHint(state)) }
+        item { SectionTitle("Курсы", hint = rateHint(state), info = Hints.RATES) }
         item { RatesCard(state) }
     }
 

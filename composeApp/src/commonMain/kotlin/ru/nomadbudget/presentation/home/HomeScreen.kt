@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
@@ -127,10 +128,11 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle, primary = true) { it.isOn<EntryRoute>() },
             Tab(ExchangeRoute, "Обмен", Icons.Filled.Refresh, primary = true) { it.isOn<ExchangeRoute>() },
             Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox, primary = true) { it.isOn<AccountsRoute>() },
+            Tab(DebtsRoute, "Кредиты", Icons.Filled.Build, primary = true) { it.isOn<DebtsRoute>() },
             Tab(RatesRoute, "Курсы", Icons.Filled.Info, primary = false) { it.isOn<RatesRoute>() },
             Tab(ChartsRoute, "Графики", Icons.Filled.Star, primary = false) { it.isOn<ChartsRoute>() },
             Tab(MoreRoute, "Ещё", Icons.Filled.Settings, primary = true) {
-                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() || it.isOn<DebtsRoute>()
+                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>()
             },
         )
     }
@@ -206,7 +208,6 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     state = state,
                                     onCategories = { navController.navigate(CategoriesRoute) },
                                     onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
-                                    onDebts = { navController.navigate(DebtsRoute) },
                                     onRates = { navController.navigate(RatesRoute) },
                                     onCharts = { navController.navigate(ChartsRoute) },
                                     showAnalytics = !wide,
@@ -231,7 +232,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             composable<DebtsRoute> {
                                 DebtsScreen(
                                     state = state,
-                                    onBack = navController::popBackStack,
+                                    onBack = null,
                                     onSave = viewModel::saveDebt,
                                     onClose = viewModel::closeDebt,
                                     onPlanIntoMonth = viewModel::planDebtsIntoMonth,

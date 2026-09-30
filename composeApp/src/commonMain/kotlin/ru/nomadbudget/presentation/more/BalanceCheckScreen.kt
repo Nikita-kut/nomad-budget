@@ -30,6 +30,7 @@ import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
@@ -113,7 +114,7 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
                 }
             }
         }
-        item { SectionTitle("История сверок") }
+        item { SectionTitle("История сверок", info = Hints.BALANCE_CHECK) }
         if (state.balanceChecks.isEmpty()) {
             item { EmptyHint("Сверок ещё не было") }
         }
