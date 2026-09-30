@@ -40,6 +40,7 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.TagChip
@@ -377,7 +378,7 @@ private fun ExpenseCard(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (tx.amount.currency != Currency.BASE) {
-                                Text(MoneyFormat.format(tx.amount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                CurrencyAmount(MoneyFormat.format(tx.amount), tx.amount.currency, state, MaterialTheme.typography.bodySmall)
                             }
                             Text(MoneyFormat.format(tx.amountBase, false), style = MaterialTheme.typography.bodySmall)
                         }

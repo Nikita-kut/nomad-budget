@@ -58,6 +58,7 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.presentation.accounts.AccountsScreen
 import ru.nomadbudget.presentation.charts.ChartsScreen
+import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -312,9 +313,9 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
 
 @Composable
 private fun TotalsInline(state: HomeState, cardModifier: Modifier = Modifier) {
-    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), cardModifier)
+    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), state, cardModifier)
     state.foreignCurrencies.filter(state.rates::hasRate).forEach { currency ->
-        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), cardModifier)
+        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), state, cardModifier)
     }
 }
 
@@ -355,15 +356,16 @@ private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
 }
 
 @Composable
-private fun TotalCard(currency: Currency, value: String, modifier: Modifier = Modifier) {
+private fun TotalCard(currency: Currency, value: String, state: HomeState, modifier: Modifier = Modifier) {
+    val color = currencyColor(currency, state)
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (currency == Currency.BASE) "Всего" else "в ${currency.code}",
                 style = MaterialTheme.typography.labelSmall,
-                color = AppTheme.colors.currency(currency),
+                color = color,
             )
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
         }
     }
 }

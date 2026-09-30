@@ -37,7 +37,8 @@ import ru.nomadbudget.domain.logic.ExchangeAnalyzer
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Transaction
-import ru.nomadbudget.presentation.components.Dropdown
+import ru.nomadbudget.presentation.components.AccountDropdown
+import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
@@ -102,8 +103,8 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Dropdown("Отдал со счёта", daily, from, { "${it.name} · ${it.currency.code}" }, { from = it }, Modifier.weight(1f))
-                Dropdown("Получил на счёт", daily, to, { "${it.name} · ${it.currency.code}" }, { to = it }, Modifier.weight(1f))
+                AccountDropdown("Отдал со счёта", daily, from, state, { from = it }, Modifier.weight(1f))
+                AccountDropdown("Получил на счёт", daily, to, state, { to = it }, Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -193,7 +194,11 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("${MoneyFormat.format(exchange.given)} → ${MoneyFormat.format(exchange.received)}", fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CurrencyAmount(MoneyFormat.format(exchange.given), exchange.given.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
+                    Text("→", fontWeight = FontWeight.SemiBold)
+                    CurrencyAmount(MoneyFormat.format(exchange.received), exchange.received.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
+                }
                 Text(
                     listOfNotNull(
                         "${DateFormat.dayMonth(exchange.date)} · ${state.accountName(exchange.fromAccountId)} → ${state.accountName(exchange.toAccountId)}",

@@ -25,9 +25,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
@@ -65,14 +69,63 @@ fun TagChip(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, se
 }
 
 @Composable
-fun CurrencyChip(currency: Currency, modifier: Modifier = Modifier) {
-    val color = AppTheme.colors.currency(currency)
+fun currencyColor(currency: Currency, state: HomeState): Color = AppTheme.colors.currency(currency, state.currencyOrdinal(currency))
+
+@Composable
+fun CurrencyChip(currency: Currency, state: HomeState, modifier: Modifier = Modifier) {
+    val color = currencyColor(currency, state)
     Box(
         modifier = modifier
             .background(color.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
             .padding(horizontal = 7.dp, vertical = 2.dp),
     ) {
         Text(currency.code, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+fun CurrencyAmount(text: String, currency: Currency, state: HomeState, style: TextStyle, fontWeight: FontWeight? = null, modifier: Modifier = Modifier) {
+    Text(text, style = style, fontWeight = fontWeight, color = currencyColor(currency, state), modifier = modifier, maxLines = 1)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AccountDropdown(
+    label: String,
+    accounts: List<Account>,
+    selected: Account?,
+    state: HomeState,
+    onSelect: (Account) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = selected?.name.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(label) },
+            leadingIcon = selected?.let { account -> { CurrencyChip(account.currency, state) } },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            accounts.forEach { account ->
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CurrencyChip(account.currency, state)
+                            Text(account.name)
+                        }
+                    },
+                    onClick = {
+                        onSelect(account)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 
