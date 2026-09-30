@@ -54,6 +54,7 @@ interface TransactionRepository {
 interface BudgetRepository {
     suspend fun getLines(periodId: String): List<BudgetLine>
     suspend fun setPlanned(periodId: String, line: BudgetLine)
+    suspend fun deleteLine(periodId: String, categoryId: String, subcategoryId: String?)
 }
 
 interface ExchangeRateRepository {

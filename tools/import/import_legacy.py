@@ -215,7 +215,21 @@ def read_sheet(ws, name: str, start: dt.date, end: dt.date, period_start: dt.dat
                 sheet.to_savings += fact
                 continue
             sheet.lines.append(Line(EXPENSE_MAP.get(key, label), "expense", plan, fact))
+    sheet.lines = merge_lines(sheet.lines)
     return sheet
+
+
+def merge_lines(lines: list[Line]) -> list[Line]:
+    """Несколько исходных строк могут схлопнуться в одну категорию — складываем план и факт."""
+    merged: dict[tuple[str, str], Line] = {}
+    for line in lines:
+        key = (line.kind, line.category)
+        if key in merged:
+            merged[key].plan += line.plan
+            merged[key].fact += line.fact
+        else:
+            merged[key] = Line(line.category, line.kind, line.plan, line.fact)
+    return list(merged.values())
 
 
 def assign_periods(ranges: list[tuple[str, dt.date, dt.date]]) -> list[tuple[str, dt.date, dt.date, dt.date, dt.date]]:
@@ -286,6 +300,17 @@ class Supabase:
         return self.request(f"{table}?{query}", "DELETE", prefer="return=minimal")
 
 
+def tx_row(user_id: str, date: str, kind: str, account_id: str, amount: int, note: str,
+           category_id: str | None = None, counter_account_id: str | None = None) -> dict:
+    """Все строки одного запроса должны иметь одинаковый набор ключей — PostgREST иначе отвечает 400."""
+    return {
+        "user_id": user_id, "tx_date": date, "type": kind, "account_id": account_id, "amount": amount,
+        "counter_account_id": counter_account_id, "counter_amount": None, "category_id": category_id,
+        "subcategory_id": None, "note": note, "rate_to_base": 1, "amount_base": amount, "rate_source": "manual",
+        "source": SOURCE,
+    }
+
+
 def import_sheets(sheets: list[MonthSheet]) -> None:
     db = Supabase()
     users = db.select("accounts", "select=user_id&limit=1")
@@ -328,20 +353,17 @@ def import_sheets(sheets: list[MonthSheet]) -> None:
         for line in s.lines:
             category_id = ensure_category(line.category, line.kind)
             if line.plan > 0:
-                budget_rows.append({"user_id": user_id, "period_id": period_id, "category_id": category_id, "planned_base": line.plan})
+                budget_rows.append({"user_id": user_id, "period_id": period_id, "category_id": category_id,
+                                    "subcategory_id": None, "planned_base": line.plan})
             if line.fact > 0:
-                tx_rows.append({"user_id": user_id, "tx_date": date, "type": line.kind, "account_id": archive_id, "amount": line.fact,
-                                "category_id": category_id, "rate_to_base": 1, "amount_base": line.fact, "rate_source": "manual",
-                                "source": SOURCE, "note": note})
+                tx_rows.append(tx_row(user_id, date, line.kind, archive_id, line.fact, note, category_id=category_id))
         if s.to_savings > 0:
-            tx_rows.append({"user_id": user_id, "tx_date": date, "type": "transfer", "account_id": archive_id, "counter_account_id": savings_id,
-                            "amount": s.to_savings, "rate_to_base": 1, "amount_base": s.to_savings, "rate_source": "manual", "source": SOURCE, "note": note})
+            tx_rows.append(tx_row(user_id, date, "transfer", archive_id, s.to_savings, note, counter_account_id=savings_id))
         if s.from_savings > 0:
-            tx_rows.append({"user_id": user_id, "tx_date": date, "type": "transfer", "account_id": savings_id, "counter_account_id": archive_id,
-                            "amount": s.from_savings, "rate_to_base": 1, "amount_base": s.from_savings, "rate_source": "manual", "source": SOURCE, "note": note})
+            tx_rows.append(tx_row(user_id, date, "transfer", savings_id, s.from_savings, note, counter_account_id=archive_id))
 
     for chunk in range(0, len(budget_rows), 200):
-        db.insert("budget_lines", budget_rows[chunk:chunk + 200], on_conflict="period_id,category_id")
+        db.insert("budget_lines", budget_rows[chunk:chunk + 200], on_conflict="period_id,category_id,subcategory_id")
     for chunk in range(0, len(tx_rows), 200):
         db.insert("transactions", tx_rows[chunk:chunk + 200])
     print(f"импортировано: {len(sheets)} месяцев, {len(tx_rows)} операций, {len(budget_rows)} строк плана")

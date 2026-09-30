@@ -220,16 +220,27 @@ class BudgetRepositoryImpl(private val client: SupabaseClient) : BudgetRepositor
     override suspend fun getLines(periodId: String): List<BudgetLine> = client.from(Tables.BUDGET_LINES)
         .select { filter { eq("period_id", periodId) } }
         .decodeList<BudgetLineDto>()
-        .map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase)) }
+        .map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
 
     override suspend fun setPlanned(periodId: String, line: BudgetLine) {
         client.from(Tables.BUDGET_LINES).upsert(
             BudgetLineUpsertDto(
                 periodId = periodId,
                 categoryId = line.categoryId,
+                subcategoryId = line.subcategoryId,
                 plannedBase = line.planned.minor,
             ),
-        ) { onConflict = "period_id,category_id" }
+        ) { onConflict = "period_id,category_id,subcategory_id" }
+    }
+
+    override suspend fun deleteLine(periodId: String, categoryId: String, subcategoryId: String?) {
+        client.from(Tables.BUDGET_LINES).delete {
+            filter {
+                eq("period_id", periodId)
+                eq("category_id", categoryId)
+                if (subcategoryId == null) exact("subcategory_id", null) else eq("subcategory_id", subcategoryId)
+            }
+        }
     }
 }
 

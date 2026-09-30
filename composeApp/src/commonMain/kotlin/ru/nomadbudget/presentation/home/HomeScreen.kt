@@ -152,6 +152,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 MonthScreen(
                                     state = state,
                                     onSetPlanned = viewModel::setPlanned,
+                                    onSetItemPlanned = viewModel::setPlannedForSubcategoryName,
+                                    onRemoveItem = viewModel::removePlanLine,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
                                     onRetry = viewModel::load,
                                 )

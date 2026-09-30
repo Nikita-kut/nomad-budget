@@ -23,6 +23,7 @@ data class BudgetLineDto(
     val id: String,
     @SerialName("period_id") val periodId: String,
     @SerialName("category_id") val categoryId: String,
+    @SerialName("subcategory_id") val subcategoryId: String? = null,
     @SerialName("planned_base") val plannedBase: Long,
 )
 
@@ -30,6 +31,7 @@ data class BudgetLineDto(
 data class BudgetLineUpsertDto(
     @SerialName("period_id") val periodId: String,
     @SerialName("category_id") val categoryId: String,
+    @SerialName("subcategory_id") val subcategoryId: String?,
     @SerialName("planned_base") val plannedBase: Long,
 )
 
