@@ -50,6 +50,8 @@ import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.InfoHint
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
@@ -71,7 +73,7 @@ fun EntryScreen(state: HomeState, onSubmit: (EntryDraft) -> Unit, onDelete: (Str
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { EntryForm(state, onSubmit) }
-        item { SectionTitle("Журнал", hint = "${state.inPeriod.size} операций за месяц") }
+        item { SectionTitle("Журнал", hint = "${state.inPeriod.size} операций за месяц", info = Hints.JOURNAL) }
         if (state.journal.isEmpty()) {
             item { EmptyHint("Пока пусто") }
         }
@@ -282,7 +284,10 @@ private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Mon
         !state.rates.hasRate(amount.currency) -> "Нет курса для ${amount.currency.code}, записать нельзя"
         else -> "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.formatRate(state.rates.basePerUnit(amount.currency))} ₽ за 1 ${amount.currency.code}"
     }
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        InfoHint("Пересчёт в рубли", Hints.AMOUNT_BASE)
+    }
 }
 
 @Composable
@@ -308,7 +313,22 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
             )
         }
         HorizontalDivider()
-        day.transactions.forEach { tx -> TransactionRow(tx, state, onDelete) }
+        val groups = listOf(
+            "Расходы" to day.transactions.filterIsInstance<Transaction.Expense>(),
+            "Доходы" to day.transactions.filterIsInstance<Transaction.Income>(),
+            "Переводы и обмены" to day.transactions.filter { it is Transaction.Transfer || it is Transaction.Exchange },
+        ).filter { it.second.isNotEmpty() }
+        groups.forEachIndexed { index, (title, list) ->
+            if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
+            Text(
+                title.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 2.dp),
+            )
+            list.forEach { tx -> TransactionRow(tx, state, onDelete) }
+        }
     }
 }
 

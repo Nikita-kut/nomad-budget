@@ -35,7 +35,6 @@ fun MoreScreen(
     state: HomeState,
     onCategories: () -> Unit,
     onBalanceCheck: () -> Unit,
-    onDebts: () -> Unit,
     onRates: () -> Unit,
     onCharts: () -> Unit,
     showAnalytics: Boolean,
@@ -65,12 +64,6 @@ fun MoreScreen(
                     "Сверка остатков",
                     state.balanceChecks.firstOrNull()?.let { "последняя ${DateFormat.dayMonth(it.date)}" } ?: "ещё не сверялись",
                     onBalanceCheck,
-                )
-                HorizontalDivider()
-                MenuRow(
-                    "Кредиты",
-                    if (state.openDebts.isEmpty()) "нет открытых" else "${state.openDebts.size} открытых",
-                    onDebts,
                 )
             }
         }

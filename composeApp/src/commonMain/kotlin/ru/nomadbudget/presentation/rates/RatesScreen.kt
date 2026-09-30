@@ -26,6 +26,7 @@ import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -69,7 +70,7 @@ fun RatesScreen(state: HomeState) {
                     }
                 }
             }
-            item { SectionTitle("История ${currency.code}", hint = "${history.size} снимков") }
+            item { SectionTitle("История ${currency.code}", hint = "${history.size} снимков", info = Hints.RATES) }
             item { HistoryTable(currency, history) }
         }
     }

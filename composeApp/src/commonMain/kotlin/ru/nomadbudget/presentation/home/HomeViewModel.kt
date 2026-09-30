@@ -539,7 +539,7 @@ class HomeViewModel(
                 debts.forEach { debt ->
                     require(current.rates.hasRate(debt.currency)) { "Нет курса для ${debt.currency.code}" }
                     val subcategoryId = requireNotNull(resolveSubcategory(categoryId, debt.name))
-                    val line = BudgetLine(categoryId, current.rates.toBase(debt.monthlyPayment), subcategoryId)
+                    val line = BudgetLine(categoryId, current.rates.toBase(debt.plannedPayment), subcategoryId)
                     budgetRepository.setPlanned(periodId, line)
                     _state.update { state ->
                         state.copy(

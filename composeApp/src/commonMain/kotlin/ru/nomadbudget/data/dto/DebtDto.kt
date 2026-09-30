@@ -13,6 +13,7 @@ data class DebtDto(
     @SerialName("rate_percent") val ratePercent: Double? = null,
     @SerialName("pay_day") val payDay: Int? = null,
     @SerialName("closed_at") val closedAt: String? = null,
+    @SerialName("extra_payment") val extraPayment: Long = 0L,
 )
 
 @Serializable
@@ -23,4 +24,5 @@ data class DebtInsertDto(
     @SerialName("monthly_payment") val monthlyPayment: Long,
     @SerialName("rate_percent") val ratePercent: Double?,
     @SerialName("pay_day") val payDay: Int?,
+    @SerialName("extra_payment") val extraPayment: Long,
 )

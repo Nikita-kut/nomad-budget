@@ -34,6 +34,7 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -99,7 +100,7 @@ fun ChartsScreen(state: HomeState) {
                 }
             }
         }
-        item { SectionTitle("Доходы и расходы по месяцам", hint = "тыс. ₽ · прокрутка по горизонтали") }
+        item { SectionTitle("Доходы и расходы по месяцам", hint = "тыс. ₽ · прокрутка по горизонтали", info = Hints.CHART_INCOME_EXPENSE) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -114,7 +115,7 @@ fun ChartsScreen(state: HomeState) {
                 }
             }
         }
-        item { SectionTitle("Отложено накопительно", hint = "тыс. ₽") }
+        item { SectionTitle("Отложено накопительно", hint = "тыс. ₽", info = Hints.CHART_SAVED) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -129,7 +130,7 @@ fun ChartsScreen(state: HomeState) {
                 }
             }
         }
-        item { SectionTitle("Расходы по категориям", hint = "за выбранный диапазон, доля от всех расходов") }
+        item { SectionTitle("Расходы по категориям", hint = "за выбранный диапазон, доля от всех расходов", info = Hints.CHART_CATEGORIES) }
         val totals = HistoryCalculator.expensesByCategory(
             state.transactions,
             state.categories,

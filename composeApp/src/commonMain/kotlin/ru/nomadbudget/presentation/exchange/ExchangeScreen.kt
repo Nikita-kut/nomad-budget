@@ -40,6 +40,7 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
@@ -57,7 +58,7 @@ fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { ExchangeForm(state, onSubmit) }
-        item { SectionTitle("Журнал обменов", hint = "спред к кросс-курсу") }
+        item { SectionTitle("Журнал обменов", hint = "спред к кросс-курсу", info = Hints.EXCHANGE_SPREAD) }
         if (state.exchanges.isEmpty()) {
             item { EmptyHint("Обменов пока нет") }
         }

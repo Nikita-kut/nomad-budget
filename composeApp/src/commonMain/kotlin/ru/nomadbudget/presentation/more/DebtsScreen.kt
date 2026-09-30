@@ -38,6 +38,8 @@ import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.InfoHint
 import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -50,7 +52,7 @@ private const val DEFAULT_DEBT_CATEGORY = "Долг"
 @Composable
 fun DebtsScreen(
     state: HomeState,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onSave: (Debt) -> Unit,
     onClose: (String) -> Unit,
     onPlanIntoMonth: (String) -> Unit,
@@ -68,22 +70,35 @@ fun DebtsScreen(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { SubScreenHeader("Кредиты", onBack) }
+        if (onBack != null) {
+            item { SubScreenHeader("Кредиты", onBack) }
+        }
         if (state.openDebts.isNotEmpty()) {
             item { DebtsSummary(state) }
-            item { SectionTitle("Открытые", hint = "нажми, чтобы править") }
+            item { SectionTitle("Открытые", hint = "нажми, чтобы править", info = Hints.DEBTS) }
             items(state.openDebts, key = Debt::id) { debt ->
                 DebtCard(debt, state, onClick = { editing = debt }, onClose = { closing = debt })
             }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("В план текущего месяца", fontWeight = FontWeight.Medium)
-                        Text(
-                            "По каждому открытому кредиту появится строка плана с его ежемесячным платежом. Подкатегория создаётся по имени кредита.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("В план текущего месяца", fontWeight = FontWeight.Medium)
+                            InfoHint("План по кредитам", Hints.DEBTS_PLAN)
+                        }
+                        state.openDebts.forEach { debt ->
+                            KeyValueRow(
+                                debt.name,
+                                buildString {
+                                    append(MoneyFormat.format(debt.plannedPayment, false))
+                                    if (!debt.extraPayment.isZero) append(" (платёж + досрочно ${MoneyFormat.format(debt.extraPayment, false)})")
+                                },
+                            )
+                        }
+                        val byCurrency = state.openDebts.groupBy { it.currency }
+                        byCurrency.forEach { (currency, debts) ->
+                            KeyValueRow("Итого в план, ${currency.code}", MoneyFormat.format(debts.map { it.plannedPayment }.sumIn(currency), false), emphasize = true)
+                        }
                         Dropdown("Категория плана", expenseCategories, planCategory, Category::name, { planCategory = it })
                         Button(
                             onClick = { planCategory?.let { onPlanIntoMonth(it.id) } },
@@ -152,7 +167,7 @@ private fun DebtsSummary(state: HomeState) {
 @Composable
 private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose: () -> Unit) {
     val paid = state.paidThisPeriod(debt)
-    val paidEnough = paid >= debt.monthlyPayment
+    val paidEnough = paid >= debt.plannedPayment
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -161,6 +176,7 @@ private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose:
             }
             val details = listOfNotNull(
                 "платёж ${MoneyFormat.format(debt.monthlyPayment, false)}",
+                debt.extraPayment.takeUnless { it.isZero }?.let { "досрочно ${MoneyFormat.format(it, false)}" },
                 debt.ratePercent?.let { "${MoneyFormat.formatRate(it)}%" },
                 debt.payDay?.let { "до $it числа" },
                 debt.ratePercent?.let { "проценты ≈ ${MoneyFormat.format(DebtCalculator.monthlyInterest(debt), false)} в месяц" },
@@ -184,15 +200,17 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
     var currency by remember { mutableStateOf(initial?.currency ?: Currency.BASE) }
     var remaining by remember { mutableStateOf(initial?.principalRemaining?.let(::majorText).orEmpty()) }
     var payment by remember { mutableStateOf(initial?.monthlyPayment?.let(::majorText).orEmpty()) }
+    var extra by remember { mutableStateOf(initial?.extraPayment?.takeUnless { it.isZero }?.let(::majorText).orEmpty()) }
     var rate by remember { mutableStateOf(initial?.ratePercent?.toString().orEmpty()) }
     var payDay by remember { mutableStateOf(initial?.payDay?.toString().orEmpty()) }
     val transformation = remember { ThousandsVisualTransformation() }
 
     val remainingMoney = MoneyFormat.parse(remaining, currency) ?: if (remaining.trim() == "0") Money.zero(currency) else null
     val paymentMoney = MoneyFormat.parse(payment, currency)
+    val extraMoney = if (extra.isBlank() || extra.trim() == "0") Money.zero(currency) else MoneyFormat.parse(extra, currency)
     val rateValue = rate.replace(',', '.').trim().toDoubleOrNull()
     val payDayValue = payDay.trim().toIntOrNull()
-    val valid = name.isNotBlank() && remainingMoney != null && paymentMoney != null &&
+    val valid = name.isNotBlank() && remainingMoney != null && paymentMoney != null && extraMoney != null &&
         (rate.isBlank() || rateValue != null) && (payDay.isBlank() || payDayValue in 1..31)
 
     AlertDialog(
@@ -212,6 +230,12 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
                 OutlinedTextField(
                     value = payment, onValueChange = { payment = ThousandsVisualTransformation.sanitize(it) },
                     label = { Text("Платёж в месяц, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = extra, onValueChange = { extra = ThousandsVisualTransformation.sanitize(it) },
+                    label = { Text("Досрочно в месяц сверху, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
+                    placeholder = { Text("0") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -243,6 +267,7 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
                             monthlyPayment = paymentMoney ?: Money.zero(currency),
                             ratePercent = rateValue,
                             payDay = payDayValue,
+                            extraPayment = extraMoney ?: Money.zero(currency),
                         ),
                     )
                 },

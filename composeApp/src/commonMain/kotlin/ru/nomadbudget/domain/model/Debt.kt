@@ -9,12 +9,15 @@ data class Debt(
     val ratePercent: Double?,
     val payDay: Int?,
     val isClosed: Boolean = false,
+    val extraPayment: Money = Money.zero(currency),
 ) {
     init {
-        require(principalRemaining.currency == currency && monthlyPayment.currency == currency) {
+        require(principalRemaining.currency == currency && monthlyPayment.currency == currency && extraPayment.currency == currency) {
             "Суммы кредита должны быть в валюте кредита"
         }
     }
+
+    val plannedPayment: Money get() = monthlyPayment + extraPayment
 }
 
 object DebtCalculator {

@@ -19,6 +19,7 @@ object DebtMapper {
             ratePercent = dto.ratePercent,
             payDay = dto.payDay,
             isClosed = dto.closedAt != null,
+            extraPayment = Money(dto.extraPayment, currency),
         )
     }
 
@@ -29,5 +30,6 @@ object DebtMapper {
         monthlyPayment = debt.monthlyPayment.minor,
         ratePercent = debt.ratePercent,
         payDay = debt.payDay,
+        extraPayment = debt.extraPayment.minor,
     )
 }
