@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 
@@ -99,6 +100,7 @@ fun AccountDropdown(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedBalance = selected?.let { state.balances[it.id] }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
         OutlinedTextField(
             value = selected?.name.orEmpty(),
@@ -108,15 +110,36 @@ fun AccountDropdown(
             label = { Text(label) },
             leadingIcon = selected?.let { account -> { CurrencyChip(account.currency, state) } },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            supportingText = selectedBalance?.let { balance ->
+                {
+                    Text(
+                        "сейчас ${MoneyFormat.format(balance)}",
+                        color = currencyColor(balance.currency, state),
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             accounts.forEach { account ->
                 DropdownMenuItem(
                     text = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
                             CurrencyChip(account.currency, state)
-                            Text(account.name)
+                            Text(account.name, modifier = Modifier.weight(1f))
+                            state.balances[account.id]?.let { balance ->
+                                Text(
+                                    MoneyFormat.format(balance),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = currencyColor(balance.currency, state),
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
                         }
                     },
                     onClick = {
