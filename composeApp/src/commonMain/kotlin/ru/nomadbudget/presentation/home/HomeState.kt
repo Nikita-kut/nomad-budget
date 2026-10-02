@@ -15,6 +15,7 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DefaultRates
+import ru.nomadbudget.domain.model.Draft
 import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
@@ -36,7 +37,10 @@ data class EntryDraft(
     val subcategoryName: String = "",
     val note: String = "",
     val debtId: String? = null,
+    val fromDraftId: String? = null,
 )
+
+data class EntryPrefill(val draftId: String, val amountText: String?, val note: String)
 
 data class ExchangeDraft(
     val date: LocalDate,
@@ -65,6 +69,8 @@ data class HomeState(
     val offline: Boolean = false,
     val cachedAt: Instant? = null,
     val pendingCount: Int = 0,
+    val drafts: List<Draft> = emptyList(),
+    val entryPrefill: EntryPrefill? = null,
     val currencies: List<Currency> = Currency.builtIn,
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),

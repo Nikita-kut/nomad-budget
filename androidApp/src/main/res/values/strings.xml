@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Nomad Budget</string>
+    <string name="widget_name">Быстрая заметка</string>
+    <string name="widget_description">Заметка о трате во Входящие, не открывая приложение</string>
 </resources>

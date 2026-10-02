@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -127,6 +128,13 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
+    LaunchedEffect(viewModel) {
+        viewModel.navigateToEntry.collect { navController.switchTo(EntryRoute) }
+    }
+    LifecycleResumeEffect(viewModel) {
+        viewModel.reloadDrafts()
+        onPauseOrDispose {}
+    }
 
     val tabs = remember {
         listOf(
@@ -198,6 +206,10 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSubmit = viewModel::addEntry,
                                     onDelete = viewModel::deleteTransaction,
                                     onUpdate = viewModel::updateTransaction,
+                                    onAddDraft = viewModel::addDraft,
+                                    onUseDraft = viewModel::useDraft,
+                                    onRemoveDraft = viewModel::removeDraft,
+                                    onClearPrefill = viewModel::clearPrefill,
                                 )
                             }
                             composable<ExchangeRoute> {
