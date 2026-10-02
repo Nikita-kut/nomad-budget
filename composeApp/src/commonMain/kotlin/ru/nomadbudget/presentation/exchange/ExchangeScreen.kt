@@ -39,6 +39,7 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.CurrencyAmount
+import ru.nomadbudget.presentation.components.DateField
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.KeyValueRow
@@ -128,12 +129,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
                 )
             }
             RateHints(state, from, to, given, received, sameCurrency, sameAccount)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("${DateFormat.dayMonth(date)} · ${DateFormat.weekdayShort(date)}", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                OutlinedButton(onClick = { date = date.plus(-1, DateTimeUnit.DAY) }) { Text("−1") }
-                OutlinedButton(onClick = { date = state.today }, enabled = date != state.today) { Text("Сегодня") }
-                OutlinedButton(onClick = { date = date.plus(1, DateTimeUnit.DAY) }, enabled = date < state.today) { Text("+1") }
-            }
+            DateField(date = date, today = state.today, onChange = { date = it })
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },

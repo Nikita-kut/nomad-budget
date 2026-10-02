@@ -187,7 +187,12 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 )
                             }
                             composable<EntryRoute> {
-                                EntryScreen(state = state, onSubmit = viewModel::addEntry, onDelete = viewModel::deleteTransaction)
+                                EntryScreen(
+                                    state = state,
+                                    onSubmit = viewModel::addEntry,
+                                    onDelete = viewModel::deleteTransaction,
+                                    onUpdate = viewModel::updateTransaction,
+                                )
                             }
                             composable<ExchangeRoute> {
                                 ExchangeScreen(state = state, onSubmit = viewModel::addExchange, onDelete = viewModel::deleteTransaction)
