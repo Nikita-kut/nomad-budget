@@ -268,6 +268,17 @@ class TransactionRepositoryImpl(private val client: SupabaseClient) : Transactio
             .let { TransactionMapper.toDomain(it, byId) }
     }
 
+    override suspend fun update(transaction: Transaction, accounts: List<Account>): Transaction {
+        val byId = accounts.associateBy { it.id }
+        return client.from(Tables.TRANSACTIONS)
+            .update(TransactionMapper.toInsert(transaction)) {
+                filter { eq("id", transaction.id) }
+                select()
+            }
+            .decodeSingle<TransactionDto>()
+            .let { TransactionMapper.toDomain(it, byId) }
+    }
+
     override suspend fun delete(id: String) {
         client.from(Tables.TRANSACTIONS).delete { filter { eq("id", id) } }
     }

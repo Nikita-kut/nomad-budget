@@ -55,6 +55,7 @@ interface TransactionRepository {
     suspend fun getInPeriod(period: Period, accounts: List<Account>): List<Transaction>
     suspend fun getAll(accounts: List<Account>): List<Transaction>
     suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction
+    suspend fun update(transaction: Transaction, accounts: List<Account>): Transaction
     suspend fun delete(id: String)
 }
 

@@ -205,6 +205,52 @@ class HomeViewModel(
         }
     }
 
+    fun updateTransaction(updated: Transaction, subcategoryName: String?) {
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(saving = true) }
+                val current = _state.value
+                val original = current.transactions.firstOrNull { it.id == updated.id }
+                require(original != null) { "Операция не найдена" }
+                val withBase = withRecalculatedBase(original, updated)
+                val resolved = when (withBase) {
+                    is Transaction.Expense -> withBase.copy(subcategoryId = subcategoryName?.let { resolveSubcategory(withBase.categoryId, it) })
+                    is Transaction.Income, is Transaction.Transfer, is Transaction.Exchange -> withBase
+                }
+                val saved = transactionRepository.update(resolved, current.accounts)
+                _state.update { state -> state.copy(saving = false, transactions = state.transactions.map { if (it.id == saved.id) saved else it }) }
+                _messages.send("Операция обновлена")
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось обновить операцию")
+            }
+        }
+    }
+
+    private fun withRecalculatedBase(original: Transaction, updated: Transaction): Transaction {
+        val rates = _state.value.rates
+        fun base(oldAmount: Money, oldBase: Money, newAmount: Money): Money =
+            if (newAmount == oldAmount) oldBase else rates.toBase(newAmount)
+        return when (updated) {
+            is Transaction.Expense -> {
+                val old = original as? Transaction.Expense
+                updated.copy(amountBase = if (old != null) base(old.amount, old.amountBase, updated.amount) else rates.toBase(updated.amount))
+            }
+            is Transaction.Income -> {
+                val old = original as? Transaction.Income
+                updated.copy(amountBase = if (old != null) base(old.amount, old.amountBase, updated.amount) else rates.toBase(updated.amount))
+            }
+            is Transaction.Transfer -> {
+                val old = original as? Transaction.Transfer
+                updated.copy(amountBase = if (old != null) base(old.amount, old.amountBase, updated.amount) else rates.toBase(updated.amount))
+            }
+            is Transaction.Exchange -> {
+                val old = original as? Transaction.Exchange
+                updated.copy(amountBase = if (old != null) base(old.given, old.amountBase, updated.given) else rates.toBase(updated.given))
+            }
+        }
+    }
+
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             try {

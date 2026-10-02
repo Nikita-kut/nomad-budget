@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.entry
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -48,6 +49,7 @@ import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.CurrencyChip
+import ru.nomadbudget.presentation.components.DateField
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
@@ -66,7 +68,13 @@ import ru.nomadbudget.presentation.theme.AppTheme
 private const val MAX_SUGGESTIONS = 8
 
 @Composable
-fun EntryScreen(state: HomeState, onSubmit: (EntryDraft) -> Unit, onDelete: (String) -> Unit) {
+fun EntryScreen(
+    state: HomeState,
+    onSubmit: (EntryDraft) -> Unit,
+    onDelete: (String) -> Unit,
+    onUpdate: (Transaction, String?) -> Unit,
+) {
+    var editing by remember { mutableStateOf<Transaction?>(null) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
@@ -78,8 +86,20 @@ fun EntryScreen(state: HomeState, onSubmit: (EntryDraft) -> Unit, onDelete: (Str
             item { EmptyHint("Пока пусто") }
         }
         items(state.journal, key = { it.date.toString() }) { day ->
-            DayCard(day, state, onDelete)
+            DayCard(day, state, onDelete, onEdit = { editing = it })
         }
+    }
+
+    editing?.let { tx ->
+        EditTransactionDialog(
+            tx = tx,
+            state = state,
+            onDismiss = { editing = null },
+            onSave = { updated, subcategoryName ->
+                onUpdate(updated, subcategoryName)
+                editing = null
+            },
+        )
     }
 }
 
@@ -159,7 +179,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
                 }
             }
 
-            DateRow(date, today = state.today, onChange = { date = it })
+            DateField(date = date, today = state.today, onChange = { date = it })
 
             AccountDropdown(
                 label = when (type) {
@@ -263,18 +283,6 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     }
 }
 
-@Composable
-private fun DateRow(date: LocalDate, today: LocalDate, onChange: (LocalDate) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("${DateFormat.dayMonth(date)} · ${DateFormat.weekdayFull(date)}", fontWeight = FontWeight.Medium)
-            Text(if (date == today) "сегодня" else date.toString(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        OutlinedButton(onClick = { onChange(date.plus(-1, DateTimeUnit.DAY)) }) { Text("−1") }
-        OutlinedButton(onClick = { onChange(today) }, enabled = date != today) { Text("Сегодня") }
-        OutlinedButton(onClick = { onChange(date.plus(1, DateTimeUnit.DAY)) }, enabled = date < today) { Text("+1") }
-    }
-}
 
 @Composable
 private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Money?) {
@@ -291,7 +299,7 @@ private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Mon
 }
 
 @Composable
-private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Unit) {
+private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Unit, onEdit: (Transaction) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
@@ -327,13 +335,13 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 2.dp),
             )
-            list.forEach { tx -> TransactionRow(tx, state, onDelete) }
+            list.forEach { tx -> TransactionRow(tx, state, onDelete, onEdit) }
         }
     }
 }
 
 @Composable
-private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String) -> Unit) {
+private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String) -> Unit, onEdit: (Transaction) -> Unit) {
     val (title, subtitle, primary, secondary) = describe(tx, state)
     val primaryColor = when (tx) {
         is Transaction.Income -> AppTheme.colors.good
@@ -341,7 +349,7 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
         is Transaction.Expense, is Transaction.Exchange -> MaterialTheme.colorScheme.onSurface
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onEdit(tx) }.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
