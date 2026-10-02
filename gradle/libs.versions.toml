@@ -12,6 +12,7 @@ androidx-lifecycle = "2.11.0"
 androidx-navigation = "2.9.2"
 compose-materialIcons = "1.7.3"
 vico = "2.5.2"
+androidx-glance = "1.2.0"
 android-compileSdk = "37"
 android-minSdk = "33"
 android-targetSdk = "37"
@@ -32,6 +33,9 @@ androidx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecy
 androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
 compose-material-icons-core = { module = "org.jetbrains.compose.material:material-icons-core", version.ref = "compose-materialIcons" }
 vico-multiplatform = { module = "com.patrykandpatrick.vico:multiplatform", version.ref = "vico" }
+androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "androidx-glance" }
+androidx-glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "androidx-glance" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

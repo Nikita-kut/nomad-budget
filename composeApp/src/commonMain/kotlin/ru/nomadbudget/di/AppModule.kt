@@ -2,6 +2,7 @@ package ru.nomadbudget.di
 
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import ru.nomadbudget.data.local.DraftsStore
 import ru.nomadbudget.data.local.LocalStore
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.PendingQueue
@@ -23,6 +24,7 @@ import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.DebtRepository
+import ru.nomadbudget.domain.repository.DraftRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
@@ -33,6 +35,7 @@ val appModule = module {
     single { LocalStore() }
     single { OfflineCache(get()) }
     single { PendingQueue(get()) }
+    single<DraftRepository> { DraftsStore(get()) }
 
     single<AuthRepository> { AuthRepositoryImpl(get()) }
     single<CurrencyRepository> { CurrencyRepositoryImpl(get(), get()) }

@@ -64,6 +64,13 @@ import ru.nomadbudget.presentation.home.EntryType
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.home.JournalDay
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.domain.model.Draft
+import ru.nomadbudget.presentation.home.EntryPrefill
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.Delete
 
 private const val MAX_SUGGESTIONS = 8
 
@@ -73,6 +80,10 @@ fun EntryScreen(
     onSubmit: (EntryDraft) -> Unit,
     onDelete: (String) -> Unit,
     onUpdate: (Transaction, String?) -> Unit,
+    onAddDraft: (String) -> Unit,
+    onUseDraft: (Draft) -> Unit,
+    onRemoveDraft: (String) -> Unit,
+    onClearPrefill: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<Transaction?>(null) }
     LazyColumn(
@@ -80,7 +91,9 @@ fun EntryScreen(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { EntryForm(state, onSubmit) }
+        item { EntryForm(state, onSubmit, onClearPrefill) }
+        item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else "${state.drafts.size} заметок", info = Hints.INBOX) }
+        item { InboxCard(state.drafts, onAddDraft, onUseDraft, onRemoveDraft) }
         item { SectionTitle("Журнал", hint = "${state.inPeriod.size} операций за месяц", info = Hints.JOURNAL) }
         if (state.journal.isEmpty()) {
             item { EmptyHint("Пока пусто") }
@@ -105,7 +118,7 @@ fun EntryScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
+private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearPrefill: () -> Unit) {
     var type by remember { mutableStateOf(EntryType.EXPENSE) }
     var date by remember { mutableStateOf(state.today) }
     var account by remember(state.activeAccounts) {
@@ -118,6 +131,15 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
     var note by remember { mutableStateOf("") }
     var debt by remember { mutableStateOf<Debt?>(null) }
     val amountTransformation = remember { ThousandsVisualTransformation() }
+    val prefill = state.entryPrefill
+
+    LaunchedEffect(prefill) {
+        if (prefill != null) {
+            type = EntryType.EXPENSE
+            amountText = prefill.amountText.orEmpty()
+            note = prefill.note
+        }
+    }
 
     val kind = if (type == EntryType.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
     val categories = state.activeCategories.filter { it.kind == kind }
@@ -151,6 +173,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
                 subcategoryName = if (type == EntryType.EXPENSE) subcategory else "",
                 note = note,
                 debtId = debt?.id.takeIf { type == EntryType.EXPENSE },
+                fromDraftId = prefill?.draftId,
             ),
         )
         amountText = ""
@@ -161,6 +184,9 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (prefill != null) {
+                PrefillBanner(prefill, onClearPrefill)
+            }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 EntryType.entries.forEachIndexed { index, entryType ->
                     SegmentedButton(
@@ -408,4 +434,75 @@ private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
         primary = "−" + MoneyFormat.format(tx.given),
         secondary = "+" + MoneyFormat.format(tx.received),
     )
+}
+
+@Composable
+private fun PrefillBanner(prefill: EntryPrefill, onClear: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Из Входящих: «${prefill.note}»" + (prefill.amountText?.let { " $it" } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onClear) { Text("Отменить") }
+        }
+    }
+}
+
+@Composable
+private fun InboxCard(
+    drafts: List<Draft>,
+    onAdd: (String) -> Unit,
+    onUse: (Draft) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Быстрая заметка") },
+                    placeholder = { Text("кофе 60к") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                FilledTonalButton(
+                    onClick = {
+                        onAdd(text)
+                        text = ""
+                    },
+                    enabled = text.isNotBlank(),
+                ) { Text("В список") }
+            }
+            if (drafts.isEmpty()) {
+                Text(
+                    "Заметки с виджета и отсюда попадают в этот список. Нажми «Внести», чтобы превратить заметку в операцию.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            drafts.forEach { draft ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(draft.text, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            DateFormat.dayMonthTime(draft.createdAt),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onUse(draft) }) { Text("Внести") }
+                    IconButton(onClick = { onRemove(draft.id) }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Удалить заметку")
+                    }
+                }
+            }
+        }
+    }
 }

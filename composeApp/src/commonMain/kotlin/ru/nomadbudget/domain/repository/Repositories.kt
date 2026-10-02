@@ -10,6 +10,7 @@ import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.Draft
 import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
@@ -77,6 +78,13 @@ interface DebtRepository {
     suspend fun add(debt: Debt): Debt
     suspend fun update(debt: Debt)
     suspend fun close(id: String)
+}
+
+interface DraftRepository {
+    fun all(): List<Draft>
+    fun add(text: String): Draft
+    fun remove(id: String)
+    fun count(): Int
 }
 
 interface BalanceCheckRepository {

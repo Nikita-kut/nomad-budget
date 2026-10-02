@@ -32,5 +32,9 @@ dependencies {
     implementation(projects.composeApp)
     implementation(compose.runtime)
     implementation(compose.ui)
+    implementation(compose.foundation)
+    implementation(compose.material3)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
 }
