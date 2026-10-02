@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Build
@@ -20,8 +21,10 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +65,7 @@ import ru.nomadbudget.presentation.charts.ChartsScreen
 import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
+import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.month.MonthScreen
 import ru.nomadbudget.presentation.more.BalanceCheckScreen
@@ -126,7 +130,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         listOf(
             Tab(MonthRoute, "Месяц", Icons.Filled.DateRange, primary = true) { it.isOn<MonthRoute>() },
             Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle, primary = true) { it.isOn<EntryRoute>() },
-            Tab(ExchangeRoute, "Обмен", Icons.Filled.Refresh, primary = true) { it.isOn<ExchangeRoute>() },
+            Tab(ExchangeRoute, "Обмен", Icons.AutoMirrored.Filled.Send, primary = true) { it.isOn<ExchangeRoute>() },
             Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox, primary = true) { it.isOn<AccountsRoute>() },
             Tab(DebtsRoute, "Кредиты", Icons.Filled.Build, primary = true) { it.isOn<DebtsRoute>() },
             Tab(RatesRoute, "Курсы", Icons.Filled.Info, primary = false) { it.isOn<RatesRoute>() },
@@ -342,6 +346,22 @@ private fun RatesWarning(state: HomeState) {
 @Composable
 private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(onClick = viewModel::refresh, enabled = !state.loading && !state.refreshing) {
+                if (state.refreshing) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Обновить данные")
+                }
+            }
+            state.lastSyncedAt?.let {
+                Text(
+                    DateFormat.timeOnly(it),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         IconButton(onClick = viewModel::showPreviousPeriod) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущий месяц")
         }

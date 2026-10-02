@@ -22,6 +22,7 @@ import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
+import kotlin.time.Instant
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -57,8 +58,10 @@ data class HomeState(
     val period: Period,
     val periodId: String? = null,
     val loading: Boolean = true,
+    val refreshing: Boolean = false,
     val saving: Boolean = false,
     val error: String? = null,
+    val lastSyncedAt: Instant? = null,
     val currencies: List<Currency> = Currency.builtIn,
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
