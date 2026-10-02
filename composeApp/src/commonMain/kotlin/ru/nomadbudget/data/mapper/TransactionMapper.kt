@@ -15,7 +15,35 @@ object TransactionMapper {
     private const val TYPE_TRANSFER = "transfer"
     private const val TYPE_EXCHANGE = "exchange"
 
-    fun toDomain(dto: TransactionDto, accountsById: Map<String, Account>): Transaction {
+    fun toDto(id: String, insert: TransactionInsertDto): TransactionDto = TransactionDto(
+        id = id,
+        txDate = insert.txDate,
+        type = insert.type,
+        accountId = insert.accountId,
+        amount = insert.amount,
+        counterAccountId = insert.counterAccountId,
+        counterAmount = insert.counterAmount,
+        categoryId = insert.categoryId,
+        subcategoryId = insert.subcategoryId,
+        debtId = insert.debtId,
+        note = insert.note,
+        rateToBase = insert.rateToBase,
+        amountBase = insert.amountBase,
+        rateSource = insert.rateSource,
+        source = "app",
+    )
+
+    fun toDomain(dto: TransactionDto, accountsById: Map<String, Account>, pending: Boolean = false): Transaction {
+        val base = toDomainInternal(dto, accountsById)
+        return if (!pending) base else when (base) {
+            is Transaction.Expense -> base.copy(pending = true)
+            is Transaction.Income -> base.copy(pending = true)
+            is Transaction.Transfer -> base.copy(pending = true)
+            is Transaction.Exchange -> base.copy(pending = true)
+        }
+    }
+
+    private fun toDomainInternal(dto: TransactionDto, accountsById: Map<String, Account>): Transaction {
         val account = requireNotNull(accountsById[dto.accountId]) { "Неизвестный счёт ${dto.accountId}" }
         val amount = Money(dto.amount, account.currency)
         val amountBase = Money.rub(dto.amountBase)

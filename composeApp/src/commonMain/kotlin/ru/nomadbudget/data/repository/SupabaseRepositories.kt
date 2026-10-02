@@ -5,6 +5,14 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import ru.nomadbudget.data.local.OfflineCache
+import ru.nomadbudget.data.local.PendingQueue
+import ru.nomadbudget.data.local.PendingTransaction
+import io.github.jan.supabase.exceptions.RestException
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
 import ru.nomadbudget.data.dto.AccountDto
@@ -67,7 +75,7 @@ private object Tables {
     const val DEBTS = "debts"
 }
 
-class CurrencyRepositoryImpl(private val client: SupabaseClient) : CurrencyRepository {
+class CurrencyRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : CurrencyRepository {
 
     private val mutex = Mutex()
     private var cached: List<Currency>? = null
@@ -77,10 +85,9 @@ class CurrencyRepositoryImpl(private val client: SupabaseClient) : CurrencyRepos
     }
 
     private suspend fun loadFromRemote(): List<Currency> {
-        val remote = client.from(Tables.CURRENCIES)
-            .select { order("code", Order.ASCENDING) }
-            .decodeList<CurrencyDto>()
-            .map(CurrencyMapper::toDomain)
+        val remote = cache.throughOrDefault("currencies", ListSerializer(CurrencyDto.serializer()), emptyList()) {
+            client.from(Tables.CURRENCIES).select { order("code", Order.ASCENDING) }.decodeList<CurrencyDto>()
+        }.map(CurrencyMapper::toDomain)
         val codes = remote.map { it.code }.toSet()
         return remote + Currency.builtIn.filter { it.code !in codes }
     }
@@ -91,14 +98,14 @@ suspend fun CurrencyRepository.byCode(): Map<String, Currency> = getAll().associ
 class AccountRepositoryImpl(
     private val client: SupabaseClient,
     private val currencies: CurrencyRepository,
+    private val cache: OfflineCache,
 ) : AccountRepository {
 
     override suspend fun getAll(): List<Account> {
         val byCode = currencies.byCode()
-        return client.from(Tables.ACCOUNTS)
-            .select { order("sort_order", Order.ASCENDING) }
-            .decodeList<AccountDto>()
-            .map { AccountMapper.toDomain(it, byCode) }
+        return cache.through("accounts", ListSerializer(AccountDto.serializer())) {
+            client.from(Tables.ACCOUNTS).select { order("sort_order", Order.ASCENDING) }.decodeList<AccountDto>()
+        }.map { AccountMapper.toDomain(it, byCode) }
     }
 
     override suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, sortOrder: Int): Account {
@@ -122,17 +129,15 @@ class AccountRepositoryImpl(
     }
 }
 
-class CategoryRepositoryImpl(private val client: SupabaseClient) : CategoryRepository {
+class CategoryRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : CategoryRepository {
 
-    override suspend fun getCategories(): List<Category> = client.from(Tables.CATEGORIES)
-        .select { order("sort_order", Order.ASCENDING) }
-        .decodeList<CategoryDto>()
-        .map(CategoryMapper::toDomain)
+    override suspend fun getCategories(): List<Category> = cache.through("categories", ListSerializer(CategoryDto.serializer())) {
+        client.from(Tables.CATEGORIES).select { order("sort_order", Order.ASCENDING) }.decodeList<CategoryDto>()
+    }.map(CategoryMapper::toDomain)
 
-    override suspend fun getSubcategories(): List<Subcategory> = client.from(Tables.SUBCATEGORIES)
-        .select { order("name", Order.ASCENDING) }
-        .decodeList<SubcategoryDto>()
-        .map(CategoryMapper::toDomain)
+    override suspend fun getSubcategories(): List<Subcategory> = cache.through("subcategories", ListSerializer(SubcategoryDto.serializer())) {
+        client.from(Tables.SUBCATEGORIES).select { order("name", Order.ASCENDING) }.decodeList<SubcategoryDto>()
+    }.map(CategoryMapper::toDomain)
 
     override suspend fun addCategory(name: String, kind: CategoryKind, sortOrder: Int): Category = client.from(Tables.CATEGORIES)
         .insert(CategoryInsertDto(name = name, kind = kind.name.lowercase(), sortOrder = sortOrder)) { select() }
@@ -164,14 +169,14 @@ class CategoryRepositoryImpl(private val client: SupabaseClient) : CategoryRepos
 class DebtRepositoryImpl(
     private val client: SupabaseClient,
     private val currencies: CurrencyRepository,
+    private val cache: OfflineCache,
 ) : DebtRepository {
 
     override suspend fun getAll(): List<Debt> {
         val byCode = currencies.byCode()
-        return client.from(Tables.DEBTS)
-            .select { order("created_at", Order.ASCENDING) }
-            .decodeList<DebtDto>()
-            .mapNotNull { DebtMapper.toDomain(it, byCode) }
+        return cache.throughOrDefault("debts", ListSerializer(DebtDto.serializer()), emptyList()) {
+            client.from(Tables.DEBTS).select { order("created_at", Order.ASCENDING) }.decodeList<DebtDto>()
+        }.mapNotNull { DebtMapper.toDomain(it, byCode) }
     }
 
     override suspend fun add(debt: Debt): Debt {
@@ -191,18 +196,19 @@ class DebtRepositoryImpl(
     }
 }
 
-class BalanceCheckRepositoryImpl(private val client: SupabaseClient) : BalanceCheckRepository {
+class BalanceCheckRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : BalanceCheckRepository {
 
     override suspend fun getRecent(accounts: List<Account>): List<BalanceCheck> {
         val byId = accounts.associateBy { it.id }
-        return client.from(Tables.BALANCE_CHECKS)
-            .select {
-                order("check_date", Order.DESCENDING)
-                order("created_at", Order.DESCENDING)
-                limit(RECENT_CHECKS)
-            }
-            .decodeList<BalanceCheckDto>()
-            .mapNotNull { BalanceCheckMapper.toDomain(it, byId) }
+        return cache.throughOrDefault("balance_checks", ListSerializer(BalanceCheckDto.serializer()), emptyList()) {
+            client.from(Tables.BALANCE_CHECKS)
+                .select {
+                    order("check_date", Order.DESCENDING)
+                    order("created_at", Order.DESCENDING)
+                    limit(RECENT_CHECKS)
+                }
+                .decodeList<BalanceCheckDto>()
+        }.mapNotNull { BalanceCheckMapper.toDomain(it, byId) }
     }
 
     override suspend fun add(check: BalanceCheck): BalanceCheck = client.from(Tables.BALANCE_CHECKS)
@@ -215,27 +221,38 @@ class BalanceCheckRepositoryImpl(private val client: SupabaseClient) : BalanceCh
     }
 }
 
-class PeriodRepositoryImpl(private val client: SupabaseClient) : PeriodRepository {
+class PeriodRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : PeriodRepository {
 
     override suspend fun ensure(period: Period): String {
-        val existing = client.from(Tables.PERIODS)
-            .select { filter { eq("start_date", period.start.toString()) } }
-            .decodeSingleOrNull<PeriodDto>()
-        if (existing != null) return existing.id
-        return client.from(Tables.PERIODS)
-            .insert(
-                PeriodInsertDto(
-                    startDate = period.start.toString(),
-                    endDate = period.endExclusive.toString(),
-                    title = period.title(),
-                ),
-            ) { select() }
-            .decodeSingle<PeriodDto>()
-            .id
+        val key = "period:${period.start}"
+        return cache.throughOrDefault(key, String.serializer(), OFFLINE_PREFIX + period.start) {
+            val existing = client.from(Tables.PERIODS)
+                .select { filter { eq("start_date", period.start.toString()) } }
+                .decodeSingleOrNull<PeriodDto>()
+            existing?.id ?: client.from(Tables.PERIODS)
+                .insert(
+                    PeriodInsertDto(
+                        startDate = period.start.toString(),
+                        endDate = period.endExclusive.toString(),
+                        title = period.title(),
+                    ),
+                ) { select() }
+                .decodeSingle<PeriodDto>()
+                .id
+        }
+    }
+
+    companion object {
+        const val OFFLINE_PREFIX = "offline:"
     }
 }
 
-class TransactionRepositoryImpl(private val client: SupabaseClient) : TransactionRepository {
+@OptIn(ExperimentalUuidApi::class)
+class TransactionRepositoryImpl(
+    private val client: SupabaseClient,
+    private val cache: OfflineCache,
+    private val queue: PendingQueue,
+) : TransactionRepository {
 
     override suspend fun getInPeriod(period: Period, accounts: List<Account>): List<Transaction> {
         val byId = accounts.associateBy { it.id }
@@ -254,21 +271,57 @@ class TransactionRepositoryImpl(private val client: SupabaseClient) : Transactio
 
     override suspend fun getAll(accounts: List<Account>): List<Transaction> {
         val byId = accounts.associateBy { it.id }
-        return client.from(Tables.TRANSACTIONS)
-            .select { order("tx_date", Order.DESCENDING) }
-            .decodeList<TransactionDto>()
-            .map { TransactionMapper.toDomain(it, byId) }
+        val remote = cache.through("transactions", ListSerializer(TransactionDto.serializer())) {
+            client.from(Tables.TRANSACTIONS).select { order("tx_date", Order.DESCENDING) }.decodeList<TransactionDto>()
+        }
+        val remoteIds = remote.map { it.id }.toSet()
+        val pending = queue.all()
+            .filterNot { it.id in remoteIds }
+            .map { TransactionMapper.toDomain(TransactionMapper.toDto(it.id, it.dto), byId, pending = true) }
+        return pending + remote.map { TransactionMapper.toDomain(it, byId) }
     }
 
     override suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction {
         val byId = accounts.associateBy { it.id }
-        return client.from(Tables.TRANSACTIONS)
-            .insert(TransactionMapper.toInsert(transaction)) { select() }
-            .decodeSingle<TransactionDto>()
-            .let { TransactionMapper.toDomain(it, byId) }
+        val id = Uuid.random().toString()
+        val insert = TransactionMapper.toInsert(transaction).copy(id = id)
+        return try {
+            client.from(Tables.TRANSACTIONS)
+                .insert(insert) { select() }
+                .decodeSingle<TransactionDto>()
+                .let { TransactionMapper.toDomain(it, byId) }
+        } catch (e: Exception) {
+            if (!OfflineCache.isOffline(e)) throw e
+            queue.add(PendingTransaction(id, insert))
+            TransactionMapper.toDomain(TransactionMapper.toDto(id, insert), byId, pending = true)
+        }
     }
 
+    override suspend fun flushPending(): Int {
+        var sent = 0
+        for (item in queue.all()) {
+            try {
+                client.from(Tables.TRANSACTIONS).insert(item.dto)
+                queue.remove(item.id)
+                sent++
+            } catch (e: RestException) {
+                if (e.message.orEmpty().contains(DUPLICATE_KEY) || e.message.orEmpty().contains("duplicate", ignoreCase = true)) {
+                    queue.remove(item.id)
+                    sent++
+                } else {
+                    throw e
+                }
+            } catch (e: Exception) {
+                break
+            }
+        }
+        return sent
+    }
+
+    override fun pendingCount(): Int = queue.size
+
     override suspend fun update(transaction: Transaction, accounts: List<Account>): Transaction {
+        require(!queue.contains(transaction.id)) { "Операция ещё не отправлена, нажми «Обновить» при сети" }
         val byId = accounts.associateBy { it.id }
         return client.from(Tables.TRANSACTIONS)
             .update(TransactionMapper.toInsert(transaction)) {
@@ -280,16 +333,26 @@ class TransactionRepositoryImpl(private val client: SupabaseClient) : Transactio
     }
 
     override suspend fun delete(id: String) {
+        if (queue.contains(id)) {
+            queue.remove(id)
+            return
+        }
         client.from(Tables.TRANSACTIONS).delete { filter { eq("id", id) } }
+    }
+
+    private companion object {
+        const val DUPLICATE_KEY = "23505"
     }
 }
 
-class BudgetRepositoryImpl(private val client: SupabaseClient) : BudgetRepository {
+class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : BudgetRepository {
 
-    override suspend fun getLines(periodId: String): List<BudgetLine> = client.from(Tables.BUDGET_LINES)
-        .select { filter { eq("period_id", periodId) } }
-        .decodeList<BudgetLineDto>()
-        .map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
+    override suspend fun getLines(periodId: String): List<BudgetLine> {
+        if (periodId.startsWith(PeriodRepositoryImpl.OFFLINE_PREFIX)) return emptyList()
+        return cache.throughOrDefault("lines:$periodId", ListSerializer(BudgetLineDto.serializer()), emptyList()) {
+            client.from(Tables.BUDGET_LINES).select { filter { eq("period_id", periodId) } }.decodeList<BudgetLineDto>()
+        }.map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
+    }
 
     override suspend fun setPlanned(periodId: String, line: BudgetLine) {
         client.from(Tables.BUDGET_LINES).upsert(
@@ -316,34 +379,38 @@ class BudgetRepositoryImpl(private val client: SupabaseClient) : BudgetRepositor
 class ExchangeRateRepositoryImpl(
     private val client: SupabaseClient,
     private val currencies: CurrencyRepository,
+    private val cache: OfflineCache,
 ) : ExchangeRateRepository {
 
     override suspend fun ratesOnOrBefore(date: LocalDate): RateTable {
         val byCode = currencies.byCode()
-        val rows = client.from(Tables.EXCHANGE_RATES)
-            .select {
-                filter {
-                    eq("base", Currency.BASE.code)
-                    lte("rate_date", date.toString())
+        val rows = cache.throughOrDefault("rates", ListSerializer(ExchangeRateDto.serializer()), emptyList()) {
+            client.from(Tables.EXCHANGE_RATES)
+                .select {
+                    filter {
+                        eq("base", Currency.BASE.code)
+                        lte("rate_date", date.toString())
+                    }
+                    order("rate_date", Order.DESCENDING)
+                    limit(RECENT_ROWS)
                 }
-                order("rate_date", Order.DESCENDING)
-                limit(RECENT_ROWS)
-            }
-            .decodeList<ExchangeRateDto>()
+                .decodeList<ExchangeRateDto>()
+        }
         val latestPerQuote = rows.groupBy { it.quote }.values.map { it.first() }
         return DefaultRates.fill(latestPerQuote.mapNotNull { RateMapper.toDomain(it, byCode) })
     }
 
     override suspend fun history(): List<ExchangeRate> {
         val byCode = currencies.byCode()
-        return client.from(Tables.EXCHANGE_RATES)
-            .select {
-                filter { eq("base", Currency.BASE.code) }
-                order("rate_date", Order.ASCENDING)
-                limit(HISTORY_ROWS)
-            }
-            .decodeList<ExchangeRateDto>()
-            .mapNotNull { RateMapper.toDomain(it, byCode) }
+        return cache.throughOrDefault("rate_history", ListSerializer(ExchangeRateDto.serializer()), emptyList()) {
+            client.from(Tables.EXCHANGE_RATES)
+                .select {
+                    filter { eq("base", Currency.BASE.code) }
+                    order("rate_date", Order.ASCENDING)
+                    limit(HISTORY_ROWS)
+                }
+                .decodeList<ExchangeRateDto>()
+        }.mapNotNull { RateMapper.toDomain(it, byCode) }
     }
 
     private companion object {

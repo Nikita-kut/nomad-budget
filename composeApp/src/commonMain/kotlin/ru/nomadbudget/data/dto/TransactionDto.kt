@@ -24,6 +24,7 @@ data class TransactionDto(
 
 @Serializable
 data class TransactionInsertDto(
+    val id: String? = null,
     @SerialName("tx_date") val txDate: String,
     val type: String,
     @SerialName("account_id") val accountId: String,
