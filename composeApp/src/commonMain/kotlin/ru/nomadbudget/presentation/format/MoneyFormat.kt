@@ -91,7 +91,12 @@ object DateFormat {
 
     fun dayMonthTime(instant: Instant): String {
         val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${dayMonth(local.date)} ${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
+        return "${dayMonth(local.date)} ${timeOnly(instant)}"
+    }
+
+    fun timeOnly(instant: Instant): String {
+        val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
+        return "${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
     }
 
     fun weekdayShort(date: LocalDate): String = weekdays[date.dayOfWeek.ordinal]

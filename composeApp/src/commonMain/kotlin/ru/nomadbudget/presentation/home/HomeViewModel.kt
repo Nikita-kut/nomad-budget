@@ -64,10 +64,15 @@ class HomeViewModel(
         load()
     }
 
-    fun load() {
+    fun load() = reload(initial = true)
+
+    fun refresh() = reload(initial = false)
+
+    private fun reload(initial: Boolean) {
+        if (_state.value.refreshing) return
         viewModelScope.launch {
             try {
-                _state.update { it.copy(loading = true, error = null) }
+                _state.update { it.copy(loading = initial, refreshing = !initial, error = null) }
                 val currencies = currencyRepository.getAll()
                 val accounts = accountRepository.getAll()
                 val categories = categoryRepository.getCategories()
@@ -83,6 +88,8 @@ class HomeViewModel(
                 _state.update {
                     it.copy(
                         loading = false,
+                        refreshing = false,
+                        lastSyncedAt = Clock.System.now(),
                         currencies = currencies,
                         accounts = accounts,
                         categories = categories,
@@ -97,7 +104,8 @@ class HomeViewModel(
                     )
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = e.message ?: "Ошибка загрузки") }
+                _state.update { it.copy(loading = false, refreshing = false, error = if (initial) e.message ?: "Ошибка загрузки" else it.error) }
+                if (!initial) _messages.send(e.message ?: "Не удалось обновить")
             }
         }
     }
