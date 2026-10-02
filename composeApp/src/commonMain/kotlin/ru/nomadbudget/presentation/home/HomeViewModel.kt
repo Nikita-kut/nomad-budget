@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -50,6 +51,7 @@ class HomeViewModel(
     private val rateRepository: ExchangeRateRepository,
     private val balanceCheckRepository: BalanceCheckRepository,
     private val debtRepository: DebtRepository,
+    private val offlineCache: OfflineCache,
 ) : ViewModel() {
 
     private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
@@ -73,6 +75,8 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 _state.update { it.copy(loading = initial, refreshing = !initial, error = null) }
+                offlineCache.beginLoad()
+                val sent = runCatching { transactionRepository.flushPending() }.getOrDefault(0)
                 val currencies = currencyRepository.getAll()
                 val accounts = accountRepository.getAll()
                 val categories = categoryRepository.getCategories()
@@ -89,7 +93,10 @@ class HomeViewModel(
                     it.copy(
                         loading = false,
                         refreshing = false,
-                        lastSyncedAt = Clock.System.now(),
+                        lastSyncedAt = if (offlineCache.servedFromCache) it.lastSyncedAt else Clock.System.now(),
+                        offline = offlineCache.servedFromCache,
+                        cachedAt = offlineCache.oldestCachedAt,
+                        pendingCount = transactionRepository.pendingCount(),
                         currencies = currencies,
                         accounts = accounts,
                         categories = categories,
@@ -103,6 +110,8 @@ class HomeViewModel(
                         budgetLines = lines,
                     )
                 }
+                if (sent > 0) _messages.send("Отправлено операций: $sent")
+                if (offlineCache.servedFromCache && !initial) _messages.send("Нет сети, показаны сохранённые данные")
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, refreshing = false, error = if (initial) e.message ?: "Ошибка загрузки" else it.error) }
                 if (!initial) _messages.send(e.message ?: "Не удалось обновить")
@@ -171,13 +180,14 @@ class HomeViewModel(
                     )
                 }
                 val saved = transactionRepository.add(transaction, current.accounts)
-                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions) }
-                val debtNote = draft.debtId?.let { applyDebtPayment(it, draft.amount) }
+                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions, pendingCount = transactionRepository.pendingCount()) }
+                val debtNote = if (saved.pending) null else draft.debtId?.let { applyDebtPayment(it, draft.amount) }
                 _messages.send(
-                    when (draft.type) {
-                        EntryType.EXPENSE -> "Расход записан" + debtNote.orEmpty()
-                        EntryType.INCOME -> "Доход записан"
-                        EntryType.TRANSFER -> "Перевод записан"
+                    when {
+                        saved.pending -> "Записано без сети, отправится при обновлении"
+                        draft.type == EntryType.EXPENSE -> "Расход записан" + debtNote.orEmpty()
+                        draft.type == EntryType.INCOME -> "Доход записан"
+                        else -> "Перевод записан"
                     },
                 )
             } catch (e: Exception) {
@@ -204,8 +214,8 @@ class HomeViewModel(
                     note = draft.note,
                 )
                 val saved = transactionRepository.add(transaction, current.accounts)
-                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions) }
-                _messages.send("Обмен записан")
+                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions, pendingCount = transactionRepository.pendingCount()) }
+                _messages.send(if (saved.pending) "Записано без сети, отправится при обновлении" else "Обмен записан")
             } catch (e: Exception) {
                 _state.update { it.copy(saving = false) }
                 _messages.send(e.message ?: "Не удалось сохранить обмен")
@@ -263,7 +273,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 transactionRepository.delete(id)
-                _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }) }
+                _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }, pendingCount = transactionRepository.pendingCount()) }
                 _messages.send("Удалено")
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось удалить")

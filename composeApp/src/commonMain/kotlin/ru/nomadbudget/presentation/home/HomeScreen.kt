@@ -62,6 +62,8 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.presentation.accounts.AccountsScreen
 import ru.nomadbudget.presentation.charts.ChartsScreen
+import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.InfoHint
 import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
@@ -331,6 +333,22 @@ private fun TotalsInline(state: HomeState, cardModifier: Modifier = Modifier) {
 
 @Composable
 private fun RatesWarning(state: HomeState) {
+    if (state.offline || state.pendingCount > 0) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            Text(
+                buildString {
+                    if (state.offline) append("Офлайн · данные от ${state.cachedAt?.let(DateFormat::dayMonthTime) ?: "—"}")
+                    if (state.pendingCount > 0) {
+                        if (isNotEmpty()) append(" · ")
+                        append("ждут отправки: ${state.pendingCount}")
+                    }
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = AppTheme.colors.warning,
+            )
+            InfoHint("Офлайн", Hints.OFFLINE)
+        }
+    }
     val warning = when {
         state.currenciesWithoutRate.isNotEmpty() ->
             "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: заполни таблицу курсов"

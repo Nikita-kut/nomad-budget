@@ -364,6 +364,9 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
             if (secondary.isNotEmpty()) {
                 Text(secondary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (tx.pending) {
+                Text("ждёт отправки", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.warning, fontWeight = FontWeight.Medium)
+            }
         }
         IconButton(onClick = { onDelete(tx.id) }) {
             Icon(Icons.Filled.Clear, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onSurfaceVariant)

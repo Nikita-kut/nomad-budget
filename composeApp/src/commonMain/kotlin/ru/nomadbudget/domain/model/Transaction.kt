@@ -7,6 +7,7 @@ sealed interface Transaction {
     val date: LocalDate
     val note: String
     val amountBase: Money
+    val pending: Boolean
 
     data class Expense(
         override val id: String,
@@ -19,6 +20,7 @@ sealed interface Transaction {
         val rateSource: RateSource,
         override val note: String = "",
         val debtId: String? = null,
+        override val pending: Boolean = false,
     ) : Transaction
 
     data class Income(
@@ -30,6 +32,7 @@ sealed interface Transaction {
         override val amountBase: Money,
         val rateSource: RateSource,
         override val note: String = "",
+        override val pending: Boolean = false,
     ) : Transaction
 
     data class Transfer(
@@ -40,6 +43,7 @@ sealed interface Transaction {
         val amount: Money,
         override val amountBase: Money,
         override val note: String = "",
+        override val pending: Boolean = false,
     ) : Transaction
 
     data class Exchange(
@@ -51,6 +55,7 @@ sealed interface Transaction {
         val received: Money,
         override val amountBase: Money,
         override val note: String = "",
+        override val pending: Boolean = false,
     ) : Transaction {
         init {
             require(given.currency != received.currency) { "Обмен требует разные валюты" }

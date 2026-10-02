@@ -57,6 +57,8 @@ interface TransactionRepository {
     suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction
     suspend fun update(transaction: Transaction, accounts: List<Account>): Transaction
     suspend fun delete(id: String)
+    suspend fun flushPending(): Int
+    fun pendingCount(): Int
 }
 
 interface BudgetRepository {

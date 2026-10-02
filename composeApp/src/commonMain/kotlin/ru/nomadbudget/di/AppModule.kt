@@ -2,6 +2,9 @@ package ru.nomadbudget.di
 
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import ru.nomadbudget.data.local.LocalStore
+import ru.nomadbudget.data.local.OfflineCache
+import ru.nomadbudget.data.local.PendingQueue
 import ru.nomadbudget.data.repository.AccountRepositoryImpl
 import ru.nomadbudget.data.repository.AuthRepositoryImpl
 import ru.nomadbudget.data.repository.BalanceCheckRepositoryImpl
@@ -27,17 +30,20 @@ import ru.nomadbudget.presentation.home.HomeViewModel
 
 val appModule = module {
     single { SupabaseClientFactory.create() }
+    single { LocalStore() }
+    single { OfflineCache(get()) }
+    single { PendingQueue(get()) }
 
     single<AuthRepository> { AuthRepositoryImpl(get()) }
-    single<CurrencyRepository> { CurrencyRepositoryImpl(get()) }
-    single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
-    single<CategoryRepository> { CategoryRepositoryImpl(get()) }
-    single<PeriodRepository> { PeriodRepositoryImpl(get()) }
-    single<TransactionRepository> { TransactionRepositoryImpl(get()) }
-    single<BudgetRepository> { BudgetRepositoryImpl(get()) }
-    single<ExchangeRateRepository> { ExchangeRateRepositoryImpl(get(), get()) }
-    single<BalanceCheckRepository> { BalanceCheckRepositoryImpl(get()) }
-    single<DebtRepository> { DebtRepositoryImpl(get(), get()) }
+    single<CurrencyRepository> { CurrencyRepositoryImpl(get(), get()) }
+    single<AccountRepository> { AccountRepositoryImpl(get(), get(), get()) }
+    single<CategoryRepository> { CategoryRepositoryImpl(get(), get()) }
+    single<PeriodRepository> { PeriodRepositoryImpl(get(), get()) }
+    single<TransactionRepository> { TransactionRepositoryImpl(get(), get(), get()) }
+    single<BudgetRepository> { BudgetRepositoryImpl(get(), get()) }
+    single<ExchangeRateRepository> { ExchangeRateRepositoryImpl(get(), get(), get()) }
+    single<BalanceCheckRepository> { BalanceCheckRepositoryImpl(get(), get()) }
+    single<DebtRepository> { DebtRepositoryImpl(get(), get(), get()) }
 
     viewModelOf(::HomeViewModel)
 }
