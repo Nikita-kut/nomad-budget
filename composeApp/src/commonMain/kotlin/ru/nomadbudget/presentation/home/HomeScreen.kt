@@ -85,6 +85,19 @@ import androidx.compose.material3.SnackbarResult
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.EditCalendar
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CurrencyExchange
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FloatingActionButton
+import androidx.navigation.NavDestination.Companion.hierarchy
+import ru.nomadbudget.presentation.journal.JournalScreen
 
 @Serializable
 object MonthRoute
@@ -119,6 +132,9 @@ object DebtsRoute
 @Serializable
 object PlanningRoute
 
+@Serializable
+object JournalRoute
+
 private data class Tab(
     val route: Any,
     val title: String,
@@ -129,6 +145,8 @@ private data class Tab(
 
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
 private val CONTENT_MAX_WIDTH = 760.dp
+private val WIDE_CONTENT_MAX_WIDTH = 1240.dp
+private val TWO_COLUMN_MIN_WIDTH = 1100.dp
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
@@ -140,7 +158,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
     LaunchedEffect(viewModel) {
-        viewModel.navigateToEntry.collect { navController.switchTo(EntryRoute) }
+        viewModel.navigateToEntry.collect { navController.navigate(EntryRoute) { launchSingleTop = true } }
     }
     LaunchedEffect(viewModel) {
         viewModel.undoRequests.collect { request ->
@@ -157,38 +175,47 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
 
     val tabs = remember {
         listOf(
-            Tab(MonthRoute, "Месяц", Icons.Filled.DateRange, primary = true) { it.isOn<MonthRoute>() },
-            Tab(PlanningRoute, "План", Icons.Filled.Edit, primary = false) { it.isOn<PlanningRoute>() },
-            Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle, primary = true) { it.isOn<EntryRoute>() },
-            Tab(ExchangeRoute, "Обмен", Icons.AutoMirrored.Filled.Send, primary = true) { it.isOn<ExchangeRoute>() },
-            Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox, primary = true) { it.isOn<AccountsRoute>() },
-            Tab(DebtsRoute, "Кредиты", Icons.Filled.Build, primary = true) { it.isOn<DebtsRoute>() },
-            Tab(RatesRoute, "Курсы", Icons.Filled.Info, primary = false) { it.isOn<RatesRoute>() },
-            Tab(ChartsRoute, "Графики", Icons.Filled.Star, primary = false) { it.isOn<ChartsRoute>() },
-            Tab(MoreRoute, "Ещё", Icons.Filled.Settings, primary = true) {
-                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>()
+            Tab(MonthRoute, "Месяц", Icons.Filled.CalendarMonth, primary = true) { it.isOn<MonthRoute>() },
+            Tab(JournalRoute, "Журнал", Icons.AutoMirrored.Filled.ReceiptLong, primary = true) { it.isOn<JournalRoute>() },
+            Tab(PlanningRoute, "План", Icons.Filled.EditCalendar, primary = true) { it.isOn<PlanningRoute>() },
+            Tab(AccountsRoute, "Счета", Icons.Filled.AccountBalanceWallet, primary = true) { it.isOn<AccountsRoute>() },
+            Tab(ExchangeRoute, "Обмен", Icons.Filled.CurrencyExchange, primary = false) { it.isOn<ExchangeRoute>() },
+            Tab(DebtsRoute, "Кредиты", Icons.Filled.CreditCard, primary = false) { it.isOn<DebtsRoute>() },
+            Tab(RatesRoute, "Курсы", Icons.AutoMirrored.Filled.ShowChart, primary = false) { it.isOn<RatesRoute>() },
+            Tab(ChartsRoute, "Графики", Icons.Filled.BarChart, primary = false) { it.isOn<ChartsRoute>() },
+            Tab(MoreRoute, "Ещё", Icons.Filled.MoreHoriz, primary = true) {
+                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() ||
+                    it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
             },
         )
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val wide = maxWidth >= WIDE_LAYOUT_MIN_WIDTH
+        val twoColumns = maxWidth >= TWO_COLUMN_MIN_WIDTH
         val backStack by navController.currentBackStackEntryAsState()
+        val onEntry = backStack != null && navController.isOn<EntryRoute>()
+        val openEntry = { navController.navigate(EntryRoute) { launchSingleTop = true } }
+        val back = fun() { navController.popBackStack() }
+        val contentMaxWidth = if (twoColumns && backStack != null && navController.isOn<MonthRoute>()) WIDE_CONTENT_MAX_WIDTH else CONTENT_MAX_WIDTH
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
-            topBar = { HeaderBar(state, viewModel, wide) },
+            topBar = { if (!onEntry || wide) HeaderBar(state, viewModel, wide) },
+            floatingActionButton = {
+                if (!wide && !onEntry) {
+                    FloatingActionButton(onClick = openEntry) { Icon(Icons.Filled.Add, contentDescription = "Новая запись") }
+                }
+            },
             bottomBar = {
-                if (!wide) {
+                if (!wide && !onEntry) {
                     NavigationBar {
                         tabs.filter { it.primary }.forEach { tab ->
                             NavigationBarItem(
-                                selected = backStack != null && (tab.isSelected(navController) ||
-                                    tab.route == MoreRoute && (navController.isOn<RatesRoute>() || navController.isOn<ChartsRoute>()) ||
-                                    tab.route == MonthRoute && navController.isOn<PlanningRoute>()),
+                                selected = backStack != null && tab.isSelected(navController),
                                 onClick = { navController.switchTo(tab.route) },
                                 icon = { Icon(tab.icon, contentDescription = tab.title) },
-                                label = { Text(tab.title) },
+                                label = { Text(tab.title, maxLines = 1) },
                             )
                         }
                     }
@@ -197,10 +224,16 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         ) { padding ->
             Row(modifier = Modifier.fillMaxSize().padding(padding)) {
                 if (wide) {
-                    NavigationRail {
+                    NavigationRail(
+                        header = {
+                            FloatingActionButton(onClick = openEntry, modifier = Modifier.padding(vertical = 8.dp)) {
+                                Icon(Icons.Filled.Add, contentDescription = "Новая запись")
+                            }
+                        },
+                    ) {
                         tabs.forEach { tab ->
                             NavigationRailItem(
-                                selected = backStack != null && tab.isSelected(navController),
+                                selected = backStack != null && (if (tab.route == MoreRoute) navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() else tab.isSelected(navController)),
                                 onClick = { navController.switchTo(tab.route) },
                                 icon = { Icon(tab.icon, contentDescription = tab.title) },
                                 label = { Text(tab.title) },
@@ -209,7 +242,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                     }
                 }
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                    Box(modifier = Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxSize()) {
+                    Box(modifier = Modifier.widthIn(max = contentMaxWidth).fillMaxSize()) {
                         NavHost(navController = navController, startDestination = MonthRoute) {
                             composable<MonthRoute> {
                                 MonthScreen(
@@ -218,14 +251,18 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onRemoveItem = viewModel::removePlanLine,
                                     onSaveCategoryPlan = viewModel::saveCategoryPlan,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
-                                    onOpenPlanning = { if (wide) navController.switchTo(PlanningRoute) else navController.navigate(PlanningRoute) },
+                                    onOpenPlanning = { navController.switchTo(PlanningRoute) },
                                     onRetry = viewModel::load,
+                                    twoColumns = twoColumns,
                                 )
+                            }
+                            composable<JournalRoute> {
+                                JournalScreen(state = state, onDelete = viewModel::deleteTransaction, onUpdate = viewModel::updateTransaction)
                             }
                             composable<PlanningRoute> {
                                 PlanningScreen(
                                     state = state,
-                                    onBack = if (wide) null else fun() { navController.popBackStack() },
+                                    onBack = null,
                                     onSaveCategoryPlan = viewModel::saveCategoryPlan,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
                                 )
@@ -234,16 +271,24 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 EntryScreen(
                                     state = state,
                                     onSubmit = viewModel::addEntry,
-                                    onDelete = viewModel::deleteTransaction,
-                                    onUpdate = viewModel::updateTransaction,
                                     onAddDraft = viewModel::addDraft,
                                     onUseDraft = viewModel::useDraft,
                                     onRemoveDraft = viewModel::removeDraft,
                                     onClearPrefill = viewModel::clearPrefill,
+                                    onOpenExchange = {
+                                        navController.popBackStack()
+                                        navController.navigate(ExchangeRoute)
+                                    },
+                                    onBack = back,
                                 )
                             }
                             composable<ExchangeRoute> {
-                                ExchangeScreen(state = state, onSubmit = viewModel::addExchange, onDelete = viewModel::deleteTransaction)
+                                ExchangeScreen(
+                                    state = state,
+                                    onSubmit = viewModel::addExchange,
+                                    onDelete = viewModel::deleteTransaction,
+                                    onBack = if (wide) null else back,
+                                )
                             }
                             composable<AccountsRoute> {
                                 AccountsScreen(
@@ -252,6 +297,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onRename = viewModel::renameAccount,
                                     onMove = viewModel::moveAccount,
                                     onArchive = viewModel::archiveAccount,
+                                    onOpenDebts = { navController.navigate(DebtsRoute) },
+                                    onOpenExchange = { navController.navigate(ExchangeRoute) },
                                 )
                             }
                             composable<RatesRoute> { RatesScreen(state = state) }
@@ -263,15 +310,16 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
                                     onRates = { navController.navigate(RatesRoute) },
                                     onCharts = { navController.navigate(ChartsRoute) },
-                                    onPlanning = { navController.navigate(PlanningRoute) },
-                                    showAnalytics = !wide,
+                                    onExchange = { navController.navigate(ExchangeRoute) },
+                                    onDebts = { navController.navigate(DebtsRoute) },
+                                    showSecondary = !wide,
                                     onSignOut = viewModel::signOut,
                                 )
                             }
                             composable<CategoriesRoute> {
                                 CategoriesScreen(
                                     state = state,
-                                    onBack = navController::popBackStack,
+                                    onBack = back,
                                     onAddCategory = viewModel::addCategory,
                                     onRenameCategory = viewModel::renameCategory,
                                     onArchiveCategory = viewModel::archiveCategory,
@@ -281,12 +329,12 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 )
                             }
                             composable<BalanceCheckRoute> {
-                                BalanceCheckScreen(state = state, onBack = navController::popBackStack, onCheck = viewModel::checkBalance)
+                                BalanceCheckScreen(state = state, onBack = back, onCheck = viewModel::checkBalance)
                             }
                             composable<DebtsRoute> {
                                 DebtsScreen(
                                     state = state,
-                                    onBack = null,
+                                    onBack = if (wide) null else back,
                                     onSave = viewModel::saveDebt,
                                     onClose = viewModel::closeDebt,
                                     onPlanIntoMonth = viewModel::planDebtsIntoMonth,

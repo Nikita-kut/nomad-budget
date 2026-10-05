@@ -30,6 +30,8 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.sumIn
 
 @Composable
 fun MoreScreen(
@@ -38,31 +40,39 @@ fun MoreScreen(
     onBalanceCheck: () -> Unit,
     onRates: () -> Unit,
     onCharts: () -> Unit,
-    onPlanning: () -> Unit,
-    showAnalytics: Boolean,
+    onExchange: () -> Unit,
+    onDebts: () -> Unit,
+    showSecondary: Boolean,
     onSignOut: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (showAnalytics) {
+        if (showSecondary) {
+            item { SectionTitle("Деньги") }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    MenuRow("Обмен валюты", state.exchanges.firstOrNull()?.let { "последний ${DateFormat.dayMonth(it.date)}" } ?: "обменов ещё не было", onExchange)
+                    HorizontalDivider()
+                    MenuRow(
+                        "Кредиты",
+                        if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · должен ${MoneyFormat.format(state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE), false)}",
+                        onDebts,
+                    )
+                }
+            }
             item { SectionTitle("Аналитика") }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    MenuRow(
-                        "Планирование",
-                        state.planSummary.let { plan ->
-                            if (plan.expensePlanned.isZero) "план месяца пока пустой"
-                            else "запланировано ${MoneyFormat.format(plan.expensePlanned, false)} из ${MoneyFormat.format(plan.incomePlanned, false)}"
-                        },
-                        onPlanning,
-                    )
-                    HorizontalDivider()
                     MenuRow("Графики", "доходы, расходы, накопления по месяцам", onCharts)
                     HorizontalDivider()
-                    MenuRow("Курсы валют", "текущие и история по дням", onRates)
+                    MenuRow(
+                        "Курсы валют",
+                        state.rates.all.firstOrNull()?.let { "обновлены ${DateFormat.dayMonth(it.date)}, раз в сутки" } ?: "текущие и история по дням",
+                        onRates,
+                    )
                 }
             }
         }
@@ -76,31 +86,6 @@ fun MoreScreen(
                     state.balanceChecks.firstOrNull()?.let { "последняя ${DateFormat.dayMonth(it.date)}" } ?: "ещё не сверялись",
                     onBalanceCheck,
                 )
-            }
-        }
-        item { SectionTitle("Курсы валют") }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (state.rates.all.isEmpty()) {
-                        Text("Курсов нет", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    state.rates.all.forEach { rate ->
-                        val meta = when (rate.source) {
-                            RateSource.MANUAL -> "значение по умолчанию, таблица пуста"
-                            RateSource.API -> buildString {
-                                append("источник ${rate.sourceName}, за ${DateFormat.dayMonth(rate.date)}")
-                                rate.fetchedAt?.let { append(", получен ${DateFormat.dayMonthTime(it)}") }
-                            }
-                        }
-                        Text("${rate.quote.code}: $meta", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Text(
-                        "Обновляются раз в сутки автоматически",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
         item { SectionTitle("Аккаунт") }

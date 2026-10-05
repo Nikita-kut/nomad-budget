@@ -50,6 +50,7 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.components.AccountName
+import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
 fun AccountsScreen(
@@ -58,6 +59,8 @@ fun AccountsScreen(
     onRename: (String, String) -> Unit,
     onMove: (String, Boolean) -> Unit,
     onArchive: (String) -> Unit,
+    onOpenDebts: () -> Unit = {},
+    onOpenExchange: () -> Unit = {},
 ) {
     val daily = state.activeAccounts.filterNot { it.isSavings }.sortedBy { it.sortOrder }
     val savings = state.activeAccounts.filter { it.isSavings }.sortedBy { it.sortOrder }
@@ -68,9 +71,18 @@ fun AccountsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item { TotalsCard(state) }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenExchange, modifier = Modifier.weight(1f)) { Text("Обменять валюту") }
+                OutlinedButton(onClick = onOpenDebts, modifier = Modifier.weight(1f)) {
+                    Text(if (state.openDebts.isEmpty()) "Кредиты" else "Кредиты: ${state.openDebts.size}")
+                }
+            }
+        }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 SectionTitle("Ежедневные", hint = if (editMode) "стрелки меняют порядок" else "в валюте счёта · в ₽", modifier = Modifier.weight(1f), info = Hints.ACCOUNTS_TOTAL)
@@ -198,8 +210,13 @@ private fun AccountRow(
         Column(modifier = Modifier.weight(1f)) {
             AccountName(account, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(kindLabel(account.kind), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 CurrencyChip(account.currency, state)
+                if (!account.name.contains(kindLabel(account.kind), ignoreCase = true) && !account.isSavings) {
+                    Text(kindLabel(account.kind), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (balance.isNegative) {
+                    Text("в минусе", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.bad, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -313,3 +330,22 @@ private fun RatesCard(state: HomeState) {
 }
 
 private const val SMALL_RATE = 0.01
+
+@Composable
+private fun TotalsCard(state: HomeState) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("ВСЕГО", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(MoneyFormat.format(state.totalBase, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            val others = state.foreignCurrencies.filter(state.rates::hasRate).map { MoneyFormat.format(state.rates.fromBase(state.totalBase, it), false) }
+            if (others.isNotEmpty()) {
+                Text("≈ " + others.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}

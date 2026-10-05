@@ -45,6 +45,7 @@ fun EditTransactionDialog(
     state: HomeState,
     onDismiss: () -> Unit,
     onSave: (Transaction, String?) -> Unit,
+    onDelete: (() -> Unit)? = null,
 ) {
     val transformation = remember { ThousandsVisualTransformation() }
     var date by remember { mutableStateOf(tx.date) }
@@ -211,7 +212,12 @@ fun EditTransactionDialog(
                 Text("Сохранить")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        dismissButton = {
+            Row {
+                onDelete?.let { delete -> TextButton(onClick = delete) { Text("Удалить", color = AppTheme.colors.bad) } }
+                TextButton(onClick = onDismiss) { Text("Отмена") }
+            }
+        },
     )
 }
 
