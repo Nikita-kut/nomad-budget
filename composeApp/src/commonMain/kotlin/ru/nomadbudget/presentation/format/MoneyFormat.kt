@@ -13,6 +13,8 @@ import ru.nomadbudget.domain.model.Period
 
 object MoneyFormat {
 
+    private const val SMALL_SHARE = 0.005
+
     private const val MINUS = "−"
     private const val THIN_SPACE = " "
 
@@ -35,9 +37,16 @@ object MoneyFormat {
         }
     }
 
-    fun formatSigned(money: Money): String = when {
-        money.minor > 0 -> "+" + format(money)
-        else -> format(money)
+    fun formatSigned(money: Money, showFraction: Boolean = true): String = when {
+        money.minor > 0 -> "+" + format(money, showFraction)
+        else -> format(money, showFraction)
+    }
+
+    fun formatPercentValue(value: Double): String {
+        val scaled = (value * 100).roundToLong()
+        val whole = scaled / 100
+        val fraction = (scaled % 100).toString().padStart(2, '0').trimEnd('0')
+        return if (fraction.isEmpty()) "$whole %" else "$whole,$fraction %"
     }
 
     fun formatQuote(rate: Double): String = when {
@@ -57,7 +66,10 @@ object MoneyFormat {
         }
     }
 
-    fun formatShare(value: Double): String = "${(value * 100).roundToLong()}%"
+    fun formatShare(value: Double): String = when {
+        value > 0.0 && value < SMALL_SHARE -> "<1%"
+        else -> "${(value * 100).roundToLong()}%"
+    }
 
     fun formatPercent(value: Double): String {
         val scaled = (abs(value) * 100).roundToLong()

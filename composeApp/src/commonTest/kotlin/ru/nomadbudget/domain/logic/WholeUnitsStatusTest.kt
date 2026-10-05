@@ -27,8 +27,9 @@ class WholeUnitsStatusTest {
     }
 
     @Test
-    fun wholeRubleAbovePlan_isOver() {
-        assertEquals(BudgetStatus.OVER, budget(planned = 120_600L, fact = 120_700L).status)
+    fun wholeRubleAbovePlan_isSlightOverrun_bigOverrun_isOver() {
+        assertEquals(BudgetStatus.OVER_SLIGHTLY, budget(planned = 120_600L, fact = 120_700L).status)
+        assertEquals(BudgetStatus.OVER, budget(planned = 100_000L, fact = 103_000L).status)
     }
 
     @Test

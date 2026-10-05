@@ -466,7 +466,7 @@ private fun TotalCard(currency: Currency, value: String, state: HomeState, modif
                 style = MaterialTheme.typography.labelSmall,
                 color = color,
             )
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }

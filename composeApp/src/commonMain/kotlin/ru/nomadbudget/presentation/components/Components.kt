@@ -70,7 +70,7 @@ fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modif
 @Composable
 fun InfoHint(title: String, text: String, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    IconButton(onClick = { open = true }, modifier = modifier.size(24.dp)) {
+    IconButton(onClick = { open = true }, modifier = modifier.size(32.dp)) {
         Icon(
             Icons.Outlined.Info,
             contentDescription = "Что это",
@@ -120,7 +120,7 @@ fun CurrencyChip(currency: Currency, state: HomeState, modifier: Modifier = Modi
 
 @Composable
 fun CurrencyAmount(text: String, currency: Currency, state: HomeState, style: TextStyle, fontWeight: FontWeight? = null, modifier: Modifier = Modifier) {
-    Text(text, style = style, fontWeight = fontWeight, color = currencyColor(currency, state), modifier = modifier, maxLines = 1)
+    Text(text, style = style, fontWeight = fontWeight, color = amountColor(text), modifier = modifier, maxLines = 1)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,7 +149,7 @@ fun AccountDropdown(
                 {
                     Text(
                         "сейчас ${MoneyFormat.format(balance)}",
-                        color = currencyColor(balance.currency, state),
+                        color = if (balance.isNegative) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
                     )
                 }
@@ -171,7 +171,7 @@ fun AccountDropdown(
                                 Text(
                                     MoneyFormat.format(balance),
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = currencyColor(balance.currency, state),
+                                    color = if (balance.isNegative) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                             }
@@ -319,3 +319,7 @@ fun AccountsLine(
 fun ArrowGlyph(color: Color = MaterialTheme.colorScheme.onSurfaceVariant, size: androidx.compose.ui.unit.Dp = 14.dp) {
     Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = color, modifier = Modifier.size(size))
 }
+
+@Composable
+fun amountColor(text: String): Color =
+    if (text.startsWith("−") || text.startsWith("-")) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurface

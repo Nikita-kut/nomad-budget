@@ -178,7 +178,7 @@ private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose:
             val details = listOfNotNull(
                 "платёж ${MoneyFormat.format(debt.monthlyPayment, false)}",
                 debt.extraPayment.takeUnless { it.isZero }?.let { "досрочно ${MoneyFormat.format(it, false)}" },
-                debt.ratePercent?.let { "${MoneyFormat.formatRate(it)}%" },
+                debt.ratePercent?.let { MoneyFormat.formatPercentValue(it) },
                 debt.payDay?.let { "до $it числа" },
                 debt.ratePercent?.let { "проценты ≈ ${MoneyFormat.format(DebtCalculator.monthlyInterest(debt), false)} в месяц" },
             )

@@ -188,6 +188,14 @@ data class HomeState(
 
     val dayNumber: Int? = if (today in period) period.dayNumber(today) else null
 
+    val isCurrentPeriod: Boolean = today in period
+
+    val elapsedShare: Double = when {
+        today in period -> period.dayNumber(today).toDouble() / period.lengthDays
+        today >= period.endExclusive -> 1.0
+        else -> 0.0
+    }
+
     fun accountName(id: String): String = accountsById[id]?.name ?: "?"
 
     fun categoryName(id: String?): String = id?.let { categoriesById[it]?.name } ?: "—"
