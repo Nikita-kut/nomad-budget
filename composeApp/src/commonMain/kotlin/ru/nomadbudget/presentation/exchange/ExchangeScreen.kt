@@ -52,14 +52,18 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.AccountsLine
 import ru.nomadbudget.presentation.components.ArrowGlyph
+import ru.nomadbudget.presentation.more.SubScreenHeader
 
 @Composable
-fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit) {
+fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (onBack != null) {
+            item { SubScreenHeader("Обмен валюты", onBack) }
+        }
         item { ExchangeForm(state, onSubmit) }
         item { SectionTitle("Журнал обменов", hint = "спред к кросс-курсу", info = Hints.EXCHANGE_SPREAD) }
         if (state.exchanges.isEmpty()) {

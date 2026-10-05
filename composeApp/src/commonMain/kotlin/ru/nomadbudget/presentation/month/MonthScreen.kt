@@ -64,6 +64,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 
 @Composable
 fun MonthScreen(
@@ -74,6 +77,7 @@ fun MonthScreen(
     onCopyPlan: () -> Unit,
     onOpenPlanning: () -> Unit,
     onRetry: () -> Unit,
+    twoColumns: Boolean = false,
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var editingItem by remember { mutableStateOf<ItemEdit?>(null) }
@@ -83,11 +87,7 @@ fun MonthScreen(
     val expenses = state.budgets.filter { it.category.kind == CategoryKind.EXPENSE }
     val (idleExpenses, activeExpenses) = expenses.partition { it.isIdle }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    val overview: LazyListScope.() -> Unit = {
         state.error?.let { message ->
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -128,6 +128,8 @@ fun MonthScreen(
             }
         }
 
+    }
+    val envelopes: LazyListScope.() -> Unit = {
         item { SectionTitle("Расходы по конвертам", hint = if (state.isCurrentPeriod) "метка на полосе — где должен быть расход сегодня" else null, info = Hints.ENVELOPES) }
         items(activeExpenses, key = { it.category.id }) { budget ->
             ExpenseCard(
@@ -156,6 +158,18 @@ fun MonthScreen(
             }
         }
 
+    }
+    val padding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp)
+    if (twoColumns) {
+        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(8.dp), content = overview)
+            LazyColumn(modifier = Modifier.weight(1.2f).fillMaxHeight(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(8.dp), content = envelopes)
+        }
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            overview()
+            envelopes()
+        }
     }
 
     editing?.let { category ->
