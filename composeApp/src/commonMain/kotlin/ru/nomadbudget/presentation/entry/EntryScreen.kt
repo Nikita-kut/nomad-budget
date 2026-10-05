@@ -74,6 +74,18 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Checkbox
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.presentation.components.AccountsLine
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import ru.nomadbudget.domain.model.sumIn
 
 private const val MAX_SUGGESTIONS = 8
 
@@ -369,28 +381,59 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
             )
         }
         HorizontalDivider()
+        val expenses = day.transactions.filterIsInstance<Transaction.Expense>()
+        val incomes = day.transactions.filterIsInstance<Transaction.Income>()
+        val moves = day.transactions.filter { it is Transaction.Transfer || it is Transaction.Exchange }
         val groups = listOf(
-            "Расходы" to day.transactions.filterIsInstance<Transaction.Expense>(),
-            "Доходы" to day.transactions.filterIsInstance<Transaction.Income>(),
-            "Переводы и обмены" to day.transactions.filter { it is Transaction.Transfer || it is Transaction.Exchange },
-        ).filter { it.second.isNotEmpty() }
-        groups.forEachIndexed { index, (title, list) ->
-            if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
-            Text(
-                title.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 2.dp),
-            )
-            list.forEach { tx -> TransactionRow(tx, state, onDelete, onEdit) }
+            JournalGroup("Расходы", AppTheme.colors.bad, expenses, "−" + MoneyFormat.format(expenses.map { it.amountBase }.sumIn(Currency.BASE), false)),
+            JournalGroup("Доходы", AppTheme.colors.good, incomes, "+" + MoneyFormat.format(incomes.map { it.amountBase }.sumIn(Currency.BASE), false)),
+            JournalGroup("Переводы и обмены", MaterialTheme.colorScheme.primary, moves, "${moves.size} опер."),
+        ).filter { it.items.isNotEmpty() }
+        groups.forEach { group ->
+            GroupHeader(group)
+            group.items.forEach { tx -> TransactionRow(tx, state, onDelete, onEdit) }
         }
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+}
+
+private data class JournalGroup(val title: String, val color: Color, val items: List<Transaction>, val total: String)
+
+@Composable
+private fun GroupHeader(group: JournalGroup) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 2.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(group.color.copy(alpha = 0.12f))
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(group.color))
+        Text(
+            group.title.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = group.color,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f).padding(start = 8.dp, top = 5.dp, bottom = 5.dp),
+        )
+        Text(
+            group.total,
+            style = MaterialTheme.typography.labelMedium,
+            color = group.color,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(end = 10.dp),
+        )
     }
 }
 
 @Composable
 private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String) -> Unit, onEdit: (Transaction) -> Unit) {
-    val (title, subtitle, primary, secondary) = describe(tx, state)
+    val row = describe(tx, state)
+    val title = row.title
+    val primary = row.primary
+    val secondary = row.secondary
     val primaryColor = when (tx) {
         is Transaction.Income -> AppTheme.colors.good
         is Transaction.Transfer -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -402,7 +445,7 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.Medium, maxLines = 1)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            AccountsLine(state, fromId = row.fromAccountId, toId = row.toAccountId, note = row.note)
         }
         Column(horizontalAlignment = Alignment.End) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -422,7 +465,14 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
     }
 }
 
-private data class RowText(val title: String, val subtitle: String, val primary: String, val secondary: String)
+private data class RowText(
+    val title: String,
+    val fromAccountId: String,
+    val toAccountId: String?,
+    val note: String,
+    val primary: String,
+    val secondary: String,
+)
 
 private fun txCurrency(tx: Transaction): Currency = when (tx) {
     is Transaction.Expense -> tx.amount.currency
@@ -434,25 +484,33 @@ private fun txCurrency(tx: Transaction): Currency = when (tx) {
 private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
     is Transaction.Expense -> RowText(
         title = listOfNotNull(state.categoryName(tx.categoryId), state.subcategoryName(tx.subcategoryId)).joinToString(" · "),
-        subtitle = listOfNotNull(state.accountName(tx.accountId), tx.note.ifBlank { null }).joinToString(" · "),
+        fromAccountId = tx.accountId,
+        toAccountId = null,
+        note = tx.note,
         primary = "−" + MoneyFormat.format(tx.amount),
         secondary = if (tx.amount.currency == Currency.BASE) "" else "≈ ${MoneyFormat.format(tx.amountBase, false)}",
     )
     is Transaction.Income -> RowText(
         title = state.categoryName(tx.categoryId),
-        subtitle = listOfNotNull(state.accountName(tx.accountId), tx.note.ifBlank { null }).joinToString(" · "),
+        fromAccountId = tx.accountId,
+        toAccountId = null,
+        note = tx.note,
         primary = "+" + MoneyFormat.format(tx.amount),
         secondary = "",
     )
     is Transaction.Transfer -> RowText(
         title = "Перевод",
-        subtitle = listOfNotNull("${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", tx.note.ifBlank { null }).joinToString(" · "),
+        fromAccountId = tx.fromAccountId,
+        toAccountId = tx.toAccountId,
+        note = tx.note,
         primary = MoneyFormat.format(tx.amount),
         secondary = if (state.accountsById[tx.toAccountId]?.isSavings == true) "в накопления" else "",
     )
     is Transaction.Exchange -> RowText(
         title = "Обмен ${tx.given.currency.code} → ${tx.received.currency.code}",
-        subtitle = listOfNotNull("${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", tx.note.ifBlank { null }).joinToString(" · "),
+        fromAccountId = tx.fromAccountId,
+        toAccountId = tx.toAccountId,
+        note = tx.note,
         primary = "−" + MoneyFormat.format(tx.given),
         secondary = "+" + MoneyFormat.format(tx.received),
     )

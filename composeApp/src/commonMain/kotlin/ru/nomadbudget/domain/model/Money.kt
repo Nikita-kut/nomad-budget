@@ -21,6 +21,10 @@ data class Money(val minor: Long, val currency: Currency) : Comparable<Money> {
 
     fun toMajor(): Double = minor.toDouble() / currency.minorFactor
 
+    val wholeUnits: Long get() = minor / currency.minorFactor
+
+    fun withoutFraction(): Money = copy(minor = wholeUnits * currency.minorFactor)
+
     override fun compareTo(other: Money): Int {
         requireSameCurrency(other)
         return minor.compareTo(other.minor)

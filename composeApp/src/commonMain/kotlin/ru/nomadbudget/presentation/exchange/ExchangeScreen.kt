@@ -50,6 +50,7 @@ import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.ExchangeDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.AccountsLine
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit) {
@@ -196,13 +197,12 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
                     Text("→", fontWeight = FontWeight.SemiBold)
                     CurrencyAmount(MoneyFormat.format(exchange.received), exchange.received.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
                 }
-                Text(
-                    listOfNotNull(
-                        "${DateFormat.dayMonth(exchange.date)} · ${state.accountName(exchange.fromAccountId)} → ${state.accountName(exchange.toAccountId)}",
-                        exchange.note.ifBlank { null },
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                AccountsLine(
+                    state,
+                    fromId = exchange.fromAccountId,
+                    toId = exchange.toAccountId,
+                    prefix = DateFormat.dayMonth(exchange.date),
+                    note = exchange.note,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {

@@ -77,7 +77,7 @@ class BudgetCalculatorTest {
 
     @Test
     fun categoryWithoutLine_hasZeroPlan_andOverIfSpent() {
-        val budget = BudgetCalculator.categoryBudgets(listOf(food), emptyList(), listOf(expense("z", 9, "food", 1L)), period).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(food), emptyList(), listOf(expense("z", 9, "food", 100L)), period).single()
         assertEquals(Money.zero(Currency.RUB), budget.planned)
         assertEquals(BudgetStatus.OVER, budget.status)
         assertEquals(1.0, budget.progress)
