@@ -60,6 +60,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
+import ru.nomadbudget.demo.DemoMode
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.presentation.accounts.AccountsScreen
@@ -307,6 +308,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (DemoMode.enabled) DemoBadge()
                     if (state.loading) {
                         LinearProgressIndicator(modifier = Modifier.weight(1f))
                     } else {
@@ -329,6 +331,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (DemoMode.enabled) DemoBadge()
                     PeriodSwitcher(state, viewModel)
                 }
                 if (state.loading) {
@@ -439,5 +442,18 @@ private fun TotalCard(currency: Currency, value: String, state: HomeState, modif
             )
             Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
         }
+    }
+}
+
+@Composable
+private fun DemoBadge() {
+    Surface(color = MaterialTheme.colorScheme.tertiary, shape = MaterialTheme.shapes.small) {
+        Text(
+            "ДЕМО",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onTertiary,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }

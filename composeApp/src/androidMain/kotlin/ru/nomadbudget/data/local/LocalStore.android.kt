@@ -12,19 +12,19 @@ object AppContextHolder {
     }
 }
 
-actual class LocalStore actual constructor() {
+actual class LocalStore actual constructor() : KeyValueStore {
 
     private val prefs: SharedPreferences by lazy {
         AppContextHolder.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    actual fun get(key: String): String? = prefs.getString(key, null)
+    actual override fun get(key: String): String? = prefs.getString(key, null)
 
-    actual fun put(key: String, value: String) {
+    actual override fun put(key: String, value: String) {
         prefs.edit().putString(key, value).apply()
     }
 
-    actual fun remove(key: String) {
+    actual override fun remove(key: String) {
         prefs.edit().remove(key).apply()
     }
 

@@ -14,7 +14,7 @@ import kotlin.uuid.Uuid
 private data class DraftDto(val id: String, val text: String, val createdAt: Long)
 
 @OptIn(ExperimentalUuidApi::class)
-class DraftsStore(private val store: LocalStore) : DraftRepository {
+class DraftsStore(private val store: KeyValueStore) : DraftRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(DraftDto.serializer())

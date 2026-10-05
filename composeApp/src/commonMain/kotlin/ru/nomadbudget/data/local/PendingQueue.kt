@@ -8,7 +8,7 @@ import ru.nomadbudget.data.dto.TransactionInsertDto
 @Serializable
 data class PendingTransaction(val id: String, val dto: TransactionInsertDto)
 
-class PendingQueue(private val store: LocalStore) {
+class PendingQueue(private val store: KeyValueStore) {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(PendingTransaction.serializer())
