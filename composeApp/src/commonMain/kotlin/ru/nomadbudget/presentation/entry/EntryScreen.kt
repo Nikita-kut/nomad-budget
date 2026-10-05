@@ -156,6 +156,13 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
             .take(MAX_SUGGESTIONS)
     }.orEmpty()
 
+    val debtCategory = type == EntryType.EXPENSE && state.isDebtCategory(selectedCategory?.id)
+
+    LaunchedEffect(subcategory, debtCategory) {
+        if (debtCategory && debt == null) state.debtBySubcategoryName(subcategory)?.let { debt = it }
+        if (!debtCategory) debt = null
+    }
+
     val canSubmit = !state.saving && account != null && amount != null &&
         (type == EntryType.TRANSFER && selectedTo != null || type != EntryType.TRANSFER && selectedCategory != null)
 
@@ -172,7 +179,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
                 categoryId = selectedCategory?.id.takeIf { type != EntryType.TRANSFER },
                 subcategoryName = if (type == EntryType.EXPENSE) subcategory else "",
                 note = note,
-                debtId = debt?.id.takeIf { type == EntryType.EXPENSE },
+                debtId = debt?.id.takeIf { debtCategory },
                 fromDraftId = prefill?.draftId,
             ),
         )
@@ -252,7 +259,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
                     onSelect = { category = it },
                 )
             }
-            if (type == EntryType.EXPENSE && state.openDebts.isNotEmpty()) {
+            if (debtCategory) {
                 Dropdown(
                     label = "Кредит, если это платёж по нему",
                     items = listOf<Debt?>(null) + state.openDebts,

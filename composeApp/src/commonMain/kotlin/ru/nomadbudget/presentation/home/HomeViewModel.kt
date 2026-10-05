@@ -326,7 +326,7 @@ class HomeViewModel(
                 val current = _state.value
                 val periodId = current.periodId ?: periodRepository.ensure(current.period)
                 val categoryId = draft.categoryId
-                val limitLine = draft.limit?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it) }
+                val limitLine = draft.free?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it) }
                 val hadLimit = current.budgetLines.any { it.categoryId == categoryId && it.subcategoryId == null }
                 when {
                     limitLine != null -> budgetRepository.setPlanned(periodId, limitLine)

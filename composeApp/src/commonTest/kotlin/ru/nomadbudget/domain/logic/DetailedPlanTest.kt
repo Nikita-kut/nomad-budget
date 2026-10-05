@@ -28,54 +28,29 @@ class DetailedPlanTest {
     )
 
     @Test
-    fun limitAboveItems_planIsLimit_restIsUnallocated() {
+    fun freeAmountAndItems_areSummed() {
         val lines = listOf(
-            BudgetLine("debt", Money.rub(6_000_000L)),
+            BudgetLine("debt", Money.rub(1_000_000L)),
             BudgetLine("debt", Money.rub(2_000_000L), "sub_a"),
             BudgetLine("debt", Money.rub(3_000_000L), "sub_b"),
         )
         val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
         assertTrue(budget.plannedByItems)
-        assertEquals(Money.rub(6_000_000L), budget.limit)
+        assertEquals(Money.rub(1_000_000L), budget.freePlanned)
         assertEquals(Money.rub(5_000_000L), budget.itemsPlanned)
         assertEquals(Money.rub(6_000_000L), budget.planned)
-        assertEquals(Money.rub(1_000_000L), budget.unallocated)
-        assertTrue(budget.itemsOverLimit.isZero)
         assertEquals(2, budget.items.size)
     }
 
     @Test
-    fun itemsAboveLimit_planIsItemsSum_overflowReported() {
-        val lines = listOf(
-            BudgetLine("debt", Money.rub(4_000_000L)),
-            BudgetLine("debt", Money.rub(2_000_000L), "sub_a"),
-            BudgetLine("debt", Money.rub(3_000_000L), "sub_b"),
-        )
-        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
-        assertEquals(Money.rub(5_000_000L), budget.planned)
-        assertEquals(Money.rub(1_000_000L), budget.itemsOverLimit)
-        assertTrue(budget.unallocated.isZero)
-    }
-
-    @Test
-    fun itemsWithoutLimit_planIsItemsSum() {
+    fun itemsOnly_planIsItemsSum() {
         val lines = listOf(
             BudgetLine("debt", Money.rub(2_000_000L), "sub_a"),
             BudgetLine("debt", Money.rub(3_000_000L), "sub_b"),
         )
         val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
-        assertNull(budget.limit)
+        assertTrue(budget.freePlanned.isZero)
         assertEquals(Money.rub(5_000_000L), budget.planned)
-        assertTrue(budget.unallocated.isZero)
-        assertTrue(budget.itemsOverLimit.isZero)
-    }
-
-    @Test
-    fun zeroLimitLine_isIgnored() {
-        val lines = listOf(BudgetLine("debt", Money.rub(0L)), BudgetLine("debt", Money.rub(2_000_000L), "sub_a"))
-        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
-        assertNull(budget.limit)
-        assertEquals(Money.rub(2_000_000L), budget.planned)
     }
 
     @Test
@@ -100,7 +75,7 @@ class DetailedPlanTest {
         val lines = listOf(BudgetLine("debt", Money.rub(4_000_000L)))
         val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
         assertFalse(budget.plannedByItems)
-        assertEquals(Money.rub(4_000_000L), budget.limit)
+        assertEquals(Money.rub(4_000_000L), budget.freePlanned)
         assertEquals(Money.rub(4_000_000L), budget.planned)
         assertTrue(budget.items.isEmpty())
     }
