@@ -100,6 +100,7 @@ class HomeViewModel(
                 val period = _state.value.period
                 val periodId = periodRepository.ensure(period)
                 val lines = budgetRepository.getLines(periodId)
+                val savingsTarget = budgetRepository.getSavingsTarget(periodId)
                 _state.update {
                     it.copy(
                         loading = false,
@@ -120,6 +121,7 @@ class HomeViewModel(
                         rateHistory = rateHistory,
                         periodId = periodId,
                         budgetLines = lines,
+                        savingsTarget = savingsTarget,
                     )
                 }
                 if (sent > 0) _messages.send("Отправлено операций: $sent")
@@ -140,10 +142,11 @@ class HomeViewModel(
     private fun switchPeriod(period: Period) {
         viewModelScope.launch {
             try {
-                _state.update { it.copy(period = period, periodId = null, budgetLines = emptyList()) }
+                _state.update { it.copy(period = period, periodId = null, budgetLines = emptyList(), savingsTarget = null) }
                 val periodId = periodRepository.ensure(period)
                 val lines = budgetRepository.getLines(periodId)
-                _state.update { it.copy(periodId = periodId, budgetLines = lines) }
+                val savingsTarget = budgetRepository.getSavingsTarget(periodId)
+                _state.update { it.copy(periodId = periodId, budgetLines = lines, savingsTarget = savingsTarget) }
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось загрузить период")
             }
@@ -343,6 +346,20 @@ class HomeViewModel(
 
     fun setPlanned(categoryId: String, planned: Money) = setItemPlanned(categoryId, null, planned)
 
+    fun setSavingsTarget(target: Money?) {
+        viewModelScope.launch {
+            try {
+                val periodId = _state.value.periodId ?: periodRepository.ensure(_state.value.period)
+                val value = target?.takeIf { it.minor > 0L }
+                budgetRepository.setSavingsTarget(periodId, value)
+                _state.update { it.copy(periodId = periodId, savingsTarget = value) }
+                _messages.send(if (value == null) "План «Себе» убран" else "План «Себе»: ${MoneyFormat.format(value, false)}")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить план «Себе»")
+            }
+        }
+    }
+
     fun setItemPlanned(categoryId: String, subcategoryId: String?, planned: Money) {
         viewModelScope.launch {
             try {
@@ -436,7 +453,9 @@ class HomeViewModel(
                 val periodId = current.periodId ?: periodRepository.ensure(current.period)
                 val previousId = periodRepository.ensure(SalaryCycle.previous(current.period))
                 val previousLines = budgetRepository.getLines(previousId).filter { it.planned.minor > 0L }
-                require(previousLines.isNotEmpty()) { "В прошлом месяце план не заполнен" }
+                val previousTarget = budgetRepository.getSavingsTarget(previousId)
+                require(previousLines.isNotEmpty() || previousTarget != null) { "В прошлом месяце план не заполнен" }
+                previousTarget?.let { budgetRepository.setSavingsTarget(periodId, it) }
                 val activeIds = current.activeCategories.map { it.id }.toSet()
                 val toCopy = previousLines.filter { it.categoryId in activeIds }
                 toCopy.forEach { budgetRepository.setPlanned(periodId, it) }
@@ -446,6 +465,7 @@ class HomeViewModel(
                         saving = false,
                         periodId = periodId,
                         budgetLines = state.budgetLines.filterNot { (it.categoryId to it.subcategoryId) in copiedKeys } + toCopy,
+                        savingsTarget = previousTarget ?: state.savingsTarget,
                     )
                 }
                 _messages.send("План скопирован: ${toCopy.size} категорий")

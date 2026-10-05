@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.logic.CategoryBudget
+import ru.nomadbudget.domain.logic.CategoryHistory
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
@@ -112,6 +113,7 @@ fun PlanEditorDialog(
                     CategoryEditor(
                         category = category,
                         budget = budget,
+                        history = state.categoryHistory[category.id],
                         suggestions = state.subcategories.filter { it.categoryId == category.id }.map { it.name },
                         onChange = {
                             current = it
@@ -143,6 +145,7 @@ fun PlanEditorDialog(
 private fun CategoryEditor(
     category: Category,
     budget: CategoryBudget?,
+    history: CategoryHistory?,
     suggestions: List<String>,
     onChange: (EditorResult) -> Unit,
 ) {
@@ -196,6 +199,20 @@ private fun CategoryEditor(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
+    history?.let { h ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "В среднем за ${h.months} мес.: ${MoneyFormat.format(h.average, false)} · в прошлом: ${MoneyFormat.format(h.previous, false)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = {
+                val rest = h.average - itemsTotal
+                freeText = if (rest.isNegative || rest.isZero) "" else rest.wholeUnits.toString()
+            }) { Text("Подставить") }
+        }
+    }
     if (isIncome) return
 
     Text(

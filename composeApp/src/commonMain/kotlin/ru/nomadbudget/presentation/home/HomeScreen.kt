@@ -265,6 +265,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onBack = null,
                                     onSaveCategoryPlan = viewModel::saveCategoryPlan,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
+                                    onSetSavingsTarget = viewModel::setSavingsTarget,
                                 )
                             }
                             composable<EntryRoute> {

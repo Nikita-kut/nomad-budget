@@ -222,7 +222,9 @@ private fun PlanTeaser(state: HomeState, onCopyPlan: () -> Unit, onOpenPlanning:
             } else {
                 val free = plan.free
                 Text(
-                    "Расходы ${MoneyFormat.format(plan.expensePlanned, false)} из дохода ${MoneyFormat.format(plan.incomePlanned, false)}",
+                    "Расходы ${MoneyFormat.format(plan.expensePlanned, false)}" +
+                        (if (plan.savingsTarget.isZero) "" else " и себе ${MoneyFormat.format(plan.savingsTarget, false)}") +
+                        " из дохода ${MoneyFormat.format(plan.incomePlanned, false)}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
@@ -241,12 +243,18 @@ private fun SummaryRow(state: HomeState) {
     val summary = state.summary
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SummaryCard("Потрачено", MoneyFormat.format(summary.expenseFact, false), "план ${MoneyFormat.format(summary.expensePlanned, false)}", Modifier.weight(1f), info = Hints.SPENT)
+        val target = state.savingsTarget
         SummaryCard(
             "Отложено себе",
             MoneyFormat.format(summary.netSaved, false),
-            if (summary.takenFromSavings.isZero) "в накопления" else "взято ${MoneyFormat.format(summary.takenFromSavings, false)}",
+            when {
+                target != null -> "из ${MoneyFormat.format(target, false)} по плану"
+                summary.takenFromSavings.isZero -> "в накопления"
+                else -> "взято ${MoneyFormat.format(summary.takenFromSavings, false)}"
+            },
             Modifier.weight(1f),
             negative = summary.netSaved.isNegative,
+            positive = target != null && summary.netSaved.wholeUnits >= target.wholeUnits,
             info = Hints.SAVED,
         )
         SummaryCard(
@@ -293,7 +301,7 @@ private fun OperationalRow(state: HomeState) {
 }
 
 @Composable
-private fun SummaryCard(label: String, value: String, sub: String, modifier: Modifier = Modifier, negative: Boolean = false, info: String? = null) {
+private fun SummaryCard(label: String, value: String, sub: String, modifier: Modifier = Modifier, negative: Boolean = false, positive: Boolean = false, info: String? = null) {
     Card(modifier = modifier) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -304,7 +312,11 @@ private fun SummaryCard(label: String, value: String, sub: String, modifier: Mod
                 value,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (negative) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurface,
+                color = when {
+                    negative -> AppTheme.colors.bad
+                    positive -> AppTheme.colors.good
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
             )
             Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)

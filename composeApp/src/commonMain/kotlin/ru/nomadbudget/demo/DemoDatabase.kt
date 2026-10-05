@@ -36,6 +36,7 @@ class DemoDatabase(val today: LocalDate) {
     val subcategories = mutableListOf<Subcategory>()
     val transactions = mutableListOf<Transaction>()
     val budgetLines = mutableMapOf<String, MutableList<BudgetLine>>()
+    val savingsTargets = mutableMapOf<String, Money>()
     val debts = mutableListOf<Debt>()
     val balanceChecks = mutableListOf<BalanceCheck>()
     val rateHistory = mutableListOf<ExchangeRate>()
@@ -213,6 +214,7 @@ private class DemoSeed(private val db: DemoDatabase) {
         if (index == 3) lines.replaceEach { if (it.subcategoryId == loanSubA.id) it.copy(planned = Money.rub(3_206_000L)) else it }
         if (!isCurrent && index == 1) lines += BudgetLine(docs.id, Money.rub(300_000L))
         db.budgetLines[db.periodId(period)] = lines
+        db.savingsTargets[db.periodId(period)] = Money.rub(4_000_000L)
     }
 
     private fun seedBalanceCheck(period: Period) {
