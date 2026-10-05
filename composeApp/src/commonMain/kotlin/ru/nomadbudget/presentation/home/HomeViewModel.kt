@@ -319,6 +319,42 @@ class HomeViewModel(
         }
     }
 
+    fun saveCategoryPlan(draft: CategoryPlanDraft) {
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(saving = true) }
+                val current = _state.value
+                val periodId = current.periodId ?: periodRepository.ensure(current.period)
+                val categoryId = draft.categoryId
+                val limitLine = draft.limit?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it) }
+                val hadLimit = current.budgetLines.any { it.categoryId == categoryId && it.subcategoryId == null }
+                when {
+                    limitLine != null -> budgetRepository.setPlanned(periodId, limitLine)
+                    hadLimit -> budgetRepository.deleteLine(periodId, categoryId, null)
+                }
+                draft.removedSubcategoryIds.forEach { budgetRepository.deleteLine(periodId, categoryId, it) }
+                val itemLines = draft.items.map { item ->
+                    val subcategoryId = requireNotNull(resolveSubcategory(categoryId, item.name)) { "Введи название подкатегории" }
+                    BudgetLine(categoryId, item.planned, subcategoryId)
+                }
+                itemLines.forEach { budgetRepository.setPlanned(periodId, it) }
+                val touched: Set<String?> = setOf<String?>(null) + draft.removedSubcategoryIds + itemLines.map { it.subcategoryId }
+                _state.update { state ->
+                    state.copy(
+                        saving = false,
+                        periodId = periodId,
+                        budgetLines = state.budgetLines.filterNot { it.categoryId == categoryId && it.subcategoryId in touched } +
+                            listOfNotNull(limitLine) + itemLines,
+                    )
+                }
+                _messages.send("План «${current.categoryName(categoryId)}» сохранён")
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось сохранить план")
+            }
+        }
+    }
+
     fun setPlannedForSubcategoryName(categoryId: String, subcategoryName: String, planned: Money) {
         viewModelScope.launch {
             try {

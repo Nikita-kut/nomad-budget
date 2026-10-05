@@ -62,4 +62,11 @@ class MoneyFormatTest {
         assertEquals("−1,03%", MoneyFormat.formatPercent(-1.026))
         assertEquals("+0,50%", MoneyFormat.formatPercent(0.5))
     }
+
+    @Test
+    fun formatShare_roundsToWholePercent() {
+        assertEquals("45%", MoneyFormat.formatShare(0.45))
+        assertEquals("7%", MoneyFormat.formatShare(0.0666))
+        assertEquals("120%", MoneyFormat.formatShare(1.2))
+    }
 }

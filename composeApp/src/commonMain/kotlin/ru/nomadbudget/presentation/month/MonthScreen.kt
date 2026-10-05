@@ -12,22 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,7 +41,6 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
-import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
@@ -55,7 +50,10 @@ import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
+import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.presentation.planning.AmountPlanDialog
+import ru.nomadbudget.presentation.planning.CategoryPlanDialog
 import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
@@ -64,7 +62,9 @@ fun MonthScreen(
     onSetPlanned: (String, Money) -> Unit,
     onSetItemPlanned: (String, String, Money) -> Unit,
     onRemoveItem: (String, String?) -> Unit,
+    onSaveCategoryPlan: (CategoryPlanDraft) -> Unit,
     onCopyPlan: () -> Unit,
+    onOpenPlanning: () -> Unit,
     onRetry: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
@@ -93,25 +93,8 @@ fun MonthScreen(
         item { SummaryRow(state) }
         item { OperationalRow(state) }
 
-        if (!state.hasExpensePlan && !state.loading) {
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("План на этот месяц пока пустой", fontWeight = FontWeight.Medium)
-                            InfoHint("Копирование плана", Hints.PLAN_COPY)
-                        }
-                        Text(
-                            "Скопируй лимиты с прошлого месяца и поправь, что изменилось, или задай их по одному, нажимая на «план» у категории.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
-                            Text("Скопировать план с прошлого месяца")
-                        }
-                    }
-                }
-            }
+        if (!state.loading) {
+            item { PlanTeaser(state, onCopyPlan, onOpenPlanning) }
         }
 
         item { SectionTitle("Доходы", hint = "план · факт", info = Hints.INCOME) }
@@ -136,7 +119,7 @@ fun MonthScreen(
             }
         }
 
-        item { SectionTitle("Расходы по конвертам", hint = "нажми на план, чтобы расписать", info = Hints.ENVELOPES) }
+        item { SectionTitle("Расходы по конвертам", hint = "нажми на план, чтобы изменить", info = Hints.ENVELOPES) }
         items(expenses, key = { it.category.id }) { budget ->
             ExpenseCard(
                 budget = budget,
@@ -166,8 +149,8 @@ fun MonthScreen(
     editing?.let { category ->
         val budget = state.budgets.firstOrNull { it.category.id == category.id }
         if (category.kind == CategoryKind.INCOME) {
-            PlanDialog(
-                category = category,
+            AmountPlanDialog(
+                title = "План: ${category.name}",
                 current = budget?.planned ?: Money.zero(Currency.BASE),
                 onDismiss = { editing = null },
                 onConfirm = { planned ->
@@ -176,15 +159,14 @@ fun MonthScreen(
                 },
             )
         } else {
-            PlanItemsDialog(
+            CategoryPlanDialog(
                 category = category,
                 budget = budget,
                 suggestions = state.subcategories.filter { it.categoryId == category.id }.map { it.name },
+                saving = state.saving,
                 onDismiss = { editing = null },
-                onSave = { items, removed, total ->
-                    removed.forEach { onRemoveItem(category.id, it) }
-                    items.forEach { (name, planned) -> onSetItemPlanned(category.id, name, planned) }
-                    total?.let { onSetPlanned(category.id, it) }
+                onSave = {
+                    onSaveCategoryPlan(it)
                     editing = null
                 },
             )
@@ -209,6 +191,42 @@ fun MonthScreen(
 }
 
 private data class ItemEdit(val category: Category, val item: SubcategoryBudget?)
+
+@Composable
+private fun PlanTeaser(state: HomeState, onCopyPlan: () -> Unit, onOpenPlanning: () -> Unit) {
+    val plan = state.planSummary
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("План месяца", fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                InfoHint("План месяца", Hints.PLAN_SUMMARY)
+            }
+            if (plan.expensePlanned.isZero) {
+                Text(
+                    "Пока пустой. Скопируй лимиты с прошлого месяца или задай их в планировании.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.weight(1f)) { Text("Скопировать") }
+                    OutlinedButton(onClick = onOpenPlanning, modifier = Modifier.weight(1f)) { Text("Планировать") }
+                }
+            } else {
+                val free = plan.free
+                Text(
+                    "Расходы ${MoneyFormat.format(plan.expensePlanned, false)} из дохода ${MoneyFormat.format(plan.incomePlanned, false)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    if (free.isNegative) "перепланировано на ${MoneyFormat.format(-free, false)}" else "свободно ${MoneyFormat.format(free, false)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (free.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
+                )
+                OutlinedButton(onClick = onOpenPlanning, modifier = Modifier.fillMaxWidth()) { Text("Открыть планирование") }
+            }
+        }
+    }
+}
 
 @Composable
 private fun SummaryRow(state: HomeState) {
@@ -338,7 +356,7 @@ private fun ExpenseCard(
                             color = if (budget.status == BudgetStatus.OVER) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            "· план ${MoneyFormat.format(budget.planned, false)}${if (budget.plannedByItems) " (${budget.items.count { it.planned != null }} стр.)" else ""}",
+                            "· план ${MoneyFormat.format(budget.planned, false)}${if (budget.plannedByItems) " (${budget.items.count { it.planned != null }} подкат.)" else ""}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textDecoration = TextDecoration.Underline,
@@ -488,158 +506,3 @@ private fun ItemPlanDialog(
 }
 
 private const val MAX_SUGGESTIONS = 8
-
-private data class PlanRow(val key: Int, val subcategoryId: String?, val name: String, val amount: String)
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun PlanItemsDialog(
-    category: Category,
-    budget: CategoryBudget?,
-    suggestions: List<String>,
-    onDismiss: () -> Unit,
-    onSave: (items: List<Pair<String, Money>>, removedSubcategoryIds: List<String?>, total: Money?) -> Unit,
-) {
-    val initialRows = remember(budget) {
-        budget?.items.orEmpty()
-            .filter { it.planned != null && it.subcategory != null }
-            .mapIndexed { index, item ->
-                PlanRow(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), majorText(item.planned ?: Money.zero(Currency.BASE)))
-            }
-    }
-    var rows by remember { mutableStateOf(initialRows) }
-    var nextKey by remember { mutableIntStateOf(initialRows.size) }
-    var totalText by remember {
-        mutableStateOf(if (budget != null && !budget.plannedByItems && !budget.planned.isZero) majorText(budget.planned) else "")
-    }
-    val transformation = remember { ThousandsVisualTransformation() }
-
-    val parsedRows = rows.map { row -> row to MoneyFormat.parse(row.amount, Currency.BASE) }
-    val rowsValid = parsedRows.all { (row, money) -> row.name.isNotBlank() && money != null }
-    val itemsTotal = parsedRows.mapNotNull { it.second }.sumIn(Currency.BASE)
-    val parsedTotal = MoneyFormat.parse(totalText, Currency.BASE)
-    val usingItems = rows.isNotEmpty()
-    val canSave = when {
-        usingItems -> rowsValid
-        else -> parsedTotal != null || totalText.isBlank()
-    }
-    val usedNames = rows.map { it.name.lowercase() }.toSet()
-    val freeSuggestions = suggestions.filter { it.lowercase() !in usedNames }.take(MAX_SUGGESTIONS)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("План: ${category.name}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Распиши, на что пойдут деньги: пункт и сумма. План категории сложится сам.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                rows.forEach { row ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedTextField(
-                            value = row.name,
-                            onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(name = v) else it } },
-                            label = { Text("На что") },
-                            singleLine = true,
-                            enabled = row.subcategoryId == null,
-                            modifier = Modifier.weight(1.2f),
-                        )
-                        OutlinedTextField(
-                            value = row.amount,
-                            onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(amount = ThousandsVisualTransformation.sanitize(v)) else it } },
-                            label = { Text("₽") },
-                            singleLine = true,
-                            visualTransformation = transformation,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.weight(1f),
-                        )
-                        IconButton(onClick = { rows = rows.filterNot { it.key == row.key } }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Убрать пункт", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-                if (freeSuggestions.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        freeSuggestions.forEach { name ->
-                            TagChip(text = "+ $name", onClick = {
-                                rows = rows + PlanRow(nextKey, null, name, "")
-                                nextKey++
-                            })
-                        }
-                    }
-                }
-                TextButton(onClick = {
-                    rows = rows + PlanRow(nextKey, null, "", "")
-                    nextKey++
-                }) { Text("Добавить пункт") }
-                if (usingItems) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Итого план", fontWeight = FontWeight.SemiBold)
-                        Text(MoneyFormat.format(itemsTotal, false), fontWeight = FontWeight.SemiBold)
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = totalText,
-                        onValueChange = { totalText = ThousandsVisualTransformation.sanitize(it) },
-                        label = { Text("Или одна сумма без разбивки, ₽") },
-                        singleLine = true,
-                        visualTransformation = transformation,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val keptIds = rows.mapNotNull { it.subcategoryId }.toSet()
-                    val removed = initialRows.mapNotNull { it.subcategoryId }.filterNot { it in keptIds }
-                    val items = parsedRows.mapNotNull { (row, money) -> money?.let { row.name.trim() to it } }
-                    val total = if (usingItems) null else (parsedTotal ?: Money.zero(Currency.BASE))
-                    onSave(items, removed, total)
-                },
-                enabled = canSave,
-            ) { Text("Сохранить") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-    )
-}
-
-private fun majorText(money: Money): String {
-    val major = money.minor / money.currency.minorFactor
-    val fraction = money.minor % money.currency.minorFactor
-    return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
-}
-
-@Composable
-private fun PlanDialog(category: Category, current: Money, onDismiss: () -> Unit, onConfirm: (Money) -> Unit) {
-    var text by remember { mutableStateOf(if (current.isZero) "" else (current.minor / Currency.BASE.minorFactor).toString()) }
-    val transformation = remember { ThousandsVisualTransformation() }
-    val parsed = MoneyFormat.parse(text, Currency.BASE)
-    val isZero = text.trim() == "0" || text.isBlank()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("План: ${category.name}") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = ThousandsVisualTransformation.sanitize(it) },
-                label = { Text("Сумма на месяц, ₽") },
-                singleLine = true,
-                visualTransformation = transformation,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(parsed ?: Money.zero(Currency.BASE)) },
-                enabled = parsed != null || isZero,
-            ) { Text("Сохранить") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-    )
-}

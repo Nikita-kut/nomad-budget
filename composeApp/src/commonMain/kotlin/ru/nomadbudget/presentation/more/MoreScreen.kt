@@ -28,6 +28,7 @@ import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 
 @Composable
@@ -37,6 +38,7 @@ fun MoreScreen(
     onBalanceCheck: () -> Unit,
     onRates: () -> Unit,
     onCharts: () -> Unit,
+    onPlanning: () -> Unit,
     showAnalytics: Boolean,
     onSignOut: () -> Unit,
 ) {
@@ -49,6 +51,15 @@ fun MoreScreen(
             item { SectionTitle("Аналитика") }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
+                    MenuRow(
+                        "Планирование",
+                        state.planSummary.let { plan ->
+                            if (plan.expensePlanned.isZero) "план месяца пока пустой"
+                            else "запланировано ${MoneyFormat.format(plan.expensePlanned, false)} из ${MoneyFormat.format(plan.incomePlanned, false)}"
+                        },
+                        onPlanning,
+                    )
+                    HorizontalDivider()
                     MenuRow("Графики", "доходы, расходы, накопления по месяцам", onCharts)
                     HorizontalDivider()
                     MenuRow("Курсы валют", "текущие и история по дням", onRates)

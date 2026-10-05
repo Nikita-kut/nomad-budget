@@ -33,8 +33,18 @@ data class CategoryBudget(
     val transactionCount: Int,
     val items: List<SubcategoryBudget> = emptyList(),
     val plannedByItems: Boolean = false,
+    val limit: Money? = null,
+    val itemsPlanned: Money = Money.zero(Currency.BASE),
 ) {
     val remaining: Money get() = planned - fact
+
+    val unallocated: Money
+        get() = if (limit != null && plannedByItems && limit > itemsPlanned) limit - itemsPlanned else Money.zero(Currency.BASE)
+
+    val itemsOverLimit: Money
+        get() = if (limit != null && itemsPlanned > limit) itemsPlanned - limit else Money.zero(Currency.BASE)
+
+    val hasPlan: Boolean get() = planned.minor > 0L
 
     val progress: Double
         get() = when {
@@ -85,9 +95,12 @@ object BudgetCalculator {
                 val itemLines = categoryLines.filter { it.subcategoryId != null }
                 val items = buildItems(related, itemLines, subcategoriesById)
                 val plannedByItems = itemLines.isNotEmpty()
+                val itemsPlanned = itemLines.map { it.planned }.sumIn(Currency.BASE)
+                val limit = categoryLines.firstOrNull { it.subcategoryId == null }?.planned?.takeIf { it.minor > 0L }
                 val planned = when {
-                    plannedByItems -> itemLines.map { it.planned }.sumIn(Currency.BASE)
-                    else -> categoryLines.firstOrNull { it.subcategoryId == null }?.planned ?: Money.zero(Currency.BASE)
+                    limit == null -> itemsPlanned
+                    plannedByItems -> maxOf(limit, itemsPlanned)
+                    else -> limit
                 }
                 CategoryBudget(
                     category = category,
@@ -96,6 +109,8 @@ object BudgetCalculator {
                     transactionCount = related.size,
                     items = items,
                     plannedByItems = plannedByItems,
+                    limit = limit,
+                    itemsPlanned = itemsPlanned,
                 )
             }
     }
