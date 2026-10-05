@@ -146,13 +146,13 @@ private class DemoSeed(private val db: DemoDatabase) {
     }
 
     private fun seedPeriod(period: Period, index: Int, isCurrent: Boolean) {
-        income(period, 0, card, Money.rub(18_000_000L), salary)
+        income(period, 0, card, Money.rub(23_000_000L), salary)
         income(period, 12, usdCard, Money(25_000L, usd), side, "перевод от заказчика")
         transfer(period, 0, card, cushion, Money.rub(3_000_000L), "себе")
         transfer(period, 1, card, invest, Money.rub(1_000_000L))
         transfer(period, 3, card, rubCash, Money.rub(500_000L))
-        exchange(period, 2, card, usdCard, Money.rub(9_280_000L), Money(100_000L, usd))
-        exchange(period, 4, usdCash, localCash, Money(20_000L, usd), Money(29_800L, local))
+        exchange(period, 2, card, usdCard, Money.rub(3_712_000L), Money(40_000L, usd))
+        exchange(period, 4, usdCard, localCash, Money(15_000L, usd), Money(22_350L, local))
 
         expense(period, 0, card, Money.rub(4_500_000L), housing, rent)
         expense(period, 7, card, Money.rub(550_000L + random.nextLong(0L, 80_000L)), housing, utilities)
@@ -192,7 +192,7 @@ private class DemoSeed(private val db: DemoDatabase) {
 
     private fun seedPlan(period: Period, index: Int, isCurrent: Boolean) {
         val lines = mutableListOf(
-            BudgetLine(salary.id, Money.rub(18_000_000L)),
+            BudgetLine(salary.id, Money.rub(23_000_000L)),
             BudgetLine(side.id, Money.rub(2_000_000L)),
             BudgetLine(food.id, Money.rub(1_500_000L)),
             BudgetLine(food.id, Money.rub(2_000_000L), grocery.id),
