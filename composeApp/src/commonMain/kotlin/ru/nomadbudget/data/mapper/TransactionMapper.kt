@@ -31,6 +31,8 @@ object TransactionMapper {
         amountBase = insert.amountBase,
         rateSource = insert.rateSource,
         source = "app",
+        debtPrincipal = insert.debtPrincipal,
+        debtEarly = insert.debtEarly,
     )
 
     fun toDomain(dto: TransactionDto, accountsById: Map<String, Account>, pending: Boolean = false): Transaction {
@@ -61,6 +63,8 @@ object TransactionMapper {
                 rateSource = RateSource.valueOf(dto.rateSource.uppercase()),
                 note = note,
                 debtId = dto.debtId,
+                debtPrincipal = dto.debtPrincipal?.let { Money(it, account.currency) },
+                debtEarly = dto.debtEarly,
             )
             TYPE_INCOME -> Transaction.Income(
                 id = dto.id,
@@ -112,6 +116,8 @@ object TransactionMapper {
             rateToBase = rateOf(tx.amount, tx.amountBase),
             amountBase = tx.amountBase.minor,
             rateSource = tx.rateSource.name.lowercase(),
+            debtPrincipal = tx.debtPrincipal?.minor,
+            debtEarly = tx.debtEarly,
         )
         is Transaction.Income -> TransactionInsertDto(
             txDate = tx.date.toString(),

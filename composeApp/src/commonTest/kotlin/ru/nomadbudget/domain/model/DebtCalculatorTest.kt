@@ -33,4 +33,21 @@ class DebtCalculatorTest {
         val small = mortgage.copy(principalRemaining = Money.rub(500_000L), ratePercent = null)
         assertEquals(Money.rub(500_000L), DebtCalculator.principalPart(small, Money.rub(900_000L)))
     }
+
+    @Test
+    fun earlyPayment_goesFullyToPrincipal() {
+        assertEquals(Money.rub(10_000_000L), DebtCalculator.principalFor(mortgage, Money.rub(10_000_000L), early = true))
+        assertEquals(Money.rub(1_288_200L), DebtCalculator.principalFor(mortgage, mortgage.monthlyPayment, early = false))
+    }
+
+    @Test
+    fun earlyPayment_cappedByRemaining() {
+        val almostPaid = mortgage.copy(principalRemaining = Money.rub(500_000L))
+        assertEquals(Money.rub(500_000L), DebtCalculator.principalFor(almostPaid, Money.rub(900_000L), early = true))
+    }
+
+    @Test
+    fun principalFor_otherCurrency_isNull() {
+        assertEquals(null, DebtCalculator.principalFor(mortgage, Money(10_000L, Currency.USD), early = true))
+    }
 }

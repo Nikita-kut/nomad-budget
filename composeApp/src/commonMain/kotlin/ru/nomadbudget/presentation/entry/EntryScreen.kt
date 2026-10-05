@@ -71,6 +71,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Checkbox
+import ru.nomadbudget.domain.model.DebtCalculator
+import ru.nomadbudget.domain.model.Money
 
 private const val MAX_SUGGESTIONS = 8
 
@@ -130,6 +133,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
     var subcategory by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var debt by remember { mutableStateOf<Debt?>(null) }
+    var debtEarly by remember { mutableStateOf(false) }
     val amountTransformation = remember { ThousandsVisualTransformation() }
     val prefill = state.entryPrefill
 
@@ -180,6 +184,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
                 subcategoryName = if (type == EntryType.EXPENSE) subcategory else "",
                 note = note,
                 debtId = debt?.id.takeIf { debtCategory },
+                debtEarly = debtEarly && debt != null && debtCategory,
                 fromDraftId = prefill?.draftId,
             ),
         )
@@ -187,6 +192,7 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
         subcategory = ""
         note = ""
         debt = null
+        debtEarly = false
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -267,14 +273,23 @@ private fun EntryForm(state: HomeState, onSubmit: (EntryDraft) -> Unit, onClearP
                     itemLabel = { it?.let { d -> "${d.name} · ${MoneyFormat.format(d.monthlyPayment, false)}" } ?: "не платёж по кредиту" },
                     onSelect = { selected ->
                         debt = selected
+                        if (selected == null) debtEarly = false
                         selected?.let { d ->
                             subcategory = d.name
-                            if (amountText.isBlank() && account?.currency == d.currency) {
+                            if (amountText.isBlank() && account?.currency == d.currency && !debtEarly) {
                                 amountText = (d.monthlyPayment.minor / d.currency.minorFactor).toString()
                             }
                         }
                     },
                 )
+                debt?.let { d ->
+                    EarlyPaymentToggle(
+                        checked = debtEarly,
+                        onChange = { debtEarly = it },
+                        preview = amount?.let { DebtCalculator.principalFor(d, it, debtEarly) },
+                        differentCurrency = amount != null && amount.currency != d.currency,
+                    )
+                }
             }
             if (type == EntryType.EXPENSE) {
                 OutlinedTextField(
@@ -511,5 +526,27 @@ private fun InboxCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+internal fun EarlyPaymentToggle(checked: Boolean, onChange: (Boolean) -> Unit, preview: Money?, differentCurrency: Boolean) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = checked, onCheckedChange = onChange)
+            Text("Досрочное погашение", style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            when {
+                differentCurrency -> "Валюта счёта не совпадает с валютой кредита: остаток кредита не изменится"
+                checked -> "Вся сумма уменьшает тело кредита, проценты не вычитаются" + (preview?.let { ". В тело: ${MoneyFormat.format(it, false)}" } ?: "")
+                else -> "Обычный платёж: из суммы вычитаются проценты за месяц" + (preview?.let { ", в тело: ${MoneyFormat.format(it, false)}" } ?: "")
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
