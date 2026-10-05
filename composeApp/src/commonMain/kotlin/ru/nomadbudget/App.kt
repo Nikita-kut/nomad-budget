@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
+import ru.nomadbudget.demo.DemoMode
+import ru.nomadbudget.demo.demoModule
 import ru.nomadbudget.di.appModule
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
@@ -20,7 +22,7 @@ import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
 fun App() {
-    KoinApplication(application = { modules(appModule) }) {
+    KoinApplication(application = { modules(if (DemoMode.enabled) demoModule else appModule) }) {
         AppTheme {
             Surface(modifier = Modifier.fillMaxSize()) {
                 Root()

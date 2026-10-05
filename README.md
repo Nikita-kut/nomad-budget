@@ -15,6 +15,13 @@
 ./gradlew :androidApp:installDebug                 # Android, нужен эмулятор или устройство
 ```
 
+## Демо-режим
+
+Приложение без входа и без базы, на вымышленных данных в памяти: полгода зарплатных месяцев, три валюты, накопления, кредиты, план. Изменения не сохраняются.
+
+- Web: добавить `?demo` к адресу, например `http://localhost:8080/?demo`.
+- Android: `adb shell am start -n ru.nomadbudget/.android.MainActivity --ez demo true`.
+
 ## Проверки
 
 ```bash

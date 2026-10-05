@@ -6,7 +6,7 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class OfflineCache(private val store: LocalStore) {
+class OfflineCache(private val store: KeyValueStore) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 

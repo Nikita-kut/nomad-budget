@@ -3,6 +3,9 @@ package ru.nomadbudget.di
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 import ru.nomadbudget.data.local.DraftsStore
+import ru.nomadbudget.core.SystemToday
+import ru.nomadbudget.core.TodayProvider
+import ru.nomadbudget.data.local.KeyValueStore
 import ru.nomadbudget.data.local.LocalStore
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.PendingQueue
@@ -32,7 +35,8 @@ import ru.nomadbudget.presentation.home.HomeViewModel
 
 val appModule = module {
     single { SupabaseClientFactory.create() }
-    single { LocalStore() }
+    single<KeyValueStore> { LocalStore() }
+    single<TodayProvider> { SystemToday }
     single { OfflineCache(get()) }
     single { PendingQueue(get()) }
     single<DraftRepository> { DraftsStore(get()) }

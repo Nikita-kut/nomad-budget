@@ -10,8 +10,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
+import ru.nomadbudget.core.TodayProvider
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.AccountKind
@@ -56,12 +55,13 @@ class HomeViewModel(
     private val debtRepository: DebtRepository,
     private val offlineCache: OfflineCache,
     private val draftRepository: DraftRepository,
+    todayProvider: TodayProvider,
 ) : ViewModel() {
 
     private val _navigateToEntry = Channel<Unit>(Channel.BUFFERED)
     val navigateToEntry: Flow<Unit> = _navigateToEntry.receiveAsFlow()
 
-    private val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+    private val today: LocalDate = todayProvider.today()
 
     private val _state = MutableStateFlow(HomeState(today = today, period = SalaryCycle.periodContaining(today)))
     val state: StateFlow<HomeState> = _state
