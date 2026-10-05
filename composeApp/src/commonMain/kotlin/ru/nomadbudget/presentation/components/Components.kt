@@ -41,6 +41,8 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modifier, info: String? = null) {
@@ -140,6 +142,7 @@ fun AccountDropdown(
             singleLine = true,
             label = { Text(label) },
             leadingIcon = selected?.let { account -> { CurrencyChip(account.currency, state) } },
+            suffix = if (selected?.isSavings == true) ({ SavingsTag() }) else null,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             supportingText = selectedBalance?.let { balance ->
                 {
@@ -162,7 +165,7 @@ fun AccountDropdown(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             CurrencyChip(account.currency, state)
-                            Text(account.name, modifier = Modifier.weight(1f))
+                            AccountName(account, modifier = Modifier.weight(1f))
                             state.balances[account.id]?.let { balance ->
                                 Text(
                                     MoneyFormat.format(balance),
@@ -236,6 +239,77 @@ fun <T> Dropdown(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun SavingsTag(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    ) {
+        Text(
+            "накопления",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+fun AccountName(
+    account: Account?,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocalTextStyle.current,
+    color: Color = Color.Unspecified,
+    fontWeight: FontWeight? = null,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            account?.name ?: "?",
+            style = style,
+            color = color,
+            fontWeight = fontWeight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (account?.isSavings == true) SavingsTag()
+    }
+}
+
+@Composable
+fun AccountsLine(
+    state: HomeState,
+    fromId: String,
+    toId: String? = null,
+    prefix: String? = null,
+    note: String? = null,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodySmall,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    fontWeight: FontWeight? = null,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        prefix?.let { Text("$it ·", style = style, color = color, fontWeight = fontWeight, maxLines = 1) }
+        AccountName(state.accountsById[fromId], style = style, color = color, fontWeight = fontWeight)
+        toId?.let { id ->
+            Text("→", style = style, color = color, fontWeight = fontWeight)
+            AccountName(state.accountsById[id], style = style, color = color, fontWeight = fontWeight)
+        }
+        note?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                "· $it",
+                style = style,
+                color = color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
         }
     }
 }

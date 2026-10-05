@@ -10,7 +10,7 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
 
-enum class BudgetStatus { OK, WARNING, OVER }
+enum class BudgetStatus { OK, WARNING, DONE, OVER }
 
 data class BudgetLine(
     val categoryId: String,
@@ -24,6 +24,8 @@ data class SubcategoryBudget(
     val fact: Money,
 ) {
     val remaining: Money? get() = planned?.minus(fact)
+
+    val remainingWhole: Money? get() = planned?.let { it.withoutFraction() - fact.withoutFraction() }
 }
 
 data class CategoryBudget(
@@ -38,18 +40,21 @@ data class CategoryBudget(
 ) {
     val remaining: Money get() = planned - fact
 
+    val remainingWhole: Money get() = planned.withoutFraction() - fact.withoutFraction()
+
     val hasPlan: Boolean get() = planned.minor > 0L
 
     val progress: Double
         get() = when {
-            planned.minor > 0L -> fact.minor.toDouble() / planned.minor
-            fact.minor > 0L -> 1.0
+            planned.wholeUnits > 0L -> fact.wholeUnits.toDouble() / planned.wholeUnits
+            fact.wholeUnits > 0L -> 1.0
             else -> 0.0
         }
 
     val status: BudgetStatus
         get() = when {
-            fact > planned -> BudgetStatus.OVER
+            fact.wholeUnits > planned.wholeUnits -> BudgetStatus.OVER
+            planned.wholeUnits > 0L && fact.wholeUnits == planned.wholeUnits -> BudgetStatus.DONE
             progress >= BudgetCalculator.WARNING_THRESHOLD -> BudgetStatus.WARNING
             else -> BudgetStatus.OK
         }

@@ -49,6 +49,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.presentation.components.AccountName
 
 @Composable
 fun AccountsScreen(
@@ -195,7 +196,7 @@ private fun AccountRow(
             }
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(account.name, fontWeight = FontWeight.Medium)
+            AccountName(account, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(kindLabel(account.kind), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 CurrencyChip(account.currency, state)

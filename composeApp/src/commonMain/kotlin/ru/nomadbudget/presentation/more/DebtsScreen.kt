@@ -167,7 +167,7 @@ private fun DebtsSummary(state: HomeState) {
 @Composable
 private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose: () -> Unit) {
     val paid = state.paidThisPeriod(debt)
-    val paidEnough = paid >= debt.plannedPayment
+    val paidEnough = paid.wholeUnits >= debt.plannedPayment.wholeUnits
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -184,7 +184,7 @@ private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose:
             Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (paid.isZero) "в этом месяце не платил" else "в этом месяце ${MoneyFormat.format(paid, false)}",
+                    if (paid.isZero) "в этом месяце не платил" else "в этом месяце ${MoneyFormat.format(paid, false)} из ${MoneyFormat.format(debt.plannedPayment, false)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (paidEnough) AppTheme.colors.good else MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -329,11 +329,16 @@ private fun ExpenseCard(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             text = when (budget.status) {
-                                BudgetStatus.OVER -> "перерасход ${MoneyFormat.format(-budget.remaining, false)}"
-                                BudgetStatus.WARNING, BudgetStatus.OK -> "осталось ${MoneyFormat.format(budget.remaining, false)}"
+                                BudgetStatus.OVER -> "перерасход ${MoneyFormat.format(-budget.remainingWhole, false)}"
+                                BudgetStatus.DONE -> "ровно по плану"
+                                BudgetStatus.WARNING, BudgetStatus.OK -> "осталось ${MoneyFormat.format(budget.remainingWhole, false)}"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (budget.status == BudgetStatus.OVER) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = when (budget.status) {
+                                BudgetStatus.OVER -> AppTheme.colors.bad
+                                BudgetStatus.DONE -> AppTheme.colors.good
+                                BudgetStatus.WARNING, BudgetStatus.OK -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                         Text(
                             "· план ${MoneyFormat.format(budget.planned, false)}${if (budget.plannedByItems) " (${budget.items.count { it.planned != null }} подкат.)" else ""}",
@@ -360,7 +365,7 @@ private fun ExpenseCard(
                     }
                 }
                 budget.items.forEach { item ->
-                    val remaining = item.remaining
+                    val remaining = item.remainingWhole
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable { onEditItem(item) }.padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,

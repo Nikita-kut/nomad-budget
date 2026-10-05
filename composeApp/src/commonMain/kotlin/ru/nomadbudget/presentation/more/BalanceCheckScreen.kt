@@ -38,6 +38,7 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.AccountsLine
 
 @Composable
 fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, Money, String) -> Unit) {
@@ -131,7 +132,14 @@ private fun CheckRow(check: BalanceCheck, state: HomeState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("${DateFormat.dayMonth(check.date)} · ${state.accountName(check.accountId)}", fontWeight = FontWeight.Medium)
+                AccountsLine(
+                    state,
+                    fromId = check.accountId,
+                    prefix = DateFormat.dayMonth(check.date),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium,
+                )
                 Text(
                     listOfNotNull("факт ${MoneyFormat.format(check.actual)}", check.note.ifBlank { null }).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
