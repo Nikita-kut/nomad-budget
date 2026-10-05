@@ -354,6 +354,17 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
         }.map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
     }
 
+    override suspend fun getSavingsTarget(periodId: String): Money? {
+        if (periodId.startsWith(PeriodRepositoryImpl.OFFLINE_PREFIX)) return null
+        return cache.throughOrDefault("target:$periodId", ListSerializer(PeriodDto.serializer()), emptyList()) {
+            client.from(Tables.PERIODS).select { filter { eq("id", periodId) } }.decodeList<PeriodDto>()
+        }.firstOrNull()?.savingsTarget?.let(Money::rub)
+    }
+
+    override suspend fun setSavingsTarget(periodId: String, target: Money?) {
+        client.from(Tables.PERIODS).update({ set("savings_target", target?.minor) }) { filter { eq("id", periodId) } }
+    }
+
     override suspend fun setPlanned(periodId: String, line: BudgetLine) {
         client.from(Tables.BUDGET_LINES).upsert(
             BudgetLineUpsertDto(

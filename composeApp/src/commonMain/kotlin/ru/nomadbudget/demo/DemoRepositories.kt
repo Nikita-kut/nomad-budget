@@ -170,6 +170,12 @@ private class DemoTransactionRepository(private val db: DemoDatabase) : Transact
 private class DemoBudgetRepository(private val db: DemoDatabase) : BudgetRepository {
     override suspend fun getLines(periodId: String): List<BudgetLine> = db.budgetLines[periodId].orEmpty().toList()
 
+    override suspend fun getSavingsTarget(periodId: String): Money? = db.savingsTargets[periodId]
+
+    override suspend fun setSavingsTarget(periodId: String, target: Money?) {
+        if (target == null) db.savingsTargets.remove(periodId) else db.savingsTargets[periodId] = target
+    }
+
     override suspend fun setPlanned(periodId: String, line: BudgetLine) {
         val lines = db.budgetLines.getOrPut(periodId) { mutableListOf() }
         lines.removeAll { it.categoryId == line.categoryId && it.subcategoryId == line.subcategoryId }

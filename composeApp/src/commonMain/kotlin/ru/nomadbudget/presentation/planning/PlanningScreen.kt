@@ -50,6 +50,12 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.domain.logic.CategoryHistory
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
+import ru.nomadbudget.presentation.components.TagChip
 
 @Composable
 fun PlanningScreen(
@@ -57,9 +63,11 @@ fun PlanningScreen(
     onBack: (() -> Unit)?,
     onSaveCategoryPlan: (CategoryPlanDraft) -> Unit,
     onCopyPlan: () -> Unit,
+    onSetSavingsTarget: (Money?) -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
+    var editingSavings by remember { mutableStateOf(false) }
     val summary = state.planSummary
     val income = state.budgets.filter { it.category.kind == CategoryKind.INCOME }
     val expenses = state.budgets.filter { it.category.kind == CategoryKind.EXPENSE }
@@ -121,6 +129,32 @@ fun PlanningScreen(
             }
         }
 
+        item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
+        item {
+            Card(modifier = Modifier.fillMaxWidth().clickable { editingSavings = true }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Отложить в накопления")
+                        Text(
+                            "отложено ${MoneyFormat.format(state.summary.netSaved, false)}" +
+                                (summary.savingsShare?.takeIf { !summary.savingsTarget.isZero }?.let { " · ${MoneyFormat.formatShare(it)} дохода" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        if (summary.savingsTarget.isZero) "задать" else MoneyFormat.format(summary.savingsTarget, false),
+                        fontWeight = if (summary.savingsTarget.isZero) null else FontWeight.SemiBold,
+                        color = if (summary.savingsTarget.isZero) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+
         item {
             SectionTitle(
                 "Расходы",
@@ -129,7 +163,7 @@ fun PlanningScreen(
             )
         }
         items(expenses, key = { it.category.id }) { budget ->
-            CategoryPlanCard(budget, onClick = { editing = budget.category })
+            CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
         }
 
         if (summary.shares.isNotEmpty()) {
@@ -144,6 +178,18 @@ fun PlanningScreen(
             initialCategoryId = category.id,
             onSave = onSaveCategoryPlan,
             onDismiss = { editing = null },
+        )
+    }
+
+    if (editingSavings) {
+        SavingsTargetDialog(
+            current = state.savingsTarget,
+            income = summary.incomePlanned,
+            onDismiss = { editingSavings = false },
+            onConfirm = {
+                onSetSavingsTarget(it)
+                editingSavings = false
+            },
         )
     }
 
@@ -173,7 +219,7 @@ private fun SummaryCard(summary: PlanSummary) {
                 InfoHint("Сводка плана", Hints.PLAN_SUMMARY)
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(MoneyFormat.format(summary.expensePlanned, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                Text(MoneyFormat.format(summary.expensePlanned + summary.savingsTarget, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                 Text(
                     "из дохода ${MoneyFormat.format(summary.incomePlanned, false)}",
                     style = MaterialTheme.typography.bodyMedium,
@@ -197,6 +243,7 @@ private fun SummaryCard(summary: PlanSummary) {
                 highlight = if (free.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+            if (!summary.savingsTarget.isZero) PlanLine("Себе по плану", MoneyFormat.format(summary.savingsTarget, false))
             PlanLine("Свободные суммы", MoneyFormat.format(summary.freeAmounts, false))
             PlanLine("По подкатегориям", MoneyFormat.format(summary.itemized, false))
             PlanLine("Категорий с планом", "${summary.plannedCategories} из ${summary.expenseCategories}")
@@ -205,7 +252,7 @@ private fun SummaryCard(summary: PlanSummary) {
 }
 
 @Composable
-private fun CategoryPlanCard(budget: CategoryBudget, onClick: () -> Unit) {
+private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, onClick: () -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -221,6 +268,7 @@ private fun CategoryPlanCard(budget: CategoryBudget, onClick: () -> Unit) {
                 if (budget.plannedByItems && !budget.freePlanned.isZero) add("свободно ${MoneyFormat.format(budget.freePlanned, false)}")
                 if (budget.plannedByItems) add("подкатегории ${MoneyFormat.format(budget.itemsPlanned, false)}")
                 if (!budget.fact.isZero) add("потрачено ${MoneyFormat.format(budget.fact, false)}")
+                history?.let { add("в среднем ${MoneyFormat.format(it.average, false)}/мес") }
             }
             if (meta.isNotEmpty()) {
                 Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = muted)
@@ -263,6 +311,19 @@ private fun StructureCard(summary: PlanSummary) {
                     ShareBar((share.share / maxShare).toFloat())
                 }
             }
+            if (!summary.savingsTarget.isZero && summary.incomePlanned.minor > 0L) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Себе", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                        Text(
+                            "${MoneyFormat.format(summary.savingsTarget, false)} · ${MoneyFormat.formatShare(summary.savingsShare ?: 0.0)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppTheme.colors.good,
+                        )
+                    }
+                    ShareBar(((summary.savingsShare ?: 0.0) / maxShare).toFloat())
+                }
+            }
             if (summary.incomePlanned.minor > 0L && !summary.free.isNegative && !summary.free.isZero) {
                 HorizontalDivider()
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -295,4 +356,38 @@ private fun ShareBar(fraction: Float) {
                 .background(MaterialTheme.colorScheme.primary),
         )
     }
+}
+
+@Composable
+private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () -> Unit, onConfirm: (Money?) -> Unit) {
+    var text by remember { mutableStateOf(current?.let(::majorText).orEmpty()) }
+    val transformation = remember { ThousandsVisualTransformation() }
+    val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, ru.nomadbudget.domain.model.Currency.BASE)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Себе в этом месяце") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it) },
+                    label = { Text("Отложить в накопления, ₽") },
+                    singleLine = true,
+                    visualTransformation = transformation,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (income.minor > 0L) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(10, 20, 30).forEach { percent ->
+                            TagChip(text = "$percent %", onClick = { text = (income.wholeUnits * percent / 100).toString() })
+                        }
+                    }
+                    Text("Проценты считаются от планового дохода", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(parsed) }, enabled = text.isBlank() || parsed != null) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }

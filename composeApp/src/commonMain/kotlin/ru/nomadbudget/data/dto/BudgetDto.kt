@@ -9,6 +9,7 @@ data class PeriodDto(
     @SerialName("start_date") val startDate: String,
     @SerialName("end_date") val endDate: String,
     val title: String,
+    @SerialName("savings_target") val savingsTarget: Long? = null,
 )
 
 @Serializable

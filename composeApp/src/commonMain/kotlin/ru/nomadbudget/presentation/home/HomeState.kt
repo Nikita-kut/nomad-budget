@@ -26,6 +26,7 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
 import kotlin.time.Instant
+import ru.nomadbudget.domain.logic.CategoryHistory
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -89,6 +90,7 @@ data class HomeState(
     val subcategories: List<Subcategory> = emptyList(),
     val transactions: List<Transaction> = emptyList(),
     val budgetLines: List<BudgetLine> = emptyList(),
+    val savingsTarget: Money? = null,
     val rates: RateTable = DefaultRates.table(),
     val balanceChecks: List<BalanceCheck> = emptyList(),
     val debts: List<Debt> = emptyList(),
@@ -152,7 +154,9 @@ data class HomeState(
 
     val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
 
-    val planSummary: PlanSummary = PlanCalculator.summary(budgets)
+    val planSummary: PlanSummary = PlanCalculator.summary(budgets, savingsTarget ?: Money.zero(Currency.BASE))
+
+    val categoryHistory: Map<String, CategoryHistory> = PlanCalculator.history(transactions, period)
 
     val balances: Map<String, Money> = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
 
