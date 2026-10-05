@@ -154,6 +154,8 @@ class HomeViewModel(
                 val rates = current.rates
                 require(rates.hasRate(draft.amount.currency)) { "Нет курса для ${draft.amount.currency.code}, заполни таблицу курсов" }
                 val rateSource = rateSourceFor(draft.amount)
+                val debt = draft.debtId?.takeIf { draft.type == EntryType.EXPENSE }?.let { id -> current.debts.firstOrNull { it.id == id } }
+                val principal = debt?.let { DebtCalculator.principalFor(it, draft.amount, draft.debtEarly) }
                 val transaction = when (draft.type) {
                     EntryType.EXPENSE -> Transaction.Expense(
                         id = "",
@@ -165,7 +167,9 @@ class HomeViewModel(
                         amountBase = rates.toBase(draft.amount),
                         rateSource = rateSource,
                         note = draft.note,
-                        debtId = draft.debtId,
+                        debtId = debt?.id,
+                        debtPrincipal = principal,
+                        debtEarly = debt != null && draft.debtEarly,
                     )
                     EntryType.INCOME -> Transaction.Income(
                         id = "",
@@ -198,7 +202,7 @@ class HomeViewModel(
                         entryPrefill = null,
                     )
                 }
-                val debtNote = if (saved.pending) null else draft.debtId?.let { applyDebtPayment(it, draft.amount) }
+                val debtNote = debt?.let { debtNoteAfter(it.id, principal?.let { p -> -p }) }
                 _messages.send(
                     when {
                         saved.pending -> "Записано без сети, отправится при обновлении"
@@ -249,12 +253,22 @@ class HomeViewModel(
                 require(original != null) { "Операция не найдена" }
                 val withBase = withRecalculatedBase(original, updated)
                 val resolved = when (withBase) {
-                    is Transaction.Expense -> withBase.copy(subcategoryId = subcategoryName?.let { resolveSubcategory(withBase.categoryId, it) })
+                    is Transaction.Expense -> withDebtPrincipal(
+                        original as? Transaction.Expense,
+                        withBase.copy(subcategoryId = subcategoryName?.let { resolveSubcategory(withBase.categoryId, it) }),
+                    )
                     is Transaction.Income, is Transaction.Transfer, is Transaction.Exchange -> withBase
                 }
                 val saved = transactionRepository.update(resolved, current.accounts)
                 _state.update { state -> state.copy(saving = false, transactions = state.transactions.map { if (it.id == saved.id) saved else it }) }
-                _messages.send("Операция обновлена")
+                val debtNote = (saved as? Transaction.Expense)?.debtId?.let { debtId ->
+                    val oldPrincipal = (original as? Transaction.Expense)?.takeIf { it.debtId == debtId }?.debtPrincipal
+                    val newPrincipal = saved.debtPrincipal
+                    val currency = (newPrincipal ?: oldPrincipal)?.currency
+                    val delta = currency?.let { (oldPrincipal ?: Money.zero(it)) - (newPrincipal ?: Money.zero(it)) }
+                    debtNoteAfter(debtId, delta)
+                }
+                _messages.send("Операция обновлена" + debtNote.orEmpty())
             } catch (e: Exception) {
                 _state.update { it.copy(saving = false) }
                 _messages.send(e.message ?: "Не удалось обновить операцию")
@@ -289,9 +303,13 @@ class HomeViewModel(
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             try {
+                val removed = _state.value.transactions.firstOrNull { it.id == id } as? Transaction.Expense
                 transactionRepository.delete(id)
                 _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }, pendingCount = transactionRepository.pendingCount()) }
-                _messages.send("Удалено")
+                val debtNote = removed?.debtId?.let { debtId ->
+                    removed.debtPrincipal?.let { debtNoteAfter(debtId, it, restored = true) } ?: ", остаток кредита не менялся"
+                }
+                _messages.send("Удалено" + debtNote.orEmpty())
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось удалить")
             }
@@ -673,16 +691,27 @@ class HomeViewModel(
         }
     }
 
-    private suspend fun applyDebtPayment(debtId: String, payment: Money): String? {
-        val debt = _state.value.debts.firstOrNull { it.id == debtId } ?: return null
-        if (debt.currency != payment.currency) return ", остаток кредита не менял: другая валюта"
-        val updated = DebtCalculator.afterPayment(debt, payment)
-        return try {
-            debtRepository.update(updated)
-            _state.update { state -> state.copy(debts = state.debts.map { if (it.id == debtId) updated else it }) }
-            ", остаток по кредиту ${MoneyFormat.format(updated.principalRemaining, false)}"
-        } catch (e: Exception) {
-            ", остаток кредита обновить не удалось"
+    private fun withDebtPrincipal(original: Transaction.Expense?, updated: Transaction.Expense): Transaction.Expense {
+        val debtId = updated.debtId ?: return updated.copy(debtPrincipal = null, debtEarly = false)
+        val debt = _state.value.debts.firstOrNull { it.id == debtId } ?: return updated
+        val restoredPrincipal = original?.takeIf { it.debtId == debtId }?.debtPrincipal
+        val before = restoredPrincipal?.takeIf { it.currency == debt.currency }?.let { debt.principalRemaining + it } ?: debt.principalRemaining
+        val principal = DebtCalculator.principalFor(debt.copy(principalRemaining = before), updated.amount, updated.debtEarly)
+        return updated.copy(debtPrincipal = principal)
+    }
+
+    private fun debtNoteAfter(debtId: String, delta: Money?, restored: Boolean = false): String {
+        val debt = _state.value.debts.firstOrNull { it.id == debtId } ?: return ""
+        if (delta == null) return ", остаток кредита не менял: другая валюта"
+        if (delta.currency != debt.currency) return ""
+        val updated = debt.copy(principalRemaining = debt.principalRemaining + delta)
+        _state.update { state -> state.copy(debts = state.debts.map { if (it.id == debtId) updated else it }) }
+        val remaining = MoneyFormat.format(updated.principalRemaining, false)
+        return when {
+            restored -> ", остаток кредита восстановлен: $remaining"
+            delta.isNegative -> ", в погашение тела ${MoneyFormat.format(-delta, false)}, остаток $remaining"
+            delta.isZero -> ", остаток кредита $remaining"
+            else -> ", остаток кредита $remaining"
         }
     }
 

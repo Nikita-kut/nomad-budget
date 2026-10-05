@@ -49,6 +49,7 @@ fun EditTransactionDialog(
     val transformation = remember { ThousandsVisualTransformation() }
     var date by remember { mutableStateOf(tx.date) }
     var note by remember { mutableStateOf(tx.note) }
+    var debtEarly by remember { mutableStateOf((tx as? Transaction.Expense)?.debtEarly == true) }
 
     val firstAccountId = when (tx) {
         is Transaction.Expense -> tx.accountId
@@ -104,7 +105,7 @@ fun EditTransactionDialog(
         val acc = account ?: return null
         val money = amount ?: return null
         return when (tx) {
-            is Transaction.Expense -> tx.copy(date = date, accountId = acc.id, amount = money, categoryId = category?.id ?: return null, note = note)
+            is Transaction.Expense -> tx.copy(date = date, accountId = acc.id, amount = money, categoryId = category?.id ?: return null, note = note, debtEarly = tx.debtId != null && debtEarly)
             is Transaction.Income -> tx.copy(date = date, accountId = acc.id, amount = money, categoryId = category?.id ?: return null, note = note)
             is Transaction.Transfer -> tx.copy(date = date, fromAccountId = acc.id, toAccountId = toAccount?.id ?: return null, amount = money, note = note)
             is Transaction.Exchange -> tx.copy(
@@ -192,11 +193,13 @@ fun EditTransactionDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (tx is Transaction.Expense && tx.debtId != null) {
+                    val debt = state.debts.firstOrNull { it.id == tx.debtId }
                     Text(
-                        "Платёж по кредиту: остаток кредита при правке не пересчитывается, поправь его на вкладке Кредиты, если нужно.",
+                        "Платёж по кредиту${debt?.let { " «${it.name}»" }.orEmpty()}. Остаток кредита пересчитается при сохранении.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = AppTheme.colors.warning,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    EarlyPaymentToggle(checked = debtEarly, onChange = { debtEarly = it }, preview = null, differentCurrency = debt != null && account?.currency != debt.currency)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Сумма в ₽ пересчитается по сегодняшнему курсу, если сумму изменил.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

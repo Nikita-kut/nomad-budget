@@ -39,6 +39,7 @@ data class EntryDraft(
     val subcategoryName: String = "",
     val note: String = "",
     val debtId: String? = null,
+    val debtEarly: Boolean = false,
     val fromDraftId: String? = null,
 )
 

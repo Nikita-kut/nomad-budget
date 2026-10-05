@@ -42,6 +42,21 @@ object DebtCalculator {
         return bounded
     }
 
+    fun earlyPrincipalPart(debt: Debt, payment: Money): Money {
+        require(payment.currency == debt.currency) { "Платёж должен быть в валюте кредита" }
+        return when {
+            payment.isNegative -> Money.zero(debt.currency)
+            payment > debt.principalRemaining -> debt.principalRemaining
+            else -> payment
+        }
+    }
+
+    fun principalFor(debt: Debt, payment: Money, early: Boolean): Money? = when {
+        payment.currency != debt.currency -> null
+        early -> earlyPrincipalPart(debt, payment)
+        else -> principalPart(debt, payment)
+    }
+
     fun afterPayment(debt: Debt, payment: Money): Debt =
         debt.copy(principalRemaining = debt.principalRemaining - principalPart(debt, payment))
 }

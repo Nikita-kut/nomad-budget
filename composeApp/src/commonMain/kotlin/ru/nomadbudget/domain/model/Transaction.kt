@@ -21,6 +21,8 @@ sealed interface Transaction {
         override val note: String = "",
         val debtId: String? = null,
         override val pending: Boolean = false,
+        val debtPrincipal: Money? = null,
+        val debtEarly: Boolean = false,
     ) : Transaction
 
     data class Income(
