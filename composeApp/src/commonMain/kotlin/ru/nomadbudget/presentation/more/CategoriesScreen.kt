@@ -45,6 +45,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.presentation.format.DateFormat
 
 private sealed interface Dialog {
     data class RenameCategory(val category: Category) : Dialog
@@ -121,7 +122,7 @@ fun CategoriesScreen(
         )
         is Dialog.AddSubcategory -> AddSubcategoryDialog(
             category = d.category,
-            periodTitle = state.period.title(),
+            periodTitle = DateFormat.periodRange(state.period),
             onDismiss = { dialog = null },
             onConfirm = { name, planned -> onAddSubcategory(d.category.id, name, planned); dialog = null },
         )

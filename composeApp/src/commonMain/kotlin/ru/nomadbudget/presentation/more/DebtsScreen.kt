@@ -46,6 +46,7 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.format.DateFormat
 
 private const val DEFAULT_DEBT_CATEGORY = "Долг"
 
@@ -104,7 +105,7 @@ fun DebtsScreen(
                             onClick = { planCategory?.let { onPlanIntoMonth(it.id) } },
                             enabled = planCategory != null && !state.saving,
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Добавить в план ${state.period.title()}") }
+                        ) { Text("Добавить в план: ${DateFormat.periodRange(state.period)}") }
                     }
                 }
             }

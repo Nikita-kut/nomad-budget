@@ -80,6 +80,11 @@ import ru.nomadbudget.presentation.more.MoreScreen
 import ru.nomadbudget.presentation.planning.PlanningScreen
 import ru.nomadbudget.presentation.rates.RatesScreen
 import ru.nomadbudget.presentation.theme.AppTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 
 @Serializable
 object MonthRoute
@@ -136,6 +141,14 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     }
     LaunchedEffect(viewModel) {
         viewModel.navigateToEntry.collect { navController.switchTo(EntryRoute) }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.undoRequests.collect { request ->
+            launch {
+                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Long)
+                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id) else viewModel.commitDelete(request.id)
+            }
+        }
     }
     LifecycleResumeEffect(viewModel) {
         viewModel.reloadDrafts()
@@ -325,27 +338,30 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                 }
                 RatesWarning(state)
             } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    PeriodNavigator(state, viewModel, modifier = Modifier.weight(1f))
                     if (DemoMode.enabled) DemoBadge()
-                    PeriodSwitcher(state, viewModel)
+                    RefreshButton(state, viewModel)
                 }
                 if (state.loading) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
                 } else {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TotalsInline(state, Modifier.weight(1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Всего", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(MoneyFormat.format(state.totalBase, false), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                        Text(
+                            "на жизнь ${MoneyFormat.format(state.operationalBase, false)}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
                     }
-                    Text(
-                        "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
                     RatesWarning(state)
                 }
             }
@@ -395,34 +411,44 @@ private fun RatesWarning(state: HomeState) {
 @Composable
 private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            IconButton(onClick = viewModel::refresh, enabled = !state.loading && !state.refreshing) {
-                if (state.refreshing) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Обновить данные")
-                }
-            }
-            state.lastSyncedAt?.let {
-                Text(
-                    DateFormat.timeOnly(it),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        RefreshButton(state, viewModel)
+        PeriodNavigator(state, viewModel)
+    }
+}
+
+@Composable
+private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(onClick = viewModel::refresh, enabled = !state.loading && !state.refreshing) {
+            if (state.refreshing) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Filled.Refresh, contentDescription = "Обновить данные")
             }
         }
+        state.lastSyncedAt?.let {
+            Text(DateFormat.timeOnly(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = viewModel::showPreviousPeriod) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущий месяц")
         }
-        TextButton(onClick = viewModel::showCurrentPeriod) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(state.period.title(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    text = state.dayNumber?.let { "день $it из ${state.period.lengthDays}" } ?: "${state.period.lengthDays} дней",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        Column(
+            modifier = Modifier.weight(1f, fill = false).clip(MaterialTheme.shapes.small).clickable(onClick = viewModel::showCurrentPeriod).padding(horizontal = 6.dp, vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(DateFormat.monthName(state.period.start), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(
+                listOfNotNull(DateFormat.periodRange(state.period), state.dayNumber?.let { "день $it из ${state.period.lengthDays}" }).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
         IconButton(onClick = viewModel::showNextPeriod) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Следующий месяц")

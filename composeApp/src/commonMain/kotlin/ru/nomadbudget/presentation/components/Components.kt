@@ -43,6 +43,7 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
 @Composable
 fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modifier, info: String? = null) {
@@ -298,7 +299,7 @@ fun AccountsLine(
         prefix?.let { Text("$it ·", style = style, color = color, fontWeight = fontWeight, maxLines = 1) }
         AccountName(state.accountsById[fromId], style = style, color = color, fontWeight = fontWeight)
         toId?.let { id ->
-            Text("→", style = style, color = color, fontWeight = fontWeight)
+            ArrowGlyph(color)
             AccountName(state.accountsById[id], style = style, color = color, fontWeight = fontWeight)
         }
         note?.takeIf { it.isNotBlank() }?.let {
@@ -312,4 +313,9 @@ fun AccountsLine(
             )
         }
     }
+}
+
+@Composable
+fun ArrowGlyph(color: Color = MaterialTheme.colorScheme.onSurfaceVariant, size: androidx.compose.ui.unit.Dp = 14.dp) {
+    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = color, modifier = Modifier.size(size))
 }

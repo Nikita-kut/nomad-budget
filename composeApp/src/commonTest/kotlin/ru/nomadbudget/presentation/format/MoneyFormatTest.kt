@@ -69,4 +69,18 @@ class MoneyFormatTest {
         assertEquals("7%", MoneyFormat.formatShare(0.0666))
         assertEquals("120%", MoneyFormat.formatShare(1.2))
     }
+
+    @Test
+    fun periodRange_showsLastDayInclusive_andMonthName() {
+        val period = ru.nomadbudget.domain.model.SalaryCycle.periodContaining(kotlinx.datetime.LocalDate(2026, 10, 22))
+        assertEquals("05.10 – 04.11", DateFormat.periodRange(period))
+        assertEquals("Октябрь", DateFormat.monthName(period.start))
+    }
+
+    @Test
+    fun formatQuote_twoDecimalsForMidRange() {
+        assertEquals("92,80", MoneyFormat.formatQuote(92.8))
+        assertEquals("149", MoneyFormat.formatQuote(149.2))
+        assertEquals("0,0108", MoneyFormat.formatQuote(0.0108))
+    }
 }

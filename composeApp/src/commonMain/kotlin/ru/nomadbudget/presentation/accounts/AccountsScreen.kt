@@ -265,7 +265,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                     Switch(checked = isSavings, onCheckedChange = { isSavings = it })
                 }
                 Text(
-                    "Начальный остаток задаётся сверкой: «Ещё → Сверка остатков», введи фактическую сумму.",
+                    "Начальный остаток задаётся сверкой: «Ещё», раздел «Сверка остатков», введи фактическую сумму.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -293,18 +293,18 @@ private fun RatesCard(state: HomeState) {
                     val perUnit = state.rates.basePerUnit(currency)
                     val units = if (perUnit < SMALL_RATE) 1_000 else 1
                     KeyValueRow(
-                        "${if (units > 1) "$units " else ""}${currency.code} → ${Currency.BASE.code}",
+                        "${if (units > 1) "$units " else "1 "}${currency.code} в рублях",
                         "${MoneyFormat.formatRate(perUnit * units)} ${Currency.BASE.symbol}",
                     )
                 } else {
-                    KeyValueRow("${currency.code} → ${Currency.BASE.code}", "нет курса")
+                    KeyValueRow("1 ${currency.code} в рублях", "нет курса")
                 }
             }
             state.foreignCurrencies
                 .filter { it != Currency.USD && state.rates.hasRate(it) }
                 .forEach { currency ->
                     KeyValueRow(
-                        "${Currency.USD.code} → ${currency.code} (кросс)",
+                        "1 ${Currency.USD.code} в ${currency.code}, кросс-курс",
                         "${MoneyFormat.formatRate(state.rates.cross(Currency.USD, currency))} ${currency.symbol}",
                     )
                 }

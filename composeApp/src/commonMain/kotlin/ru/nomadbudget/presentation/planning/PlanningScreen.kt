@@ -49,6 +49,7 @@ import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.format.DateFormat
 
 @Composable
 fun PlanningScreen(
@@ -73,7 +74,7 @@ fun PlanningScreen(
         }
         item {
             Text(
-                "План на ${state.period.title()}. Другой месяц выбирается стрелками в шапке.",
+                "План на ${DateFormat.monthName(state.period.start).lowercase()}: ${DateFormat.periodRange(state.period)}. Другой месяц выбирается стрелками в шапке.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

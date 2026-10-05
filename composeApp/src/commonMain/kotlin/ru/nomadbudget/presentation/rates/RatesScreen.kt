@@ -63,8 +63,9 @@ fun RatesScreen(state: HomeState) {
                                 values = tail.map { it.basePerUnit * unitsFor(it.basePerUnit) },
                                 color = color,
                                 labels = tail.map { DateFormat.dayMonth(it.date) },
-                                formatY = { MoneyFormat.formatRate(it) },
+                                formatY = { MoneyFormat.formatQuote(it) },
                                 visibleCount = tail.size.coerceIn(1, RATE_VISIBLE_POINTS),
+                                fitToData = true,
                             )
                         }
                     }
@@ -158,7 +159,7 @@ private fun unitsFor(basePerUnit: Double): Int = if (basePerUnit < SMALL_RATE) 1
 
 private fun unitsLabel(currency: Currency, basePerUnit: Double?): String {
     val units = basePerUnit?.let(::unitsFor) ?: 1
-    return if (units > 1) "$units ${currency.code} → ${Currency.BASE.code}" else "1 ${currency.code} → ${Currency.BASE.code}"
+    return if (units > 1) "$units ${currency.code} в рублях" else "1 ${currency.code} в рублях"
 }
 
 private const val SMALL_RATE = 0.01

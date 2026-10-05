@@ -33,6 +33,12 @@ import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import ru.nomadbudget.presentation.format.DateFormat
 import kotlin.time.Instant
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.padding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,9 +50,15 @@ fun DateField(
     allowFuture: Boolean = false,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
-    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("${DateFormat.dayMonth(date)} · ${DateFormat.weekdayFull(date)}", fontWeight = FontWeight.Medium)
+    val canGoForward = allowFuture || date < today
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f).clip(MaterialTheme.shapes.small).clickable { pickerOpen = true }.padding(vertical = 4.dp)) {
+            Text(
+                "${DateFormat.dayMonth(date)} · ${DateFormat.weekdayFull(date)}",
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 when (date) {
                     today -> "сегодня"
@@ -55,11 +67,18 @@ fun DateField(
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
-        OutlinedButton(onClick = { onChange(date.plus(-1, DateTimeUnit.DAY)) }) { Text("−1") }
-        OutlinedButton(onClick = { onChange(today) }, enabled = date != today) { Text("Сегодня") }
-        OutlinedButton(onClick = { onChange(date.plus(1, DateTimeUnit.DAY)) }, enabled = allowFuture || date < today) { Text("+1") }
+        if (date != today) {
+            TextButton(onClick = { onChange(today) }) { Text("Сегодня") }
+        }
+        IconButton(onClick = { onChange(date.plus(-1, DateTimeUnit.DAY)) }) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "На день раньше")
+        }
+        IconButton(onClick = { onChange(date.plus(1, DateTimeUnit.DAY)) }, enabled = canGoForward) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "На день позже")
+        }
         IconButton(onClick = { pickerOpen = true }) { Icon(Icons.Filled.DateRange, contentDescription = "Выбрать дату") }
     }
     if (pickerOpen) {

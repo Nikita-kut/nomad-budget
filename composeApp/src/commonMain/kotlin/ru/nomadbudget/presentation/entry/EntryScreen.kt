@@ -507,7 +507,7 @@ private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
         secondary = if (state.accountsById[tx.toAccountId]?.isSavings == true) "в накопления" else "",
     )
     is Transaction.Exchange -> RowText(
-        title = "Обмен ${tx.given.currency.code} → ${tx.received.currency.code}",
+        title = "Обмен ${tx.given.currency.code} на ${tx.received.currency.code}",
         fromAccountId = tx.fromAccountId,
         toAccountId = tx.toAccountId,
         note = tx.note,
