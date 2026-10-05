@@ -10,7 +10,9 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
 
-enum class BudgetStatus { OK, WARNING, DONE, OVER }
+enum class BudgetStatus { OK, WARNING, DONE, OVER_SLIGHTLY, OVER }
+
+enum class Pace { ON_TRACK, AHEAD }
 
 data class BudgetLine(
     val categoryId: String,
@@ -44,6 +46,33 @@ data class CategoryBudget(
 
     val hasPlan: Boolean get() = planned.minor > 0L
 
+    val isIdle: Boolean get() = !hasPlan && fact.isZero
+
+    fun expectedByNow(elapsedShare: Double): Money {
+        val share = elapsedShare.coerceIn(0.0, 1.0)
+        val settled = items
+            .filter { it.subcategory != null && it.planned != null && it.fact.wholeUnits >= it.planned.wholeUnits }
+            .mapNotNull { it.planned }
+            .sumIn(Currency.BASE)
+        val flexible = planned - settled
+        return settled + Money((flexible.minor * share).toLong(), Currency.BASE)
+    }
+
+    fun pace(elapsedShare: Double): Pace {
+        if (!hasPlan) return Pace.ON_TRACK
+        val expected = expectedByNow(elapsedShare)
+        val tolerance = (planned.wholeUnits * BudgetCalculator.PACE_TOLERANCE).toLong().coerceAtLeast(1L)
+        return if (fact.wholeUnits - expected.wholeUnits > tolerance) Pace.AHEAD else Pace.ON_TRACK
+    }
+
+    fun aheadBy(elapsedShare: Double): Money = (fact.withoutFraction() - expectedByNow(elapsedShare).withoutFraction())
+
+    private fun isSlightOverrun(): Boolean {
+        val plannedWhole = planned.wholeUnits
+        if (plannedWhole <= 0L) return false
+        return (fact.wholeUnits - plannedWhole).toDouble() / plannedWhole <= BudgetCalculator.SLIGHT_OVERRUN
+    }
+
     val progress: Double
         get() = when {
             planned.wholeUnits > 0L -> fact.wholeUnits.toDouble() / planned.wholeUnits
@@ -53,6 +82,7 @@ data class CategoryBudget(
 
     val status: BudgetStatus
         get() = when {
+            fact.wholeUnits > planned.wholeUnits && isSlightOverrun() -> BudgetStatus.OVER_SLIGHTLY
             fact.wholeUnits > planned.wholeUnits -> BudgetStatus.OVER
             planned.wholeUnits > 0L && fact.wholeUnits == planned.wholeUnits -> BudgetStatus.DONE
             progress >= BudgetCalculator.WARNING_THRESHOLD -> BudgetStatus.WARNING
@@ -76,6 +106,8 @@ data class MonthSummary(
 object BudgetCalculator {
 
     const val WARNING_THRESHOLD: Double = 0.85
+    const val SLIGHT_OVERRUN: Double = 0.02
+    const val PACE_TOLERANCE: Double = 0.05
 
     fun categoryBudgets(
         categories: List<Category>,

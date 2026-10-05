@@ -61,7 +61,7 @@ class BudgetCalculatorTest {
     fun status_ok_warning_over() {
         val budgets = BudgetCalculator.categoryBudgets(categories, lines, transactions, period).associateBy { it.category.id }
         assertEquals(BudgetStatus.OK, budgets.getValue("food").status)
-        assertEquals(BudgetStatus.OVER, budgets.getValue("debt").status)
+        assertEquals(BudgetStatus.OVER_SLIGHTLY, budgets.getValue("debt").status)
         assertEquals(BudgetStatus.OVER, budgets.getValue("comm").status)
         assertEquals(Money.rub(-38_500L), budgets.getValue("debt").remaining)
     }

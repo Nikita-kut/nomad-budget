@@ -32,6 +32,7 @@ data class AppColors(
         BudgetStatus.OK -> good
         BudgetStatus.DONE -> good
         BudgetStatus.WARNING -> warning
+        BudgetStatus.OVER_SLIGHTLY -> warning
         BudgetStatus.OVER -> bad
     }
 }

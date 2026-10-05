@@ -54,6 +54,16 @@ import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.planning.PlanEditorDialog
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.domain.logic.Pace
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 
 @Composable
 fun MonthScreen(
@@ -71,6 +81,7 @@ fun MonthScreen(
 
     val income = state.budgets.filter { it.category.kind == CategoryKind.INCOME }
     val expenses = state.budgets.filter { it.category.kind == CategoryKind.EXPENSE }
+    val (idleExpenses, activeExpenses) = expenses.partition { it.isIdle }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -95,7 +106,7 @@ fun MonthScreen(
             item { PlanTeaser(state, onCopyPlan, onOpenPlanning) }
         }
 
-        item { SectionTitle("Доходы", hint = "план · факт", info = Hints.INCOME) }
+        item { SectionTitle("Доходы", hint = "нажми, чтобы изменить план", info = Hints.INCOME) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 if (income.isEmpty()) EmptyHint("Категорий доходов нет")
@@ -109,16 +120,16 @@ fun MonthScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text("Итого", fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(MoneyFormat.format(state.summary.incomePlanned, false), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(horizontalAlignment = Alignment.End) {
                         Text(MoneyFormat.format(state.summary.incomeFact, false), fontWeight = FontWeight.SemiBold)
+                        Text("план ${MoneyFormat.format(state.summary.incomePlanned, false)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
 
-        item { SectionTitle("Расходы по конвертам", hint = "нажми на план, чтобы изменить", info = Hints.ENVELOPES) }
-        items(expenses, key = { it.category.id }) { budget ->
+        item { SectionTitle("Расходы по конвертам", hint = if (state.isCurrentPeriod) "метка на полосе — где должен быть расход сегодня" else null, info = Hints.ENVELOPES) }
+        items(activeExpenses, key = { it.category.id }) { budget ->
             ExpenseCard(
                 budget = budget,
                 state = state,
@@ -128,6 +139,9 @@ fun MonthScreen(
                 onAddItem = { editingItem = ItemEdit(budget.category, null) },
                 onEditItem = { item -> editingItem = ItemEdit(budget.category, item) },
             )
+        }
+        if (idleExpenses.isNotEmpty()) {
+            item { IdleCategoriesCard(idleExpenses.map { it.category }, onPlan = { editing = it }) }
         }
         item {
             Row(
@@ -255,7 +269,7 @@ private fun OperationalRow(state: HomeState) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(MoneyFormat.format(state.operationalBase, false), fontWeight = FontWeight.SemiBold)
                 Text(
-                    "${MoneyFormat.formatSigned(delta)} за месяц",
+                    "${MoneyFormat.formatSigned(delta, showFraction = false)} за месяц",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (delta.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
                 )
@@ -287,19 +301,22 @@ private fun SummaryCard(label: String, value: String, sub: String, modifier: Mod
 @Composable
 private fun IncomeRow(budget: CategoryBudget, onEditPlan: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEditPlan).padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(budget.category.name)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(budget.category.name, modifier = Modifier.weight(1f))
+        Column(horizontalAlignment = Alignment.End) {
             Text(
-                MoneyFormat.format(budget.planned, false),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable(onClick = onEditPlan),
+                MoneyFormat.format(budget.fact, false),
+                fontWeight = FontWeight.SemiBold,
+                color = if (budget.hasPlan && budget.fact.wholeUnits >= budget.planned.wholeUnits) AppTheme.colors.good else MaterialTheme.colorScheme.onSurface,
             )
-            Text(MoneyFormat.format(budget.fact, false), fontWeight = FontWeight.SemiBold)
+            Text(
+                if (budget.hasPlan) "план ${MoneyFormat.format(budget.planned, false)}" else "без плана",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -314,47 +331,57 @@ private fun ExpenseCard(
     onAddItem: () -> Unit,
     onEditItem: (SubcategoryBudget) -> Unit,
 ) {
-    val statusColor = AppTheme.colors.status(budget.status)
+    val colors = AppTheme.colors
+    val showPace = state.isCurrentPeriod && budget.hasPlan && budget.status in setOf(BudgetStatus.OK, BudgetStatus.WARNING)
+    val pace = if (showPace) budget.pace(state.elapsedShare) else Pace.ON_TRACK
+    val tone = when (budget.status) {
+        BudgetStatus.OVER -> colors.bad
+        BudgetStatus.OVER_SLIGHTLY -> colors.warning
+        BudgetStatus.DONE -> colors.good
+        BudgetStatus.WARNING, BudgetStatus.OK -> if (pace == Pace.AHEAD) colors.warning else colors.good
+    }
+    val headline = when {
+        !budget.hasPlan -> "без плана: ${MoneyFormat.format(budget.fact, false)}"
+        budget.status == BudgetStatus.OVER -> "перерасход ${MoneyFormat.format(-budget.remainingWhole, false)}"
+        budget.status == BudgetStatus.OVER_SLIGHTLY -> "чуть выше плана: +${MoneyFormat.format(-budget.remainingWhole, false)}"
+        budget.status == BudgetStatus.DONE -> "ровно по плану"
+        else -> "осталось ${MoneyFormat.format(budget.remainingWhole, false)}"
+    }
+    val paceNote = when {
+        !showPace -> null
+        pace == Pace.AHEAD -> "быстрее плана на ${MoneyFormat.format(budget.aheadBy(state.elapsedShare), false)}"
+        else -> "в темпе"
+    }
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(budget.category.name, fontWeight = FontWeight.Medium)
-                    if (budget.transactionCount > 0) {
-                        Text("${budget.transactionCount} зап.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Text(
+                        listOfNotNull(if (budget.transactionCount > 0) "${budget.transactionCount} зап." else null, paceNote).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (pace == Pace.AHEAD) colors.warning else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(MoneyFormat.format(budget.fact, false), fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(headline, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = tone, modifier = Modifier.padding(end = 10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = when (budget.status) {
-                                BudgetStatus.OVER -> "перерасход ${MoneyFormat.format(-budget.remainingWhole, false)}"
-                                BudgetStatus.DONE -> "ровно по плану"
-                                BudgetStatus.WARNING, BudgetStatus.OK -> "осталось ${MoneyFormat.format(budget.remainingWhole, false)}"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = when (budget.status) {
-                                BudgetStatus.OVER -> AppTheme.colors.bad
-                                BudgetStatus.DONE -> AppTheme.colors.good
-                                BudgetStatus.WARNING, BudgetStatus.OK -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                        Text(
-                            "· план ${MoneyFormat.format(budget.planned, false)}${if (budget.plannedByItems) " (${budget.items.count { it.planned != null }} подкат.)" else ""}",
-                            style = MaterialTheme.typography.labelSmall,
+                            "${MoneyFormat.format(budget.fact, false)} из ${MoneyFormat.format(budget.planned, false)}",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textDecoration = TextDecoration.Underline,
-                            modifier = Modifier.clickable(onClick = onEditPlan),
                         )
+                        IconButton(onClick = onEditPlan, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Изменить план «${budget.category.name}»", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
-            LinearProgressIndicator(
-                progress = { budget.progress.toFloat().coerceIn(0f, 1f) },
-                color = statusColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            PaceBar(
+                progress = budget.progress.toFloat(),
+                marker = if (state.isCurrentPeriod && budget.hasPlan) (budget.expectedByNow(state.elapsedShare).minor.toDouble() / budget.planned.minor).toFloat() else null,
+                color = tone,
+                modifier = Modifier.padding(top = 6.dp, end = 10.dp),
             )
             if (expanded) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -491,3 +518,38 @@ private fun ItemPlanDialog(
 }
 
 private const val MAX_SUGGESTIONS = 8
+
+@Composable
+private fun PaceBar(progress: Float, marker: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth().height(12.dp), contentAlignment = Alignment.CenterStart) {
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            drawStopIndicator = {},
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+        )
+        marker?.let { share ->
+            Box(modifier = Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).height(12.dp), contentAlignment = Alignment.CenterEnd) {
+                Box(modifier = Modifier.width(2.dp).height(12.dp).background(MaterialTheme.colorScheme.onSurface))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun IdleCategoriesCard(categories: List<Category>, onPlan: (Category) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "Без плана и трат: ${categories.size}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                categories.forEach { category -> TagChip(text = category.name, onClick = { onPlan(category) }) }
+            }
+        }
+    }
+}
