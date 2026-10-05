@@ -1,6 +1,7 @@
 package ru.nomadbudget.demo
 
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.domain.model.SalaryCycle
 import ru.nomadbudget.domain.model.Transaction
 import kotlin.test.Test
@@ -41,5 +42,11 @@ class DemoDatabaseTest {
     fun ratesCoverEveryDay_andAllCurrencies() {
         val rates = db.ratesOn(today)
         assertTrue(db.currencies.all(rates::hasRate))
+    }
+
+    @Test
+    fun activeAccounts_stayNonNegative() {
+        val negative = db.accounts.filterNot { it.isArchived }.filter { BalanceCalculator.balance(it, db.transactions).isNegative }
+        assertTrue(negative.isEmpty(), negative.joinToString { it.name })
     }
 }
