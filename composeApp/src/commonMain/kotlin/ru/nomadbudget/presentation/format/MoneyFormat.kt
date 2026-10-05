@@ -9,6 +9,7 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import kotlin.math.abs
 import kotlin.math.roundToLong
+import ru.nomadbudget.domain.model.Period
 
 object MoneyFormat {
 
@@ -37,6 +38,15 @@ object MoneyFormat {
     fun formatSigned(money: Money): String = when {
         money.minor > 0 -> "+" + format(money)
         else -> format(money)
+    }
+
+    fun formatQuote(rate: Double): String = when {
+        rate >= 100.0 -> groupThousands(rate.roundToLong())
+        rate >= 1.0 -> {
+            val scaled = (rate * 100).roundToLong()
+            "${scaled / 100},${(scaled % 100).toString().padStart(2, '0')}"
+        }
+        else -> formatRate(rate)
     }
 
     fun formatRate(rate: Double): String = when {
@@ -87,6 +97,14 @@ object DateFormat {
 
     private val weekdays = listOf("пн", "вт", "ср", "чт", "пт", "сб", "вс")
     private val weekdaysFull = listOf("понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье")
+    private val months = listOf(
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+    )
+
+    fun monthName(date: LocalDate): String = months[date.month.number - 1]
+
+    fun periodRange(period: Period): String = "${dayMonth(period.start)} – ${dayMonth(period.lastDay)}"
 
     fun dayMonth(date: LocalDate): String =
         "${date.day.toString().padStart(2, '0')}.${date.month.number.toString().padStart(2, '0')}"

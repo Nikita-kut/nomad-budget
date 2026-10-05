@@ -51,6 +51,7 @@ import ru.nomadbudget.presentation.home.ExchangeDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.AccountsLine
+import ru.nomadbudget.presentation.components.ArrowGlyph
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit) {
@@ -194,7 +195,7 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CurrencyAmount(MoneyFormat.format(exchange.given), exchange.given.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
-                    Text("→", fontWeight = FontWeight.SemiBold)
+                    ArrowGlyph(MaterialTheme.colorScheme.onSurface)
                     CurrencyAmount(MoneyFormat.format(exchange.received), exchange.received.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
                 }
                 AccountsLine(
@@ -206,7 +207,8 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(MoneyFormat.formatRate(exchange.effectiveRate), fontWeight = FontWeight.SemiBold)
+                val quote = ExchangeAnalyzer.quote(exchange)
+                Text("1 ${quote.unit.symbol} = ${MoneyFormat.formatQuote(quote.value)} ${quote.price.symbol}", fontWeight = FontWeight.SemiBold)
                 if (analysis != null) {
                     Text(
                         "${MoneyFormat.formatPercent(-analysis.spreadPercent)} к таблице",

@@ -58,6 +58,10 @@ class HomeViewModel(
     todayProvider: TodayProvider,
 ) : ViewModel() {
 
+    private val _undoRequests = Channel<UndoRequest>(Channel.BUFFERED)
+    val undoRequests: Flow<UndoRequest> = _undoRequests.receiveAsFlow()
+    private val pendingDeletes = mutableMapOf<String, Pair<Int, Transaction>>()
+
     private val _navigateToEntry = Channel<Unit>(Channel.BUFFERED)
     val navigateToEntry: Flow<Unit> = _navigateToEntry.receiveAsFlow()
 
@@ -301,16 +305,37 @@ class HomeViewModel(
     }
 
     fun deleteTransaction(id: String) {
+        val transactions = _state.value.transactions
+        val index = transactions.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val transaction = transactions[index]
+        pendingDeletes[id] = index to transaction
+        _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }) }
+        viewModelScope.launch { _undoRequests.send(UndoRequest(id, "Удалено: ${undoLabel(transaction)}")) }
+    }
+
+    fun undoDelete(id: String) {
+        val (index, transaction) = pendingDeletes.remove(id) ?: return
+        _state.update { state ->
+            val list = state.transactions.toMutableList()
+            list.add(index.coerceIn(0, list.size), transaction)
+            state.copy(transactions = list)
+        }
+    }
+
+    fun commitDelete(id: String) {
+        val (_, transaction) = pendingDeletes.remove(id) ?: return
         viewModelScope.launch {
             try {
-                val removed = _state.value.transactions.firstOrNull { it.id == id } as? Transaction.Expense
+                val removed = transaction as? Transaction.Expense
                 transactionRepository.delete(id)
                 _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }, pendingCount = transactionRepository.pendingCount()) }
                 val debtNote = removed?.debtId?.let { debtId ->
                     removed.debtPrincipal?.let { debtNoteAfter(debtId, it, restored = true) } ?: ", остаток кредита не менялся"
                 }
-                _messages.send("Удалено" + debtNote.orEmpty())
+                debtNote?.let { _messages.send("Удалено" + it) }
             } catch (e: Exception) {
+                _state.update { state -> state.copy(transactions = listOf(transaction) + state.transactions) }
                 _messages.send(e.message ?: "Не удалось удалить")
             }
         }
@@ -811,4 +836,13 @@ class HomeViewModel(
         const val SORT_STEP = 10
         const val CORRECTION_SORT_ORDER = 900
     }
+
+    private fun undoLabel(transaction: Transaction): String = when (transaction) {
+        is Transaction.Expense -> "${_state.value.categoryName(transaction.categoryId)}, ${MoneyFormat.format(transaction.amount, false)}"
+        is Transaction.Income -> "${_state.value.categoryName(transaction.categoryId)}, ${MoneyFormat.format(transaction.amount, false)}"
+        is Transaction.Transfer -> "перевод ${MoneyFormat.format(transaction.amount, false)}"
+        is Transaction.Exchange -> "обмен ${MoneyFormat.format(transaction.given, false)}"
+    }
 }
+
+data class UndoRequest(val id: String, val text: String)

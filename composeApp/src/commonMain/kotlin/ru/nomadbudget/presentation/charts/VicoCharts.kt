@@ -35,6 +35,7 @@ import com.patrykandpatrick.vico.multiplatform.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.multiplatform.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.multiplatform.common.Fill
 import com.patrykandpatrick.vico.multiplatform.common.component.LineComponent
+import com.patrykandpatrick.vico.multiplatform.cartesian.data.CartesianLayerRangeProvider
 
 private val CHART_HEIGHT = 220.dp
 private val COLUMN_THICKNESS = 10.dp
@@ -96,11 +97,22 @@ fun LineChart(
     formatY: (Double) -> String,
     visibleCount: Int,
     modifier: Modifier = Modifier,
+    fitToData: Boolean = false,
 ) {
     val producer = remember { CartesianChartModelProducer() }
     LaunchedEffect(values) {
         if (values.isNotEmpty()) {
             producer.runTransaction { lineSeries { series(values) } }
+        }
+    }
+    val rangeProvider = remember(values, fitToData) {
+        val min = values.minOrNull()
+        val max = values.maxOrNull()
+        if (!fitToData || min == null || max == null) {
+            CartesianLayerRangeProvider.auto()
+        } else {
+            val padding = ((max - min) * FIT_PADDING).coerceAtLeast(max * MIN_FIT_PADDING)
+            CartesianLayerRangeProvider.fixed(minY = min - padding, maxY = max + padding)
         }
     }
     key(visibleCount) {
@@ -110,6 +122,7 @@ fun LineChart(
                     lineProvider = LineCartesianLayer.LineProvider.series(
                         LineCartesianLayer.Line(fill = LineCartesianLayer.LineFill.single(Fill(color))),
                     ),
+                    rangeProvider = rangeProvider,
                 ),
                 startAxis = VerticalAxis.rememberStart(valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) }),
                 bottomAxis = HorizontalAxis.rememberBottom(
@@ -122,3 +135,6 @@ fun LineChart(
         )
     }
 }
+
+private const val FIT_PADDING = 0.15
+private const val MIN_FIT_PADDING = 0.001
