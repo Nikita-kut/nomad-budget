@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -75,6 +76,7 @@ import ru.nomadbudget.presentation.more.BalanceCheckScreen
 import ru.nomadbudget.presentation.more.CategoriesScreen
 import ru.nomadbudget.presentation.more.DebtsScreen
 import ru.nomadbudget.presentation.more.MoreScreen
+import ru.nomadbudget.presentation.planning.PlanningScreen
 import ru.nomadbudget.presentation.rates.RatesScreen
 import ru.nomadbudget.presentation.theme.AppTheme
 
@@ -108,6 +110,9 @@ object BalanceCheckRoute
 @Serializable
 object DebtsRoute
 
+@Serializable
+object PlanningRoute
+
 private data class Tab(
     val route: Any,
     val title: String,
@@ -139,6 +144,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val tabs = remember {
         listOf(
             Tab(MonthRoute, "Месяц", Icons.Filled.DateRange, primary = true) { it.isOn<MonthRoute>() },
+            Tab(PlanningRoute, "План", Icons.Filled.Edit, primary = false) { it.isOn<PlanningRoute>() },
             Tab(EntryRoute, "Ввод", Icons.Filled.AddCircle, primary = true) { it.isOn<EntryRoute>() },
             Tab(ExchangeRoute, "Обмен", Icons.AutoMirrored.Filled.Send, primary = true) { it.isOn<ExchangeRoute>() },
             Tab(AccountsRoute, "Счета", Icons.Filled.AccountBox, primary = true) { it.isOn<AccountsRoute>() },
@@ -164,7 +170,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                         tabs.filter { it.primary }.forEach { tab ->
                             NavigationBarItem(
                                 selected = backStack != null && (tab.isSelected(navController) ||
-                                    tab.route == MoreRoute && (navController.isOn<RatesRoute>() || navController.isOn<ChartsRoute>())),
+                                    tab.route == MoreRoute && (navController.isOn<RatesRoute>() || navController.isOn<ChartsRoute>()) ||
+                                    tab.route == MonthRoute && navController.isOn<PlanningRoute>()),
                                 onClick = { navController.switchTo(tab.route) },
                                 icon = { Icon(tab.icon, contentDescription = tab.title) },
                                 label = { Text(tab.title) },
@@ -196,8 +203,19 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSetPlanned = viewModel::setPlanned,
                                     onSetItemPlanned = viewModel::setPlannedForSubcategoryName,
                                     onRemoveItem = viewModel::removePlanLine,
+                                    onSaveCategoryPlan = viewModel::saveCategoryPlan,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
+                                    onOpenPlanning = { if (wide) navController.switchTo(PlanningRoute) else navController.navigate(PlanningRoute) },
                                     onRetry = viewModel::load,
+                                )
+                            }
+                            composable<PlanningRoute> {
+                                PlanningScreen(
+                                    state = state,
+                                    onBack = if (wide) null else fun() { navController.popBackStack() },
+                                    onSaveCategoryPlan = viewModel::saveCategoryPlan,
+                                    onSetIncomePlan = viewModel::setPlanned,
+                                    onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
                                 )
                             }
                             composable<EntryRoute> {
@@ -233,6 +251,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
                                     onRates = { navController.navigate(RatesRoute) },
                                     onCharts = { navController.navigate(ChartsRoute) },
+                                    onPlanning = { navController.navigate(PlanningRoute) },
                                     showAnalytics = !wide,
                                     onSignOut = viewModel::signOut,
                                 )

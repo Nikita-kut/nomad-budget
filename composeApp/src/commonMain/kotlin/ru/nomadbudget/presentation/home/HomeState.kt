@@ -8,6 +8,8 @@ import ru.nomadbudget.domain.logic.CategoryBudget
 import ru.nomadbudget.domain.logic.HistoryCalculator
 import ru.nomadbudget.domain.logic.MonthPoint
 import ru.nomadbudget.domain.logic.MonthSummary
+import ru.nomadbudget.domain.logic.PlanCalculator
+import ru.nomadbudget.domain.logic.PlanSummary
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
@@ -38,6 +40,15 @@ data class EntryDraft(
     val note: String = "",
     val debtId: String? = null,
     val fromDraftId: String? = null,
+)
+
+data class PlanItemInput(val name: String, val planned: Money)
+
+data class CategoryPlanDraft(
+    val categoryId: String,
+    val limit: Money?,
+    val items: List<PlanItemInput>,
+    val removedSubcategoryIds: List<String>,
 )
 
 data class EntryPrefill(val draftId: String, val amountText: String?, val note: String)
@@ -127,6 +138,8 @@ data class HomeState(
         BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories)
 
     val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
+
+    val planSummary: PlanSummary = PlanCalculator.summary(budgets)
 
     val balances: Map<String, Money> = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
 

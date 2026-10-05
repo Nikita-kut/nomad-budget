@@ -47,6 +47,8 @@ object MoneyFormat {
         }
     }
 
+    fun formatShare(value: Double): String = "${(value * 100).roundToLong()}%"
+
     fun formatPercent(value: Double): String {
         val scaled = (abs(value) * 100).roundToLong()
         val sign = if (value < 0) MINUS else "+"
