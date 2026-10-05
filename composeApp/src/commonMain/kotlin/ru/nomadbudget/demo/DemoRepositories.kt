@@ -37,6 +37,7 @@ import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
 import ru.nomadbudget.presentation.home.HomeViewModel
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 
 val demoModule = module {
     single { DemoDatabase(DemoDatabase.anchorToday()) }
@@ -169,6 +170,11 @@ private class DemoTransactionRepository(private val db: DemoDatabase) : Transact
 
 private class DemoBudgetRepository(private val db: DemoDatabase) : BudgetRepository {
     override suspend fun getLines(periodId: String): List<BudgetLine> = db.budgetLines[periodId].orEmpty().toList()
+
+    override suspend fun getAllLines(): List<PeriodBudgetLine> = db.budgetLines.flatMap { (periodId, lines) ->
+        val start = LocalDate.parse(periodId.removePrefix("demo:"))
+        lines.map { PeriodBudgetLine(start, it) }
+    }
 
     override suspend fun getSavingsTarget(periodId: String): Money? = db.savingsTargets[periodId]
 

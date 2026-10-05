@@ -65,6 +65,7 @@ fun ChartsScreen(state: HomeState) {
     val incomeColor = AppTheme.colors.good
     val expenseColor = AppTheme.colors.bad
     val savedColor = AppTheme.colors.usd
+    val planColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -111,6 +112,61 @@ fun ChartsScreen(state: HomeState) {
                         labels = labels,
                         formatY = ::thousandsLabel,
                         visibleCount = visibleCount,
+                    )
+                }
+            }
+        }
+        item { SectionTitle("Норма сбережений", hint = "% дохода, отложенный в накопления", info = Hints.CHART_SAVINGS_RATE) }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ChartLegend(listOf(LegendEntry("Отложено чистыми / доход месяца", savedColor)))
+                    LineChart(
+                        values = points.map { (it.savingsRate ?: 0.0) * PERCENT },
+                        color = savedColor,
+                        labels = labels,
+                        formatY = { "${it.roundToLong()}%" },
+                        visibleCount = visibleCount,
+                    )
+                }
+            }
+        }
+        val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories)
+        if (planned.isNotEmpty()) {
+            item { SectionTitle("План и факт расходов", hint = "тыс. ₽", info = Hints.CHART_PLAN_FACT) }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ChartLegend(listOf(LegendEntry("План расходов", planColor), LegendEntry("Факт расходов", expenseColor)))
+                        ColumnsChart(
+                            series = listOf(
+                                points.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toThousands() },
+                                points.map { it.expense.toThousands() },
+                            ),
+                            colors = listOf(planColor, expenseColor),
+                            labels = labels,
+                            formatY = ::thousandsLabel,
+                            visibleCount = visibleCount,
+                        )
+                    }
+                }
+            }
+        }
+        item { SectionTitle("Капитал", hint = "все счета на конец месяца, тыс. ₽", info = Hints.CHART_NET_WORTH) }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ChartLegend(listOf(LegendEntry("Сумма всех счетов по курсу на конец месяца", incomeColor)))
+                    LineChart(
+                        values = HistoryCalculator.netWorth(points.map { it.period }, state.accounts, state.transactions) { currency, date ->
+                            state.rateHistory.filter { it.quote == currency && it.date <= date }.maxByOrNull { it.date }?.basePerUnit
+                                ?: state.rates.rateFor(currency)?.basePerUnit
+                        }.map { it.toThousands() },
+                        color = incomeColor,
+                        labels = labels,
+                        formatY = ::thousandsLabel,
+                        visibleCount = visibleCount,
+                        fitToData = true,
                     )
                 }
             }
@@ -174,6 +230,7 @@ private fun Totals(points: List<MonthPoint>) {
             KeyValueRow("Расход", MoneyFormat.format(expense, false))
             KeyValueRow("Отложено чистыми", MoneyFormat.format(saved, false))
             KeyValueRow("Средний расход в месяц", MoneyFormat.format(Money.rub(if (months > 0) expense.minor / months else 0L), false))
+            if (income.minor > 0L) KeyValueRow("Норма сбережений", MoneyFormat.formatShare(saved.minor.toDouble() / income.minor))
         }
     }
 }
@@ -184,5 +241,7 @@ private fun monthLabel(point: MonthPoint): String {
 }
 
 private fun Money.toThousands(): Double = minor / 100.0 / 1_000.0
+
+private const val PERCENT = 100.0
 
 private fun thousandsLabel(value: Double): String = "${value.roundToLong()}к"

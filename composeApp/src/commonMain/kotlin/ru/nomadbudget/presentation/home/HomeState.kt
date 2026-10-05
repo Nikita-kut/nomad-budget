@@ -27,6 +27,7 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
 import kotlin.time.Instant
 import ru.nomadbudget.domain.logic.CategoryHistory
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -91,6 +92,7 @@ data class HomeState(
     val transactions: List<Transaction> = emptyList(),
     val budgetLines: List<BudgetLine> = emptyList(),
     val savingsTarget: Money? = null,
+    val allPlanLines: List<PeriodBudgetLine> = emptyList(),
     val rates: RateTable = DefaultRates.table(),
     val balanceChecks: List<BalanceCheck> = emptyList(),
     val debts: List<Debt> = emptyList(),

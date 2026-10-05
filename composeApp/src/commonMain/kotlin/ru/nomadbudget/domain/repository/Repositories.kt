@@ -17,6 +17,7 @@ import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 
 enum class AuthState { LOADING, SIGNED_IN, SIGNED_OUT }
 
@@ -65,6 +66,7 @@ interface TransactionRepository {
 
 interface BudgetRepository {
     suspend fun getLines(periodId: String): List<BudgetLine>
+    suspend fun getAllLines(): List<PeriodBudgetLine>
     suspend fun getSavingsTarget(periodId: String): Money?
     suspend fun setSavingsTarget(periodId: String, target: Money?)
     suspend fun setPlanned(periodId: String, line: BudgetLine)

@@ -64,3 +64,16 @@ data class BalanceCheckInsertDto(
     @SerialName("computed_balance") val computedBalance: Long,
     val note: String? = null,
 )
+
+@Serializable
+data class PeriodStartDto(
+    @SerialName("start_date") val startDate: String,
+)
+
+@Serializable
+data class BudgetLineWithPeriodDto(
+    @SerialName("category_id") val categoryId: String,
+    @SerialName("subcategory_id") val subcategoryId: String? = null,
+    @SerialName("planned_base") val plannedBase: Long,
+    val periods: PeriodStartDto,
+)

@@ -47,6 +47,8 @@ import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.format.DateFormat
+import kotlinx.datetime.plus
+import kotlinx.datetime.number
 
 private const val DEFAULT_DEBT_CATEGORY = "Долг"
 
@@ -183,6 +185,7 @@ private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose:
                 debt.ratePercent?.let { "проценты ≈ ${MoneyFormat.format(DebtCalculator.monthlyInterest(debt), false)} в месяц" },
             )
             Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            DebtForecastLine(debt, state.today)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (paid.isZero) "в этом месяце не платил" else "в этом месяце ${MoneyFormat.format(paid, false)} из ${MoneyFormat.format(debt.plannedPayment, false)}",
@@ -283,4 +286,28 @@ private fun majorText(money: Money): String {
     val major = money.minor / money.currency.minorFactor
     val fraction = money.minor % money.currency.minorFactor
     return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
+}
+
+@Composable
+private fun DebtForecastLine(debt: Debt, today: kotlinx.datetime.LocalDate) {
+    val forecast = DebtCalculator.forecast(debt, debt.plannedPayment)
+    if (forecast == null) {
+        Text("Платёж не покрывает проценты: долг не уменьшается", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.bad)
+        return
+    }
+    val closes = today.plus(forecast.months, kotlinx.datetime.DateTimeUnit.MONTH)
+    Text(
+        "Закроется через ${forecast.months} мес., к ${closes.month.number.toString().padStart(2, '0')}.${closes.year}" +
+            (if (forecast.totalInterest.isZero) "" else " · проценты ещё ≈ ${MoneyFormat.format(forecast.totalInterest, false)}"),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    if (!debt.extraPayment.isZero) {
+        val baseline = DebtCalculator.forecast(debt, debt.monthlyPayment)
+        val text = if (baseline == null) {
+            "Без досрочки долг не уменьшался бы"
+        } else {
+            "Досрочка сокращает срок на ${baseline.months - forecast.months} мес. и экономит ≈ ${MoneyFormat.format(baseline.totalInterest - forecast.totalInterest, false)}"
+        }
+        Text(text, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good)
+    }
 }

@@ -18,6 +18,8 @@ data class MonthPoint(
     val netSaved: Money,
 ) {
     val balance: Money get() = income - expense
+
+    val savingsRate: Double? get() = if (income.minor > 0L) netSaved.minor.toDouble() / income.minor else null
 }
 
 data class CategoryTotal(val category: Category, val total: Money, val share: Double)
@@ -63,6 +65,31 @@ object HistoryCalculator {
             .sortedByDescending { it.total.minor }
     }
 
+    fun netWorth(
+        periods: List<Period>,
+        accounts: List<Account>,
+        transactions: List<Transaction>,
+        rateOn: (Currency, LocalDate) -> Double?,
+    ): List<Money> = periods.map { period ->
+        accounts.mapNotNull { account ->
+            val balance = BalanceCalculator.balanceBefore(account, transactions, period.endExclusive)
+            when (account.currency) {
+                Currency.BASE -> balance
+                else -> rateOn(account.currency, period.lastDay)?.let { rate ->
+                    Money((balance.minor.toDouble() / account.currency.minorFactor * rate * Currency.BASE.minorFactor).toLong(), Currency.BASE)
+                }
+            }
+        }.sumIn(Currency.BASE)
+    }
+
+    fun plannedExpenseByPeriod(lines: List<PeriodBudgetLine>, categories: List<Category>): Map<LocalDate, Money> {
+        val expenseIds = categories.filter { it.kind == CategoryKind.EXPENSE }.map { it.id }.toSet()
+        return lines
+            .filter { it.line.categoryId in expenseIds }
+            .groupBy { it.periodStart }
+            .mapValues { (_, list) -> list.map { it.line.planned }.sumIn(Currency.BASE) }
+    }
+
     fun cumulative(points: List<MonthPoint>, selector: (MonthPoint) -> Money): List<Money> {
         var acc = Money.zero(Currency.BASE)
         return points.map { point ->
@@ -71,3 +98,5 @@ object HistoryCalculator {
         }
     }
 }
+
+data class PeriodBudgetLine(val periodStart: LocalDate, val line: BudgetLine)
