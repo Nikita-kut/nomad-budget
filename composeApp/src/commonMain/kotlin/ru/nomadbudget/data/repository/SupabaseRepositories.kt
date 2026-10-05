@@ -61,6 +61,9 @@ import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
+import ru.nomadbudget.data.dto.BudgetLineWithPeriodDto
+import io.github.jan.supabase.postgrest.query.Columns
 
 private object Tables {
     const val CURRENCIES = "currencies"
@@ -354,6 +357,25 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
         }.map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
     }
 
+    override suspend fun getAllLines(): List<PeriodBudgetLine> {
+        val rows = cache.throughOrDefault("all_lines", ListSerializer(BudgetLineWithPeriodDto.serializer()), emptyList()) {
+            val result = mutableListOf<BudgetLineWithPeriodDto>()
+            var from = 0L
+            while (true) {
+                val page = client.from(Tables.BUDGET_LINES)
+                    .select(Columns.raw("category_id,subcategory_id,planned_base,periods(start_date)")) { range(from, from + PAGE_SIZE - 1) }
+                    .decodeList<BudgetLineWithPeriodDto>()
+                result += page
+                if (page.size < PAGE_SIZE) break
+                from += PAGE_SIZE
+            }
+            result
+        }
+        return rows.map {
+            PeriodBudgetLine(LocalDate.parse(it.periods.startDate), BudgetLine(it.categoryId, Money.rub(it.plannedBase), it.subcategoryId))
+        }
+    }
+
     override suspend fun getSavingsTarget(periodId: String): Money? {
         if (periodId.startsWith(PeriodRepositoryImpl.OFFLINE_PREFIX)) return null
         return cache.throughOrDefault("target:$periodId", ListSerializer(PeriodDto.serializer()), emptyList()) {
@@ -374,6 +396,10 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
                 plannedBase = line.planned.minor,
             ),
         ) { onConflict = "period_id,category_id,subcategory_id" }
+    }
+
+    private companion object {
+        const val PAGE_SIZE = 1_000L
     }
 
     override suspend fun deleteLine(periodId: String, categoryId: String, subcategoryId: String?) {

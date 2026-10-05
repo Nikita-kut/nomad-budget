@@ -20,7 +20,27 @@ data class Debt(
     val plannedPayment: Money get() = monthlyPayment + extraPayment
 }
 
+data class DebtForecast(val months: Int, val totalInterest: Money)
+
 object DebtCalculator {
+
+    private const val MAX_MONTHS = 600
+
+    fun forecast(debt: Debt, payment: Money): DebtForecast? {
+        if (payment.currency != debt.currency || payment.minor <= 0L) return null
+        var principal = debt.principalRemaining
+        var interestTotal = Money.zero(debt.currency)
+        var months = 0
+        while (principal.minor > 0L && months < MAX_MONTHS) {
+            val interest = monthlyInterest(debt.copy(principalRemaining = principal))
+            if (payment <= interest) return null
+            val part = payment - interest
+            principal = if (part > principal) Money.zero(debt.currency) else principal - part
+            interestTotal += interest
+            months++
+        }
+        return if (principal.minor > 0L) null else DebtForecast(months, interestTotal)
+    }
 
     private const val MONTHS_IN_YEAR = 12.0
     private const val PERCENT = 100.0

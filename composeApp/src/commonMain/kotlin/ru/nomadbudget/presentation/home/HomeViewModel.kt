@@ -101,6 +101,7 @@ class HomeViewModel(
                 val periodId = periodRepository.ensure(period)
                 val lines = budgetRepository.getLines(periodId)
                 val savingsTarget = budgetRepository.getSavingsTarget(periodId)
+                val allPlanLines = runCatching { budgetRepository.getAllLines() }.getOrDefault(_state.value.allPlanLines)
                 _state.update {
                     it.copy(
                         loading = false,
@@ -122,6 +123,7 @@ class HomeViewModel(
                         periodId = periodId,
                         budgetLines = lines,
                         savingsTarget = savingsTarget,
+                        allPlanLines = allPlanLines,
                     )
                 }
                 if (sent > 0) _messages.send("Отправлено операций: $sent")
