@@ -55,7 +55,6 @@ fun PlanningScreen(
     state: HomeState,
     onBack: (() -> Unit)?,
     onSaveCategoryPlan: (CategoryPlanDraft) -> Unit,
-    onSetIncomePlan: (String, Money) -> Unit,
     onCopyPlan: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
@@ -139,30 +138,12 @@ fun PlanningScreen(
     }
 
     editing?.let { category ->
-        val budget = state.budgets.firstOrNull { it.category.id == category.id }
-        if (category.kind == CategoryKind.INCOME) {
-            AmountPlanDialog(
-                title = "План: ${category.name}",
-                current = budget?.planned ?: Money.zero(ru.nomadbudget.domain.model.Currency.BASE),
-                onDismiss = { editing = null },
-                onConfirm = {
-                    onSetIncomePlan(category.id, it)
-                    editing = null
-                },
-            )
-        } else {
-            CategoryPlanDialog(
-                category = category,
-                budget = budget,
-                suggestions = state.subcategories.filter { it.categoryId == category.id }.map { it.name },
-                saving = state.saving,
-                onDismiss = { editing = null },
-                onSave = {
-                    onSaveCategoryPlan(it)
-                    editing = null
-                },
-            )
-        }
+        PlanEditorDialog(
+            state = state,
+            initialCategoryId = category.id,
+            onSave = onSaveCategoryPlan,
+            onDismiss = { editing = null },
+        )
     }
 
     if (confirmCopy) {
@@ -215,18 +196,9 @@ private fun SummaryCard(summary: PlanSummary) {
                 highlight = if (free.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-            PlanLine("Расписано по подкатегориям", MoneyFormat.format(summary.itemized, false))
-            if (!summary.unallocatedInLimits.isZero) {
-                PlanLine("Не расписано внутри лимитов", MoneyFormat.format(summary.unallocatedInLimits, false))
-            }
+            PlanLine("Свободные суммы", MoneyFormat.format(summary.freeAmounts, false))
+            PlanLine("По подкатегориям", MoneyFormat.format(summary.itemized, false))
             PlanLine("Категорий с планом", "${summary.plannedCategories} из ${summary.expenseCategories}")
-            if (summary.overLimitCategories.isNotEmpty()) {
-                Text(
-                    "Подкатегории больше лимита: ${summary.overLimitCategories.joinToString { it.name }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AppTheme.colors.bad,
-                )
-            }
         }
     }
 }
@@ -245,24 +217,12 @@ private fun CategoryPlanCard(budget: CategoryBudget, onClick: () -> Unit) {
                 )
             }
             val meta = buildList {
-                budget.limit?.let { add("лимит ${MoneyFormat.format(it, false)}") }
+                if (budget.plannedByItems && !budget.freePlanned.isZero) add("свободно ${MoneyFormat.format(budget.freePlanned, false)}")
                 if (budget.plannedByItems) add("подкатегории ${MoneyFormat.format(budget.itemsPlanned, false)}")
                 if (!budget.fact.isZero) add("потрачено ${MoneyFormat.format(budget.fact, false)}")
             }
             if (meta.isNotEmpty()) {
                 Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = muted)
-            }
-            when {
-                budget.itemsOverLimit.minor > 0L -> Text(
-                    "подкатегории больше лимита на ${MoneyFormat.format(budget.itemsOverLimit, false)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AppTheme.colors.bad,
-                )
-                budget.unallocated.minor > 0L -> Text(
-                    "не расписано ${MoneyFormat.format(budget.unallocated, false)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AppTheme.colors.warning,
-                )
             }
             val planned = budget.items.filter { it.planned != null && it.subcategory != null }
             if (planned.isNotEmpty()) {

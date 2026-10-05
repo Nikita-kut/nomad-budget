@@ -52,14 +52,12 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.presentation.planning.AmountPlanDialog
-import ru.nomadbudget.presentation.planning.CategoryPlanDialog
+import ru.nomadbudget.presentation.planning.PlanEditorDialog
 import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
 fun MonthScreen(
     state: HomeState,
-    onSetPlanned: (String, Money) -> Unit,
     onSetItemPlanned: (String, String, Money) -> Unit,
     onRemoveItem: (String, String?) -> Unit,
     onSaveCategoryPlan: (CategoryPlanDraft) -> Unit,
@@ -147,30 +145,12 @@ fun MonthScreen(
     }
 
     editing?.let { category ->
-        val budget = state.budgets.firstOrNull { it.category.id == category.id }
-        if (category.kind == CategoryKind.INCOME) {
-            AmountPlanDialog(
-                title = "План: ${category.name}",
-                current = budget?.planned ?: Money.zero(Currency.BASE),
-                onDismiss = { editing = null },
-                onConfirm = { planned ->
-                    onSetPlanned(category.id, planned)
-                    editing = null
-                },
-            )
-        } else {
-            CategoryPlanDialog(
-                category = category,
-                budget = budget,
-                suggestions = state.subcategories.filter { it.categoryId == category.id }.map { it.name },
-                saving = state.saving,
-                onDismiss = { editing = null },
-                onSave = {
-                    onSaveCategoryPlan(it)
-                    editing = null
-                },
-            )
-        }
+        PlanEditorDialog(
+            state = state,
+            initialCategoryId = category.id,
+            onSave = onSaveCategoryPlan,
+            onDismiss = { editing = null },
+        )
     }
 
     editingItem?.let { edit ->

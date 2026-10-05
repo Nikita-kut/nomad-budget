@@ -200,7 +200,6 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             composable<MonthRoute> {
                                 MonthScreen(
                                     state = state,
-                                    onSetPlanned = viewModel::setPlanned,
                                     onSetItemPlanned = viewModel::setPlannedForSubcategoryName,
                                     onRemoveItem = viewModel::removePlanLine,
                                     onSaveCategoryPlan = viewModel::saveCategoryPlan,
@@ -214,7 +213,6 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     state = state,
                                     onBack = if (wide) null else fun() { navController.popBackStack() },
                                     onSaveCategoryPlan = viewModel::saveCategoryPlan,
-                                    onSetIncomePlan = viewModel::setPlanned,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
                                 )
                             }
@@ -294,8 +292,7 @@ private inline fun <reified T : Any> NavHostController.isOn(): Boolean =
 private fun NavHostController.switchTo(route: Any) {
     navigate(route) {
         launchSingleTop = true
-        restoreState = true
-        popUpTo(graph.startDestinationId) { saveState = true }
+        popUpTo(graph.startDestinationId)
     }
 }
 

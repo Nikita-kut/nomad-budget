@@ -36,30 +36,28 @@ class PlanCalculatorTest {
         )
         val summary = PlanCalculator.summary(budgets(lines))
         assertEquals(Money.rub(20_000_000L), summary.incomePlanned)
-        assertEquals(Money.rub(14_000_000L), summary.expensePlanned)
-        assertEquals(Money.rub(6_000_000L), summary.free)
+        assertEquals(Money.rub(21_000_000L), summary.expensePlanned)
+        assertEquals(-Money.rub(1_000_000L), summary.free)
         assertEquals(Money.rub(7_000_000L), summary.itemized)
-        assertEquals(Money.rub(2_000_000L), summary.unallocatedInLimits)
-        assertEquals(0.7, summary.allocatedShare)
+        assertEquals(Money.rub(14_000_000L), summary.freeAmounts)
+        assertEquals(1.05, summary.allocatedShare)
         assertEquals(2, summary.plannedCategories)
         assertEquals(3, summary.expenseCategories)
         assertEquals(listOf("housing", "food"), summary.shares.map { it.category.id })
-        assertEquals(0.45, summary.shares.first().share)
-        assertTrue(summary.overLimitCategories.isEmpty())
+        assertEquals(0.8, summary.shares.first().share)
     }
 
     @Test
-    fun summary_overPlannedIncome_freeIsNegative_andOverLimitListed() {
+    fun summary_underPlannedIncome_freeIsPositive() {
         val lines = listOf(
             BudgetLine("salary", Money.rub(10_000_000L)),
-            BudgetLine("housing", Money.rub(5_000_000L)),
-            BudgetLine("housing", Money.rub(8_000_000L), "rent"),
+            BudgetLine("housing", Money.rub(5_000_000L), "rent"),
             BudgetLine("gifts", Money.rub(3_000_000L)),
         )
         val summary = PlanCalculator.summary(budgets(lines))
-        assertEquals(Money.rub(11_000_000L), summary.expensePlanned)
-        assertTrue(summary.free.isNegative)
-        assertEquals(listOf(housing), summary.overLimitCategories)
+        assertEquals(Money.rub(8_000_000L), summary.expensePlanned)
+        assertEquals(Money.rub(2_000_000L), summary.free)
+        assertEquals(0.8, summary.allocatedShare)
     }
 
     @Test

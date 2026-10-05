@@ -46,7 +46,7 @@ data class PlanItemInput(val name: String, val planned: Money)
 
 data class CategoryPlanDraft(
     val categoryId: String,
-    val limit: Money?,
+    val free: Money?,
     val items: List<PlanItemInput>,
     val removedSubcategoryIds: List<String>,
 )
@@ -96,6 +96,18 @@ data class HomeState(
     val monthlyHistory: List<MonthPoint> = HistoryCalculator.monthly(transactions, accounts, period)
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
+
+    val debtCategoryIds: Set<String> = run {
+        val debtNames = openDebts.map { it.name.trim().lowercase() }.toSet()
+        val bySubcategory = subcategories.filter { it.name.trim().lowercase() in debtNames }.map { it.categoryId }
+        val byPayments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }.map { it.categoryId }
+        (bySubcategory + byPayments).toSet()
+    }
+
+    fun isDebtCategory(categoryId: String?): Boolean =
+        openDebts.isNotEmpty() && categoryId != null && (debtCategoryIds.isEmpty() || categoryId in debtCategoryIds)
+
+    fun debtBySubcategoryName(name: String): Debt? = openDebts.firstOrNull { it.name.trim().equals(name.trim(), ignoreCase = true) }
 
     fun paidThisPeriod(debt: Debt): Money = inPeriod
         .filterIsInstance<Transaction.Expense>()
