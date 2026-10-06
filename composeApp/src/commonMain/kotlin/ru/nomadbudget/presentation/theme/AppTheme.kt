@@ -12,6 +12,10 @@ import androidx.compose.ui.graphics.Color
 import ru.nomadbudget.domain.logic.BudgetStatus
 import ru.nomadbudget.domain.model.Currency
 import kotlin.math.abs
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import ru.nomadbudget.data.local.KeyValueStore
 
 data class AppColors(
     val base: Color,
@@ -96,9 +100,29 @@ object AppTheme {
         @Composable get() = LocalAppColors.current
 }
 
+class ThemeSettings(private val store: KeyValueStore?) {
+    private var override by mutableStateOf(store?.get(KEY)?.let { it == DARK })
+
+    fun isDark(system: Boolean): Boolean = override ?: system
+
+    fun toggle(system: Boolean) {
+        val next = !isDark(system)
+        override = next
+        store?.put(KEY, if (next) DARK else LIGHT)
+    }
+
+    companion object {
+        const val KEY = "theme"
+        private const val DARK = "dark"
+        private const val LIGHT = "light"
+    }
+}
+
+val LocalThemeSettings = staticCompositionLocalOf { ThemeSettings(null) }
+
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun AppTheme(settings: ThemeSettings = LocalThemeSettings.current, content: @Composable () -> Unit) {
+    val dark = settings.isDark(isSystemInDarkTheme())
     CompositionLocalProvider(LocalAppColors provides if (dark) DarkAppColors else LightAppColors) {
         MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, content = content)
     }
