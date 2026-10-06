@@ -68,6 +68,14 @@ object PlanCalculator {
         )
     }
 
+    fun dailyAllowance(budgets: List<CategoryBudget>, daysLeft: Int): Money? {
+        if (daysLeft <= 0) return null
+        val expense = budgets.filter { it.category.kind == CategoryKind.EXPENSE && it.hasPlan }
+        if (expense.isEmpty()) return null
+        val remaining = expense.map { it.remainingWhole }.sumIn(Currency.BASE)
+        return Money(remaining.minor / daysLeft, Currency.BASE)
+    }
+
     fun history(transactions: List<Transaction>, period: Period, months: Int = HISTORY_MONTHS): Map<String, CategoryHistory> {
         val previous = generateSequence(SalaryCycle.previous(period)) { SalaryCycle.previous(it) }.take(months).toList()
         val active = previous.filter { p -> transactions.any { it.date in p } }

@@ -99,6 +99,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.navigation.NavDestination.Companion.hierarchy
 import ru.nomadbudget.presentation.journal.JournalScreen
 import ru.nomadbudget.presentation.entry.EntryFormState
+import ru.nomadbudget.shareTextFile
+import ru.nomadbudget.domain.logic.CsvExporter
 
 @Serializable
 object MonthRoute
@@ -256,6 +258,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onOpenPlanning = { navController.switchTo(PlanningRoute) },
                                     onRetry = viewModel::load,
                                     twoColumns = twoColumns,
+                                    onOpenAccounts = { navController.switchTo(AccountsRoute) },
+                                    onOpenEntry = openEntry,
                                 )
                             }
                             composable<JournalRoute> {
@@ -317,6 +321,12 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onExchange = { navController.navigate(ExchangeRoute) },
                                     onDebts = { navController.navigate(DebtsRoute) },
                                     showSecondary = !wide,
+                                    onExport = {
+                                        shareTextFile(
+                                            "nomad-budget-${state.today}.csv",
+                                            CsvExporter.export(state.transactions, state.accounts, state.categories, state.subcategories),
+                                        )
+                                    },
                                     onSignOut = viewModel::signOut,
                                 )
                             }

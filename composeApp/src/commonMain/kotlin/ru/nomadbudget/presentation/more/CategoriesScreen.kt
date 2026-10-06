@@ -134,7 +134,10 @@ fun CategoriesScreen(
         )
         is Dialog.DeleteSubcategory -> ConfirmDialog(
             title = "Удалить «${d.subcategory.name}»?",
-            text = "Удаление возможно, только если подкатегория не используется в операциях.",
+            text = "Удаление возможно, только если подкатегория не используется в операциях." +
+                state.allPlanLines.count { it.line.subcategoryId == d.subcategory.id }.let { months ->
+                    if (months > 0) " Строки плана по ней удалятся вместе с ней: ${months} шт. во всех месяцах." else ""
+                },
             confirmText = "Удалить",
             onDismiss = { dialog = null },
             onConfirm = { onDeleteSubcategory(d.subcategory.id); dialog = null },

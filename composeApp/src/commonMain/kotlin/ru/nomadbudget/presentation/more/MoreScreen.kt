@@ -49,6 +49,7 @@ fun MoreScreen(
     onExchange: () -> Unit,
     onDebts: () -> Unit,
     showSecondary: Boolean,
+    onExport: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
@@ -93,6 +94,8 @@ fun MoreScreen(
                     state.balanceChecks.firstOrNull()?.let { "последняя ${DateFormat.dayMonth(it.date)}" } ?: "ещё не сверялись",
                     onBalanceCheck,
                 )
+                HorizontalDivider()
+                MenuRow("Выгрузить операции в CSV", "${state.transactions.size} операций, открывается в Excel и Google Таблицах", onExport)
             }
         }
         item { SectionTitle("Аккаунт") }
