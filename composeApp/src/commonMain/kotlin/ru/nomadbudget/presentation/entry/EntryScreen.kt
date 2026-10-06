@@ -503,6 +503,20 @@ private fun EntryForm(
                 if (transferTargets.isEmpty()) {
                     Text("Нет второго счёта в этой валюте. Другая валюта — это обмен.", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val from = form.account
+                            form.account = selectedTo
+                            form.toAccount = from
+                            form.accountTouched = true
+                        },
+                        enabled = selectedTo != null,
+                    ) { Text("Поменять местами") }
+                    state.activeAccounts.firstOrNull { it.isSavings && it.currency == currency && it.id != account?.id }?.let { savings ->
+                        OutlinedButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В накопления") }
+                    }
+                }
             }
 
             DateField(date = form.date, today = state.today, onChange = { form.date = it })

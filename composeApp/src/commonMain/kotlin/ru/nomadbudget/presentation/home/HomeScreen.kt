@@ -101,6 +101,17 @@ import ru.nomadbudget.presentation.journal.JournalScreen
 import ru.nomadbudget.presentation.entry.EntryFormState
 import ru.nomadbudget.shareTextFile
 import ru.nomadbudget.domain.logic.CsvExporter
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 
 @Serializable
 object MonthRoute
@@ -194,7 +205,31 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         )
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val rootFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { rootFocus.requestFocus() } }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(rootFocus)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown || event.isCtrlPressed || event.isMetaPressed || event.isAltPressed) {
+                    false
+                } else {
+                    when (event.key) {
+                        Key.N -> navController.navigate(EntryRoute) { launchSingleTop = true }
+                        Key.J -> navController.switchTo(JournalRoute)
+                        Key.P -> navController.switchTo(PlanningRoute)
+                        Key.M -> navController.switchTo(MonthRoute)
+                        Key.A -> navController.switchTo(AccountsRoute)
+                        Key.Escape -> navController.popBackStack()
+                        else -> return@onKeyEvent false
+                    }
+                    true
+                }
+            },
+    ) {
         val wide = maxWidth >= WIDE_LAYOUT_MIN_WIDTH
         val twoColumns = maxWidth >= TWO_COLUMN_MIN_WIDTH
         val backStack by navController.currentBackStackEntryAsState()
@@ -263,7 +298,12 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 )
                             }
                             composable<JournalRoute> {
-                                JournalScreen(state = state, onDelete = viewModel::deleteTransaction, onUpdate = viewModel::updateTransaction)
+                                JournalScreen(
+                                    state = state,
+                                    onDelete = viewModel::deleteTransaction,
+                                    onUpdate = viewModel::updateTransaction,
+                                    onRepeat = viewModel::repeatTransaction,
+                                )
                             }
                             composable<PlanningRoute> {
                                 PlanningScreen(

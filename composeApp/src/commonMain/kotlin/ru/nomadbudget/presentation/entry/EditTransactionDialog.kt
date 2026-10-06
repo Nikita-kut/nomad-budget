@@ -46,6 +46,7 @@ fun EditTransactionDialog(
     onDismiss: () -> Unit,
     onSave: (Transaction, String?) -> Unit,
     onDelete: (() -> Unit)? = null,
+    onRepeat: (() -> Unit)? = null,
 ) {
     val transformation = remember { ThousandsVisualTransformation() }
     var date by remember { mutableStateOf(tx.date) }
@@ -214,6 +215,9 @@ fun EditTransactionDialog(
         },
         dismissButton = {
             Row {
+                if (tx !is Transaction.Expense || tx.debtId == null) {
+                    onRepeat?.let { repeat -> TextButton(onClick = repeat) { Text("Повторить") } }
+                }
                 onDelete?.let { delete -> TextButton(onClick = delete) { Text("Удалить", color = AppTheme.colors.bad) } }
                 TextButton(onClick = onDismiss) { Text("Отмена") }
             }

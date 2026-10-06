@@ -98,6 +98,15 @@ fun MoreScreen(
                 MenuRow("Выгрузить операции в CSV", "${state.transactions.size} операций, открывается в Excel и Google Таблицах", onExport)
             }
         }
+        item { SectionTitle("Горячие клавиши", hint = "в вебе") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("N — новая запись · J — журнал · P — план", style = MaterialTheme.typography.bodyMedium)
+                    Text("M — месяц · A — счета · Esc — назад", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
         item { SectionTitle("Аккаунт") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
