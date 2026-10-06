@@ -40,4 +40,12 @@ class ThousandsVisualTransformationTest {
         assertEquals("1234,5", ThousandsVisualTransformation.sanitize("1,234.5"))
         assertEquals("12", ThousandsVisualTransformation.sanitize("1a2"))
     }
+
+    @Test
+    fun sanitize_limitsFractionToCurrencyPrecision() {
+        assertEquals("1234,56", ThousandsVisualTransformation.sanitize("1234,5678", 2))
+        assertEquals("1234", ThousandsVisualTransformation.sanitize("1234,5", 0))
+        assertEquals("12,", ThousandsVisualTransformation.sanitize("12,", 2))
+        assertEquals("1299", ThousandsVisualTransformation.sanitize("-12abc99", 2))
+    }
 }

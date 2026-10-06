@@ -510,7 +510,7 @@ private fun ItemPlanDialog(
                 }
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it) },
+                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
                     label = { Text("План на месяц, ₽") },
                     singleLine = true,
                     visualTransformation = transformation,

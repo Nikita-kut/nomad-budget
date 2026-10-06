@@ -41,6 +41,7 @@ import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
 import ru.nomadbudget.presentation.format.MoneyFormat
 import kotlin.time.Clock
+import ru.nomadbudget.data.local.KeyValueStore
 
 class HomeViewModel(
     private val auth: AuthRepository,
@@ -56,6 +57,7 @@ class HomeViewModel(
     private val offlineCache: OfflineCache,
     private val draftRepository: DraftRepository,
     todayProvider: TodayProvider,
+    private val localStore: KeyValueStore,
 ) : ViewModel() {
 
     private val _undoRequests = Channel<UndoRequest>(Channel.BUFFERED)
@@ -156,9 +158,10 @@ class HomeViewModel(
     }
 
     fun addEntry(draft: EntryDraft) {
+        if (_state.value.saving) return
+        _state.update { it.copy(saving = true) }
         viewModelScope.launch {
             try {
-                _state.update { it.copy(saving = true) }
                 val current = _state.value
                 val rates = current.rates
                 require(rates.hasRate(draft.amount.currency)) { "Нет курса для ${draft.amount.currency.code}, заполни таблицу курсов" }
@@ -228,9 +231,10 @@ class HomeViewModel(
     }
 
     fun addExchange(draft: ExchangeDraft) {
+        if (_state.value.saving) return
+        _state.update { it.copy(saving = true) }
         viewModelScope.launch {
             try {
-                _state.update { it.copy(saving = true) }
                 val current = _state.value
                 require(current.rates.hasRate(draft.given.currency)) { "Нет курса для ${draft.given.currency.code}, заполни таблицу курсов" }
                 val transaction = Transaction.Exchange(
@@ -801,6 +805,8 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 auth.signOut()
+                localStore.clear()
+                _state.value = HomeState(today = today, period = SalaryCycle.periodContaining(today))
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось выйти")
             }

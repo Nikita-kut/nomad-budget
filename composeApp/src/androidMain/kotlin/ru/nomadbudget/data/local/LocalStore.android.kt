@@ -28,6 +28,10 @@ actual class LocalStore actual constructor() : KeyValueStore {
         prefs.edit().remove(key).apply()
     }
 
+    actual override fun clear() {
+        prefs.edit().clear().apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "nomad_budget_local"
     }

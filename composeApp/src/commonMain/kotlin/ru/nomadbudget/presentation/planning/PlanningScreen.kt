@@ -370,7 +370,7 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it) },
+                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
                     label = { Text("Отложить в накопления, ₽") },
                     singleLine = true,
                     visualTransformation = transformation,

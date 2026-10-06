@@ -117,7 +117,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = givenText,
-                    onValueChange = { givenText = ThousandsVisualTransformation.sanitize(it) },
+                    onValueChange = { givenText = ThousandsVisualTransformation.sanitize(it, from?.currency?.minorUnits ?: 2) },
                     label = { Text("Отдал${from?.let { ", ${it.currency.code}" }.orEmpty()}") },
                     singleLine = true,
                     visualTransformation = transformation,
@@ -126,7 +126,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
                 )
                 OutlinedTextField(
                     value = receivedText,
-                    onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it) },
+                    onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it, to?.currency?.minorUnits ?: 2) },
                     label = { Text("Получил${to?.let { ", ${it.currency.code}" }.orEmpty()}") },
                     singleLine = true,
                     visualTransformation = transformation,

@@ -42,6 +42,16 @@ class ThousandsVisualTransformation : VisualTransformation {
         private const val GROUP = 3
         private const val SEPARATOR = ' '
 
+        fun sanitize(input: String, maxFraction: Int): String {
+            val clean = sanitize(input)
+            val comma = clean.indexOf(',')
+            return when {
+                comma < 0 -> clean
+                maxFraction <= 0 -> clean.substring(0, comma)
+                else -> clean.substring(0, (comma + 1 + maxFraction).coerceAtMost(clean.length))
+            }
+        }
+
         fun sanitize(input: String): String {
             val separators = input.withIndex().filter { it.value == ',' || it.value == '.' }
             val decimalIndex = when {

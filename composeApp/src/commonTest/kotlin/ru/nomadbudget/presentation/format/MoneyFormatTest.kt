@@ -11,29 +11,29 @@ class MoneyFormatTest {
 
     @Test
     fun format_rub_groupsThousands_andHidesZeroFraction() {
-        assertEquals("263 480 ₽", MoneyFormat.format(Money.rub(26_348_000L)))
-        assertEquals("1 234,56 ₽", MoneyFormat.format(Money.rub(123_456L)))
+        assertEquals("263\u00A0480\u00A0₽", MoneyFormat.format(Money.rub(26_348_000L)))
+        assertEquals("1\u00A0234,56\u00A0₽", MoneyFormat.format(Money.rub(123_456L)))
     }
 
     @Test
     fun format_usd_prefixSymbol() {
-        assertEquals("$1 051,50", MoneyFormat.format(Money(105_150L, Currency.USD)))
+        assertEquals("$1\u00A0051,50", MoneyFormat.format(Money(105_150L, Currency.USD)))
         assertEquals("$200", MoneyFormat.format(Money(20_000L, Currency.USD)))
     }
 
     @Test
     fun format_zeroDecimalCurrency_noFraction() {
-        assertEquals("5 180 000 ¥", MoneyFormat.format(Money(5_180_000L, JPY)))
+        assertEquals("5\u00A0180\u00A0000\u00A0¥", MoneyFormat.format(Money(5_180_000L, JPY)))
     }
 
     @Test
     fun format_negative_usesMinusSign() {
-        assertEquals("−38 500 ₽", MoneyFormat.format(Money.rub(-3_850_000L)))
+        assertEquals("−38\u00A0500\u00A0₽", MoneyFormat.format(Money.rub(-3_850_000L)))
     }
 
     @Test
     fun parse_acceptsSpacesAndComma() {
-        assertEquals(Money.rub(123_456L), MoneyFormat.parse("1 234,56", Currency.RUB))
+        assertEquals(Money.rub(123_456L), MoneyFormat.parse("1\u00A0234,56", Currency.RUB))
         assertEquals(Money.rub(123_450L), MoneyFormat.parse("1234.5", Currency.RUB))
         assertEquals(Money(385_000L, JPY), MoneyFormat.parse("385000", JPY))
     }
@@ -53,7 +53,7 @@ class MoneyFormatTest {
 
     @Test
     fun formatRate_bigAndSmall() {
-        assertEquals("25 900", MoneyFormat.formatRate(25_900.0))
+        assertEquals("25\u00A0900", MoneyFormat.formatRate(25_900.0))
         assertEquals("84,1975", MoneyFormat.formatRate(84.1975))
     }
 

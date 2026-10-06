@@ -81,7 +81,7 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
                     computed?.let { KeyValueRow("По записям в приложении", MoneyFormat.format(it)) }
                     OutlinedTextField(
                         value = actualText,
-                        onValueChange = { actualText = ThousandsVisualTransformation.sanitize(it) },
+                        onValueChange = { actualText = ThousandsVisualTransformation.sanitize(it, account?.currency?.minorUnits ?: 2) },
                         label = { Text("Фактический остаток${account?.let { ", ${it.currency.code}" }.orEmpty()}") },
                         singleLine = true,
                         visualTransformation = transformation,

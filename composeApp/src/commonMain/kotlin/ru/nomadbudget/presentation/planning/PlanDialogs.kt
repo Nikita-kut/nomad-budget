@@ -191,7 +191,7 @@ private fun CategoryEditor(
 
     OutlinedTextField(
         value = freeText,
-        onValueChange = { freeText = ThousandsVisualTransformation.sanitize(it) },
+        onValueChange = { freeText = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
         label = { Text(if (isIncome) "Сумма на месяц, ₽" else "Свободная сумма, ₽") },
         placeholder = { Text(if (isIncome) "" else "без подкатегории") },
         singleLine = true,
@@ -234,7 +234,7 @@ private fun CategoryEditor(
             )
             OutlinedTextField(
                 value = row.amount,
-                onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(amount = ThousandsVisualTransformation.sanitize(v)) else it } },
+                onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(amount = ThousandsVisualTransformation.sanitize(v, ru.nomadbudget.domain.model.Currency.BASE.minorUnits)) else it } },
                 label = { Text("₽") },
                 singleLine = true,
                 visualTransformation = transformation,

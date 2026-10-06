@@ -16,7 +16,7 @@ object MoneyFormat {
     private const val SMALL_SHARE = 0.005
 
     private const val MINUS = "−"
-    private const val THIN_SPACE = " "
+    private const val THIN_SPACE = "\u00A0"
 
     fun format(money: Money, showFraction: Boolean = true): String {
         val currency = money.currency
