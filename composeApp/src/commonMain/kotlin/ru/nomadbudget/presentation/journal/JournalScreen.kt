@@ -113,6 +113,7 @@ fun JournalScreen(
     state: HomeState,
     onDelete: (String) -> Unit,
     onUpdate: (Transaction, String?) -> Unit,
+    onRepeat: (Transaction) -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Transaction?>(null) }
     var query by remember { mutableStateOf("") }
@@ -191,6 +192,10 @@ fun JournalScreen(
             },
             onDelete = {
                 onDelete(tx.id)
+                editing = null
+            },
+            onRepeat = {
+                onRepeat(tx)
                 editing = null
             },
         )

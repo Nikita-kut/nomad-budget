@@ -257,6 +257,36 @@ class HomeViewModel(
         }
     }
 
+    fun repeatTransaction(source: Transaction) {
+        if (_state.value.saving) return
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            try {
+                val current = _state.value
+                val rates = current.rates
+                val copy = when (source) {
+                    is Transaction.Expense -> {
+                        require(source.debtId == null) { "Платёж по кредиту повторяй через форму записи" }
+                        require(rates.hasRate(source.amount.currency)) { "Нет курса для ${source.amount.currency.code}" }
+                        source.copy(id = "", date = today, amountBase = rates.toBase(source.amount), debtPrincipal = null, debtEarly = false, pending = false)
+                    }
+                    is Transaction.Income -> {
+                        require(rates.hasRate(source.amount.currency)) { "Нет курса для ${source.amount.currency.code}" }
+                        source.copy(id = "", date = today, amountBase = rates.toBase(source.amount), pending = false)
+                    }
+                    is Transaction.Transfer -> source.copy(id = "", date = today, amountBase = rates.toBase(source.amount), pending = false)
+                    is Transaction.Exchange -> source.copy(id = "", date = today, amountBase = rates.toBase(source.given), pending = false)
+                }
+                val saved = transactionRepository.add(copy, current.accounts)
+                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions, pendingCount = transactionRepository.pendingCount()) }
+                _messages.send("Операция повторена на сегодня")
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось повторить")
+            }
+        }
+    }
+
     fun updateTransaction(updated: Transaction, subcategoryName: String?) {
         viewModelScope.launch {
             try {
