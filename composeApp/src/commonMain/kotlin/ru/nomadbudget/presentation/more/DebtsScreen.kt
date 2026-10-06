@@ -227,17 +227,17 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
                     Dropdown("Валюта", currencies, currency, Currency::code, { currency = it })
                 }
                 OutlinedTextField(
-                    value = remaining, onValueChange = { remaining = ThousandsVisualTransformation.sanitize(it) },
+                    value = remaining, onValueChange = { remaining = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
                     label = { Text("Остаток долга, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = payment, onValueChange = { payment = ThousandsVisualTransformation.sanitize(it) },
+                    value = payment, onValueChange = { payment = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
                     label = { Text("Платёж в месяц, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = extra, onValueChange = { extra = ThousandsVisualTransformation.sanitize(it) },
+                    value = extra, onValueChange = { extra = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
                     label = { Text("Досрочно в месяц сверху, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
                     placeholder = { Text("0") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),

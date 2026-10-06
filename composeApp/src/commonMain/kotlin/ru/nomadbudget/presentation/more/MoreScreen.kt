@@ -32,6 +32,12 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.sumIn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
 fun MoreScreen(
@@ -45,6 +51,7 @@ fun MoreScreen(
     showSecondary: Boolean,
     onSignOut: () -> Unit,
 ) {
+    var confirmSignOut by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
@@ -97,10 +104,32 @@ fun MoreScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(platformName(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = onSignOut) { Text("Выйти из аккаунта") }
+                    TextButton(onClick = { confirmSignOut = true }) { Text("Выйти из аккаунта") }
                 }
             }
         }
+    }
+
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text("Выйти из аккаунта?") },
+            text = {
+                Text(
+                    buildString {
+                        append("С этого устройства удалятся сохранённые копии данных и заметки из «Входящих». В облаке всё останется.")
+                        if (state.pendingCount > 0) append("\n\n${state.pendingCount} операций ещё не отправлены и пропадут. Сначала нажми «Обновить» при сети.")
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmSignOut = false
+                    onSignOut()
+                }) { Text("Выйти", color = AppTheme.colors.bad) }
+            },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Отмена") } },
+        )
     }
 }
 

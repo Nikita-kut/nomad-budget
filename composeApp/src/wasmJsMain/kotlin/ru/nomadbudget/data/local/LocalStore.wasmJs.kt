@@ -10,6 +10,10 @@ private fun storageRemove(key: String) {
     js("localStorage.removeItem(key)")
 }
 
+private fun storageClear(prefix: String) {
+    js("Object.keys(localStorage).filter(function (k) { return k.indexOf(prefix) === 0; }).forEach(function (k) { localStorage.removeItem(k); })")
+}
+
 actual class LocalStore actual constructor() : KeyValueStore {
 
     actual override fun get(key: String): String? = storageGet(PREFIX + key)
@@ -17,6 +21,8 @@ actual class LocalStore actual constructor() : KeyValueStore {
     actual override fun put(key: String, value: String) = storageSet(PREFIX + key, value)
 
     actual override fun remove(key: String) = storageRemove(PREFIX + key)
+
+    actual override fun clear() = storageClear(PREFIX)
 
     private companion object {
         const val PREFIX = "nomad_budget:"

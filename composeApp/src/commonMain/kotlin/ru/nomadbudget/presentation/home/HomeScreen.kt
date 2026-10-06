@@ -98,6 +98,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FloatingActionButton
 import androidx.navigation.NavDestination.Companion.hierarchy
 import ru.nomadbudget.presentation.journal.JournalScreen
+import ru.nomadbudget.presentation.entry.EntryFormState
 
 @Serializable
 object MonthRoute
@@ -153,6 +154,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val navController = rememberNavController()
+    val entryForm = remember { EntryFormState(state.today) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -271,6 +273,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             composable<EntryRoute> {
                                 EntryScreen(
                                     state = state,
+                                    form = entryForm,
                                     onSubmit = viewModel::addEntry,
                                     onAddDraft = viewModel::addDraft,
                                     onUseDraft = viewModel::useDraft,

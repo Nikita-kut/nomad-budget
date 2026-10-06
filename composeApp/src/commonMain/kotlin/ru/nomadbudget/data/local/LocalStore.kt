@@ -4,6 +4,7 @@ interface KeyValueStore {
     fun get(key: String): String?
     fun put(key: String, value: String)
     fun remove(key: String)
+    fun clear()
 }
 
 class InMemoryStore : KeyValueStore {
@@ -18,10 +19,15 @@ class InMemoryStore : KeyValueStore {
     override fun remove(key: String) {
         values.remove(key)
     }
+
+    override fun clear() {
+        values.clear()
+    }
 }
 
 expect class LocalStore() : KeyValueStore {
     override fun get(key: String): String?
     override fun put(key: String, value: String)
     override fun remove(key: String)
+    override fun clear()
 }

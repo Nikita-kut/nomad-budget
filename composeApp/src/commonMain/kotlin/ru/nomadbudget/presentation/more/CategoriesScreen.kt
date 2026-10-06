@@ -211,7 +211,7 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
                 if (category.kind == CategoryKind.EXPENSE) {
                     OutlinedTextField(
                         value = amount,
-                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it) },
+                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
                         label = { Text("План на $periodTitle, ₽ (необязательно)") },
                         singleLine = true,
                         visualTransformation = transformation,

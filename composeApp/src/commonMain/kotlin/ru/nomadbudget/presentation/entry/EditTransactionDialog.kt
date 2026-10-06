@@ -151,7 +151,7 @@ fun EditTransactionDialog(
                 }
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = ThousandsVisualTransformation.sanitize(it) },
+                    onValueChange = { amountText = ThousandsVisualTransformation.sanitize(it, account?.currency?.minorUnits ?: 2) },
                     label = { Text(if (tx is Transaction.Exchange) "Отдал, ${accountCurrency?.code.orEmpty()}" else "Сумма, ${accountCurrency?.code.orEmpty()}") },
                     singleLine = true,
                     visualTransformation = transformation,
@@ -161,7 +161,7 @@ fun EditTransactionDialog(
                 if (tx is Transaction.Exchange) {
                     OutlinedTextField(
                         value = receivedText,
-                        onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it) },
+                        onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it, toAccount?.currency?.minorUnits ?: 2) },
                         label = { Text("Получил, ${toAccount?.currency?.code.orEmpty()}") },
                         singleLine = true,
                         visualTransformation = transformation,

@@ -92,13 +92,19 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import ru.nomadbudget.domain.model.CorrectionCategory
 import ru.nomadbudget.presentation.more.SubScreenHeader
+import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 
 private const val MAX_SUGGESTIONS = 8
 private const val MAX_TEMPLATES = 6
 private const val MAX_QUICK_CATEGORIES = 8
 private const val RECENT_DAYS = 90
 
-private class EntryFormState(today: LocalDate) {
+class EntryFormState(today: LocalDate) {
     var type by mutableStateOf(EntryType.EXPENSE)
     var date by mutableStateOf(today)
     var account by mutableStateOf<Account?>(null)
@@ -111,12 +117,22 @@ private class EntryFormState(today: LocalDate) {
     var debt by mutableStateOf<Debt?>(null)
     var debtEarly by mutableStateOf(false)
 
+    val isDirty: Boolean get() = amountText.isNotBlank() || note.isNotBlank() || subcategory.isNotBlank()
+
     fun resetAfterSubmit() {
         amountText = ""
         subcategory = ""
         note = ""
         debt = null
         debtEarly = false
+    }
+
+    fun clear() {
+        resetAfterSubmit()
+        type = EntryType.EXPENSE
+        category = null
+        accountTouched = false
+        toAccount = null
     }
 }
 
@@ -125,6 +141,7 @@ private data class EntryTemplate(val label: String, val expense: Transaction.Exp
 @Composable
 fun EntryScreen(
     state: HomeState,
+    form: EntryFormState,
     onSubmit: (EntryDraft) -> Unit,
     onAddDraft: (String) -> Unit,
     onUseDraft: (Draft) -> Unit,
@@ -133,8 +150,8 @@ fun EntryScreen(
     onOpenExchange: () -> Unit,
     onBack: () -> Unit,
 ) {
-    val form = remember { EntryFormState(state.today) }
     val prefill = state.entryPrefill
+    var confirmLarge by remember { mutableStateOf(false) }
 
     LaunchedEffect(prefill) {
         if (prefill != null) {
@@ -171,7 +188,7 @@ fun EntryScreen(
 
     fun submit() {
         val acc = form.account ?: return
-        val money = amount ?: return
+        val money = MoneyFormat.parse(form.amountText, acc.currency) ?: return
         onSubmit(
             EntryDraft(
                 type = form.type,
@@ -190,13 +207,26 @@ fun EntryScreen(
         form.resetAfterSubmit()
     }
 
+    val largeThreshold = largeAmountThreshold(state, form.type)
+    fun trySubmit() {
+        if (!canSubmit) return
+        val base = amount?.let(state.rates::toBaseOrNull)
+        if (base != null && base > largeThreshold) confirmLarge = true else submit()
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item { SubScreenHeader("Новая запись", onBack) }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SubScreenHeader("Новая запись", onBack)
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (form.isDirty) TextButton(onClick = form::clear) { Text("Очистить") }
+                }
+            }
             item {
                 EntryForm(
                     state = state,
@@ -209,7 +239,7 @@ fun EntryScreen(
                     debtCategory = debtCategory,
                     onClearPrefill = onClearPrefill,
                     onOpenExchange = onOpenExchange,
-                    onSubmit = ::submit,
+                    onSubmit = ::trySubmit,
                 )
             }
             item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else "${state.drafts.size} заметок", info = Hints.INBOX) }
@@ -221,7 +251,7 @@ fun EntryScreen(
             shadowElevation = 6.dp,
         ) {
         Button(
-            onClick = ::submit,
+            onClick = ::trySubmit,
             enabled = canSubmit,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp).height(52.dp),
         ) {
@@ -237,6 +267,24 @@ fun EntryScreen(
             )
         }
         }
+    }
+    if (confirmLarge) {
+        AlertDialog(
+            onDismissRequest = { confirmLarge = false },
+            title = { Text("Необычно большая сумма") },
+            text = {
+                Text(
+                    "${amount?.let { MoneyFormat.format(it) }.orEmpty()} — заметно больше обычных операций. Проверь, нет ли лишних нулей.",
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    confirmLarge = false
+                    submit()
+                }) { Text("Записать") }
+            },
+            dismissButton = { TextButton(onClick = { confirmLarge = false }) { Text("Исправить") } },
+        )
     }
 }
 
@@ -335,7 +383,7 @@ private fun EntryForm(
 
             OutlinedTextField(
                 value = form.amountText,
-                onValueChange = { form.amountText = ThousandsVisualTransformation.sanitize(it) },
+                onValueChange = { form.amountText = ThousandsVisualTransformation.sanitize(it, currency?.minorUnits ?: 2) },
                 label = { Text("Сумма") },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.headlineSmall,
@@ -343,7 +391,7 @@ private fun EntryForm(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onSubmit() }),
                 trailingIcon = currency?.let { { CurrencyChip(it, state, Modifier.padding(end = 12.dp)) } },
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).submitOnEnter(onSubmit),
             )
             AmountHint(state, amount)
 
@@ -464,7 +512,7 @@ private fun EntryForm(
                 onValueChange = { form.note = it },
                 label = { Text("Заметка") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().submitOnEnter(onSubmit),
             )
         }
     }
@@ -576,3 +624,31 @@ internal fun EarlyPaymentToggle(checked: Boolean, onChange: (Boolean) -> Unit, p
         )
     }
 }
+
+private fun Modifier.submitOnEnter(onSubmit: () -> Unit): Modifier = onPreviewKeyEvent { event ->
+    if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
+        onSubmit()
+        true
+    } else {
+        false
+    }
+}
+
+internal fun largeAmountThreshold(state: HomeState, type: EntryType): Money {
+    val since = state.today.plus(-LARGE_LOOKBACK_DAYS, DateTimeUnit.DAY)
+    val largest = state.transactions
+        .filter { it.date >= since }
+        .filter {
+            when (type) {
+                EntryType.EXPENSE -> it is Transaction.Expense
+                EntryType.INCOME -> it is Transaction.Income
+                EntryType.TRANSFER -> it is Transaction.Transfer
+            }
+        }
+        .maxOfOrNull { it.amountBase.minor } ?: 0L
+    return Money.rub(maxOf(largest * LARGE_FACTOR, LARGE_FLOOR_MINOR))
+}
+
+private const val LARGE_LOOKBACK_DAYS = 180
+private const val LARGE_FACTOR = 5L
+private const val LARGE_FLOOR_MINOR = 10_000_000L
