@@ -112,6 +112,10 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import ru.nomadbudget.presentation.theme.LocalThemeSettings
 
 @Serializable
 object MonthRoute
@@ -443,6 +447,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     PeriodNavigator(state, viewModel, modifier = Modifier.weight(1f))
                     if (DemoMode.enabled) DemoBadge()
+                    ThemeButton()
                     RefreshButton(state, viewModel)
                 }
                 if (state.loading) {
@@ -513,8 +518,22 @@ private fun RatesWarning(state: HomeState) {
 @Composable
 private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        ThemeButton()
         RefreshButton(state, viewModel)
         PeriodNavigator(state, viewModel)
+    }
+}
+
+@Composable
+private fun ThemeButton() {
+    val settings = LocalThemeSettings.current
+    val system = isSystemInDarkTheme()
+    val dark = settings.isDark(system)
+    IconButton(onClick = { settings.toggle(system) }) {
+        Icon(
+            if (dark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+            contentDescription = if (dark) "Включить светлую тему" else "Включить тёмную тему",
+        )
     }
 }
 

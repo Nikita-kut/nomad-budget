@@ -19,13 +19,23 @@ import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.presentation.auth.LoginScreen
 import ru.nomadbudget.presentation.home.HomeScreen
 import ru.nomadbudget.presentation.theme.AppTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import org.koin.compose.getKoin
+import ru.nomadbudget.data.local.KeyValueStore
+import ru.nomadbudget.presentation.theme.LocalThemeSettings
+import ru.nomadbudget.presentation.theme.ThemeSettings
 
 @Composable
 fun App() {
     KoinApplication(application = { modules(if (DemoMode.enabled) demoModule else appModule) }) {
-        AppTheme {
-            Surface(modifier = Modifier.fillMaxSize()) {
-                Root()
+        val store = getKoin().get<KeyValueStore>()
+        val settings = remember { ThemeSettings(store) }
+        CompositionLocalProvider(LocalThemeSettings provides settings) {
+            AppTheme(settings) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Root()
+                }
             }
         }
     }

@@ -42,6 +42,7 @@ import ru.nomadbudget.domain.repository.TransactionRepository
 import ru.nomadbudget.presentation.format.MoneyFormat
 import kotlin.time.Clock
 import ru.nomadbudget.data.local.KeyValueStore
+import ru.nomadbudget.presentation.theme.ThemeSettings
 
 class HomeViewModel(
     private val auth: AuthRepository,
@@ -835,7 +836,9 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 auth.signOut()
+                val theme = localStore.get(ThemeSettings.KEY)
                 localStore.clear()
+                theme?.let { localStore.put(ThemeSettings.KEY, it) }
                 _state.value = HomeState(today = today, period = SalaryCycle.periodContaining(today))
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось выйти")
