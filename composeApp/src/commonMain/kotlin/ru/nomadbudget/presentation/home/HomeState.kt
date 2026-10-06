@@ -196,6 +196,12 @@ data class HomeState(
 
     val isCurrentPeriod: Boolean = today in period
 
+    val daysLeft: Int = if (today in period) period.lengthDays - period.dayNumber(today) + 1 else 0
+
+    val dailyAllowance: Money? = if (isCurrentPeriod) PlanCalculator.dailyAllowance(budgets, daysLeft) else null
+
+    val isFirstRun: Boolean = !loading && transactions.isEmpty() && budgetLines.isEmpty()
+
     val elapsedShare: Double = when {
         today in period -> period.dayNumber(today).toDouble() / period.lengthDays
         today >= period.endExclusive -> 1.0

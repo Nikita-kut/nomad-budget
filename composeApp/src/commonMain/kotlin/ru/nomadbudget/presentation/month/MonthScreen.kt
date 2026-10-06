@@ -78,6 +78,8 @@ fun MonthScreen(
     onOpenPlanning: () -> Unit,
     onRetry: () -> Unit,
     twoColumns: Boolean = false,
+    onOpenAccounts: () -> Unit = {},
+    onOpenEntry: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var editingItem by remember { mutableStateOf<ItemEdit?>(null) }
@@ -99,6 +101,9 @@ fun MonthScreen(
             }
         }
 
+        if (state.isFirstRun) {
+            item { FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry) }
+        }
         item { SummaryRow(state) }
         item { OperationalRow(state) }
 
@@ -232,6 +237,18 @@ private fun PlanTeaser(state: HomeState, onCopyPlan: () -> Unit, onOpenPlanning:
                     style = MaterialTheme.typography.bodySmall,
                     color = if (free.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
                 )
+                state.dailyAllowance?.let { allowance ->
+                    Text(
+                        if (allowance.isNegative || allowance.isZero) {
+                            "план расходов исчерпан"
+                        } else {
+                            "можно тратить в среднем ${MoneyFormat.format(allowance, false)} в день, осталось ${state.daysLeft} дн."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = if (allowance.isNegative || allowance.isZero) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 OutlinedButton(onClick = onOpenPlanning, modifier = Modifier.fillMaxWidth()) { Text("Открыть планирование") }
             }
         }
@@ -577,5 +594,29 @@ private fun IdleCategoriesCard(categories: List<Category>, onPlan: (Category) ->
                 categories.forEach { category -> TagChip(text = category.name, onClick = { onPlan(category) }) }
             }
         }
+    }
+}
+
+@Composable
+private fun FirstRunCard(state: HomeState, onOpenAccounts: () -> Unit, onOpenPlanning: () -> Unit, onOpenEntry: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("С чего начать", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            FirstRunStep("1", "Проверь счета и остатки", if (state.activeAccounts.isEmpty()) "добавь счета" else "счетов: ${state.activeAccounts.size}", "Счета", onOpenAccounts)
+            FirstRunStep("2", "Задай план месяца", "доход, расходы по категориям, «Себе»", "План", onOpenPlanning)
+            FirstRunStep("3", "Запиши первую трату", "кнопка «+» внизу или здесь", "Записать", onOpenEntry)
+        }
+    }
+}
+
+@Composable
+private fun FirstRunStep(number: String, title: String, hint: String, action: String, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(number, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium)
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        OutlinedButton(onClick = onClick) { Text(action) }
     }
 }
