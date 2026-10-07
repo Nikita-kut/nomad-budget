@@ -381,6 +381,48 @@ private fun EntryForm(
                 }
             }
 
+            AccountDropdown(
+                label = when (form.type) {
+                    EntryType.EXPENSE -> "Со счёта"
+                    EntryType.INCOME -> "На счёт"
+                    EntryType.TRANSFER -> "Откуда"
+                },
+                accounts = state.activeAccounts,
+                selected = account,
+                state = state,
+                onSelect = {
+                    form.account = it
+                    form.accountTouched = true
+                },
+            )
+
+            if (form.type == EntryType.TRANSFER) {
+                AccountDropdown(
+                    label = "Куда",
+                    accounts = transferTargets,
+                    selected = selectedTo,
+                    state = state,
+                    onSelect = { form.toAccount = it },
+                )
+                if (transferTargets.isEmpty()) {
+                    Text("Нет второго счёта в этой валюте. Другая валюта — это обмен.", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val from = form.account
+                            form.account = selectedTo
+                            form.toAccount = from
+                            form.accountTouched = true
+                        },
+                        enabled = selectedTo != null,
+                    ) { Text("Поменять местами") }
+                    state.activeAccounts.firstOrNull { it.isSavings && it.currency == currency && it.id != account?.id }?.let { savings ->
+                        OutlinedButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В накопления") }
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = form.amountText,
                 onValueChange = { form.amountText = ThousandsVisualTransformation.sanitize(it, currency?.minorUnits ?: 2) },
@@ -474,48 +516,6 @@ private fun EntryForm(
                         preview = amount?.let { DebtCalculator.principalFor(d, it, form.debtEarly) },
                         differentCurrency = amount != null && amount.currency != d.currency,
                     )
-                }
-            }
-
-            AccountDropdown(
-                label = when (form.type) {
-                    EntryType.EXPENSE -> "Со счёта"
-                    EntryType.INCOME -> "На счёт"
-                    EntryType.TRANSFER -> "Откуда"
-                },
-                accounts = state.activeAccounts,
-                selected = account,
-                state = state,
-                onSelect = {
-                    form.account = it
-                    form.accountTouched = true
-                },
-            )
-
-            if (form.type == EntryType.TRANSFER) {
-                AccountDropdown(
-                    label = "Куда",
-                    accounts = transferTargets,
-                    selected = selectedTo,
-                    state = state,
-                    onSelect = { form.toAccount = it },
-                )
-                if (transferTargets.isEmpty()) {
-                    Text("Нет второго счёта в этой валюте. Другая валюта — это обмен.", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            val from = form.account
-                            form.account = selectedTo
-                            form.toAccount = from
-                            form.accountTouched = true
-                        },
-                        enabled = selectedTo != null,
-                    ) { Text("Поменять местами") }
-                    state.activeAccounts.firstOrNull { it.isSavings && it.currency == currency && it.id != account?.id }?.let { savings ->
-                        OutlinedButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В накопления") }
-                    }
                 }
             }
 
