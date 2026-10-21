@@ -243,10 +243,23 @@ private fun SummaryCard(summary: PlanSummary) {
                 highlight = if (free.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+            if (!summary.fromSavingsPlanned.isZero) {
+                PlanLine("Расходы из дохода", MoneyFormat.format(summary.fromIncomePlanned, false))
+                PlanLine("Расходы из накоплений", MoneyFormat.format(summary.fromSavingsPlanned, false))
+            }
             if (!summary.savingsTarget.isZero) PlanLine("Себе по плану", MoneyFormat.format(summary.savingsTarget, false))
             PlanLine("Свободные суммы", MoneyFormat.format(summary.freeAmounts, false))
             PlanLine("По подкатегориям", MoneyFormat.format(summary.itemized, false))
             PlanLine("Категорий с планом", "${summary.plannedCategories} из ${summary.expenseCategories}")
+            if (!summary.fromSavingsPlanned.isZero || !summary.savingsTarget.isZero) {
+                Text(
+                    "Доход ${MoneyFormat.format(summary.incomePlanned, false)} + из накоплений ${MoneyFormat.format(summary.fromSavingsPlanned, false)}" +
+                        " = расходы ${MoneyFormat.format(summary.expensePlanned, false)} + себе ${MoneyFormat.format(summary.savingsTarget, false)}" +
+                        if (summary.free.isZero) " · сходится" else if (summary.free.isNegative) " · не хватает ${MoneyFormat.format(-summary.free, false)}" else " · свободно ${MoneyFormat.format(summary.free, false)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -268,6 +281,7 @@ private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, 
                 if (budget.plannedByItems && !budget.freePlanned.isZero) add("свободно ${MoneyFormat.format(budget.freePlanned, false)}")
                 if (budget.plannedByItems) add("подкатегории ${MoneyFormat.format(budget.itemsPlanned, false)}")
                 if (!budget.fact.isZero) add("потрачено ${MoneyFormat.format(budget.fact, false)}")
+                if (!budget.fromSavingsPlanned.isZero) add("из накоплений ${MoneyFormat.format(budget.fromSavingsPlanned, false)}")
                 history?.let { add("в среднем ${MoneyFormat.format(it.average, false)}/мес") }
             }
             if (meta.isNotEmpty()) {

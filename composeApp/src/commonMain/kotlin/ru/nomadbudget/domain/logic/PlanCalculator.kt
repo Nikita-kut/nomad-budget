@@ -24,8 +24,11 @@ data class PlanSummary(
     val expenseCategories: Int,
     val shares: List<PlanShare>,
     val savingsTarget: Money = Money.zero(Currency.BASE),
+    val fromSavingsPlanned: Money = Money.zero(Currency.BASE),
 ) {
-    val free: Money get() = incomePlanned - expensePlanned - savingsTarget
+    val fromIncomePlanned: Money get() = expensePlanned - fromSavingsPlanned
+
+    val free: Money get() = incomePlanned + fromSavingsPlanned - expensePlanned - savingsTarget
 
     val allocatedShare: Double?
         get() = if (incomePlanned.minor > 0L) (expensePlanned + savingsTarget).minor.toDouble() / incomePlanned.minor else null
@@ -65,6 +68,7 @@ object PlanCalculator {
             expenseCategories = expense.size,
             shares = shares,
             savingsTarget = savingsTarget,
+            fromSavingsPlanned = expense.map { it.fromSavingsPlanned }.sumIn(Currency.BASE),
         )
     }
 

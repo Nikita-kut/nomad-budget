@@ -45,11 +45,12 @@ data class EntryDraft(
     val fromDraftId: String? = null,
 )
 
-data class PlanItemInput(val name: String, val planned: Money)
+data class PlanItemInput(val name: String, val planned: Money, val fromSavings: Boolean = false)
 
 data class CategoryPlanDraft(
     val categoryId: String,
     val free: Money?,
+    val freeFromSavings: Boolean = false,
     val items: List<PlanItemInput>,
     val removedSubcategoryIds: List<String>,
 )

@@ -51,10 +51,11 @@ import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.home.PlanItemInput
 import ru.nomadbudget.presentation.theme.AppTheme
+import androidx.compose.foundation.layout.size
 
 private const val MAX_SUGGESTIONS = 8
 
-private data class PlanRow(val key: Int, val subcategoryId: String?, val name: String, val amount: String)
+private data class PlanRow(val key: Int, val subcategoryId: String?, val name: String, val amount: String, val fromSavings: Boolean = false)
 
 private data class EditorResult(val draft: CategoryPlanDraft?, val dirty: Boolean, val error: String?)
 
@@ -154,13 +155,15 @@ private fun CategoryEditor(
         budget?.items.orEmpty()
             .filter { it.planned != null && it.subcategory != null }
             .mapIndexed { index, item ->
-                PlanRow(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), majorText(item.planned ?: Money.zero(Currency.BASE)))
+                PlanRow(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), majorText(item.planned ?: Money.zero(Currency.BASE)), item.fromSavings)
             }
     }
     val initialFree = remember { budget?.freePlanned?.takeIf { it.minor > 0L }?.let(::majorText).orEmpty() }
     var rows by remember { mutableStateOf(initialRows) }
     var nextKey by remember { mutableIntStateOf(initialRows.size) }
+    val initialFreeFromSavings = remember { budget?.freeFromSavings == true }
     var freeText by remember { mutableStateOf(initialFree) }
+    var freeFromSavings by remember { mutableStateOf(initialFreeFromSavings) }
     val transformation = remember { ThousandsVisualTransformation() }
 
     val parsedRows = rows.map { row -> row to MoneyFormat.parse(row.amount, Currency.BASE) }
@@ -168,7 +171,7 @@ private fun CategoryEditor(
     val namesUnique = rows.map { it.name.trim().lowercase() }.let { it.size == it.toSet().size }
     val itemsTotal = parsedRows.mapNotNull { it.second }.sumIn(Currency.BASE)
     val free = if (freeText.isBlank()) Money.zero(Currency.BASE) else MoneyFormat.parse(freeText, Currency.BASE)
-    val dirty = freeText != initialFree || rows != initialRows
+    val dirty = freeText != initialFree || rows != initialRows || freeFromSavings != initialFreeFromSavings
     val error = when {
         free == null -> "Свободная сумма не распознана"
         !rowsValid -> "У каждой подкатегории нужны название и сумма"
@@ -180,7 +183,8 @@ private fun CategoryEditor(
         CategoryPlanDraft(
             categoryId = category.id,
             free = free.takeIf { it.minor > 0L },
-            items = parsedRows.mapNotNull { (row, money) -> money?.let { PlanItemInput(row.name.trim(), it) } },
+            freeFromSavings = freeFromSavings,
+            items = parsedRows.mapNotNull { (row, money) -> money?.let { PlanItemInput(row.name.trim(), it, row.fromSavings) } },
             removedSubcategoryIds = initialRows.mapNotNull { it.subcategoryId }.filterNot { it in keptIds },
         )
     } else {
@@ -199,6 +203,9 @@ private fun CategoryEditor(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
+    if (!isIncome) {
+        TagChip(text = "из накоплений", selected = freeFromSavings, onClick = { freeFromSavings = !freeFromSavings })
+    }
     history?.let { h ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -245,6 +252,11 @@ private fun CategoryEditor(
                 Icon(Icons.Filled.Clear, contentDescription = "Убрать подкатегорию", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        TagChip(
+            text = "из накоплений",
+            selected = row.fromSavings,
+            onClick = { rows = rows.map { if (it.key == row.key) it.copy(fromSavings = !it.fromSavings) else it } },
+        )
     }
     val usedNames = rows.map { it.name.trim().lowercase() }.toSet()
     val freeSuggestions = suggestions.filter { it.lowercase() !in usedNames }.take(MAX_SUGGESTIONS)

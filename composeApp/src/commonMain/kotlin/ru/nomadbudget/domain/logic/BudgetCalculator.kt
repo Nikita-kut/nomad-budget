@@ -18,12 +18,14 @@ data class BudgetLine(
     val categoryId: String,
     val planned: Money,
     val subcategoryId: String? = null,
+    val fromSavings: Boolean = false,
 )
 
 data class SubcategoryBudget(
     val subcategory: Subcategory?,
     val planned: Money?,
     val fact: Money,
+    val fromSavings: Boolean = false,
 ) {
     val remaining: Money? get() = planned?.minus(fact)
 
@@ -39,6 +41,8 @@ data class CategoryBudget(
     val plannedByItems: Boolean = false,
     val freePlanned: Money = Money.zero(Currency.BASE),
     val itemsPlanned: Money = Money.zero(Currency.BASE),
+    val freeFromSavings: Boolean = false,
+    val fromSavingsPlanned: Money = Money.zero(Currency.BASE),
 ) {
     val remaining: Money get() = planned - fact
 
@@ -138,6 +142,8 @@ object BudgetCalculator {
                     plannedByItems = plannedByItems,
                     freePlanned = freePlanned,
                     itemsPlanned = itemsPlanned,
+                    freeFromSavings = categoryLines.firstOrNull { it.subcategoryId == null }?.fromSavings == true,
+                    fromSavingsPlanned = categoryLines.filter { it.fromSavings }.map { it.planned }.sumIn(Currency.BASE),
                 )
             }
     }
@@ -152,6 +158,7 @@ object BudgetCalculator {
             .groupBy { it.subcategoryId }
             .mapValues { (_, list) -> list.map { it.amountBase }.sumIn(Currency.BASE) }
         val plannedBySubcategory = itemLines.associate { it.subcategoryId to it.planned }
+        val savingsBySubcategory = itemLines.filter { it.fromSavings }.map { it.subcategoryId }.toSet()
         val ids = (plannedBySubcategory.keys + factBySubcategory.keys).filterNotNull().distinct()
         if (ids.isEmpty() && factBySubcategory[null] == null) return emptyList()
         val items = ids.map { id ->
@@ -159,6 +166,7 @@ object BudgetCalculator {
                 subcategory = subcategoriesById[id],
                 planned = plannedBySubcategory[id],
                 fact = factBySubcategory[id] ?: Money.zero(Currency.BASE),
+                fromSavings = id in savingsBySubcategory,
             )
         }.sortedWith(compareByDescending<SubcategoryBudget> { it.planned?.minor ?: -1L }.thenBy { it.subcategory?.name.orEmpty() })
         val withoutSubcategory = factBySubcategory[null]?.let { SubcategoryBudget(subcategory = null, planned = null, fact = it) }
