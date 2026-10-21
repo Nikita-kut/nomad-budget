@@ -90,6 +90,30 @@ object HistoryCalculator {
             .mapValues { (_, list) -> list.map { it.line.planned }.sumIn(Currency.BASE) }
     }
 
+    fun savingsForecast(
+        points: List<MonthPoint>,
+        currentPeriodOpen: Boolean,
+        savingsBalance: Money,
+        monthlyTarget: Money?,
+    ): SavingsForecast? {
+        val closed = if (currentPeriodOpen) points.dropLast(1) else points
+        val recent = closed.takeLast(FORECAST_MONTHS)
+        val target = monthlyTarget?.takeIf { it.minor > 0L }
+        if (recent.isEmpty() && target == null) return null
+        val actualPerMonth = if (recent.isEmpty()) null else Money(recent.map { it.netSaved.minor }.sum() / recent.size, Currency.BASE)
+        return SavingsForecast(
+            balance = savingsBalance,
+            monthsUsed = recent.size,
+            actualPerMonth = actualPerMonth,
+            targetPerMonth = target,
+            byTargetInYear = target?.let { savingsBalance + Money(it.minor * MONTHS_IN_YEAR, Currency.BASE) },
+            byActualInYear = actualPerMonth?.let { savingsBalance + Money(it.minor * MONTHS_IN_YEAR, Currency.BASE) },
+        )
+    }
+
+    private const val FORECAST_MONTHS = 3
+    private const val MONTHS_IN_YEAR = 12L
+
     fun cumulative(points: List<MonthPoint>, selector: (MonthPoint) -> Money): List<Money> {
         var acc = Money.zero(Currency.BASE)
         return points.map { point ->
@@ -100,3 +124,12 @@ object HistoryCalculator {
 }
 
 data class PeriodBudgetLine(val periodStart: LocalDate, val line: BudgetLine)
+
+data class SavingsForecast(
+    val balance: Money,
+    val monthsUsed: Int,
+    val actualPerMonth: Money?,
+    val targetPerMonth: Money?,
+    val byTargetInYear: Money?,
+    val byActualInYear: Money?,
+)
