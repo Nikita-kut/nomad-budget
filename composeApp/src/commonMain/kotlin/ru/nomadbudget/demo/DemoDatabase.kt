@@ -188,13 +188,13 @@ private class DemoSeed(private val db: DemoDatabase) {
         if (index == 2) expense(period, 16, usdCard, Money(45_000L, usd), travel, null, "билеты")
         if (index == 1) expense(period, 11, card, Money.rub(250_000L), docs, null)
 
+        if (isCurrent) expense(period, 10, cushion, Money.rub(800_000L), gifts, null, "билеты родителям")
         seedPlan(period, index, isCurrent)
     }
 
     private fun seedPlan(period: Period, index: Int, isCurrent: Boolean) {
         val lines = mutableListOf(
             BudgetLine(salary.id, Money.rub(23_000_000L)),
-            BudgetLine(side.id, Money.rub(2_000_000L)),
             BudgetLine(food.id, Money.rub(1_500_000L)),
             BudgetLine(food.id, Money.rub(2_000_000L), grocery.id),
             BudgetLine(food.id, Money.rub(800_000L), cafe.id),
