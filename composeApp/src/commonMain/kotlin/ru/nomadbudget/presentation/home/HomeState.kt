@@ -153,7 +153,7 @@ data class HomeState(
     }
 
     val budgets: List<CategoryBudget> =
-        BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories)
+        BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories, accounts.filter { it.isSavings }.map { it.id }.toSet())
 
     val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
 

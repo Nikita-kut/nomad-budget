@@ -106,6 +106,9 @@ fun MonthScreen(
         }
         item { SummaryRow(state) }
         item { OperationalRow(state) }
+        if (state.summary.hasSavingsSpending) {
+            item { FromSavingsCard(state) }
+        }
 
         if (!state.loading) {
             item { PlanTeaser(state, onCopyPlan, onOpenPlanning) }
@@ -410,7 +413,7 @@ private fun ExpenseCard(
                     Text(headline, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = tone, modifier = Modifier.padding(end = 10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "${MoneyFormat.format(budget.fact, false)} из ${MoneyFormat.format(budget.planned, false)}",
+                            "${MoneyFormat.format(budget.incomeFact, false)} из ${MoneyFormat.format(budget.incomePlanned, false)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -420,9 +423,21 @@ private fun ExpenseCard(
                     }
                 }
             }
+            if (budget.hasSavingsPart) {
+                Text(
+                    buildString {
+                        append("из накоплений ${MoneyFormat.format(budget.factFromSavings, false)}")
+                        if (!budget.fromSavingsPlanned.isZero) append(" · по плану ${MoneyFormat.format(budget.fromSavingsPlanned, false)}")
+                        if (!budget.unplannedFromSavings.isZero) append(" · вне плана ${MoneyFormat.format(budget.unplannedFromSavings, false)}")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (budget.unplannedFromSavings.isZero) MaterialTheme.colorScheme.onSurfaceVariant else AppTheme.colors.warning,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             PaceBar(
                 progress = budget.progress.toFloat(),
-                marker = if (state.isCurrentPeriod && budget.hasPlan) (budget.expectedByNow(state.elapsedShare).minor.toDouble() / budget.planned.minor).toFloat() else null,
+                marker = if (state.isCurrentPeriod && budget.incomePlanned.minor > 0L) (budget.expectedByNow(state.elapsedShare).minor.toDouble() / budget.incomePlanned.minor).toFloat() else null,
                 color = tone,
                 modifier = Modifier.padding(top = 6.dp, end = 10.dp),
             )
@@ -618,5 +633,29 @@ private fun FirstRunStep(number: String, title: String, hint: String, action: St
             Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         OutlinedButton(onClick = onClick) { Text(action) }
+    }
+}
+
+@Composable
+private fun FromSavingsCard(state: HomeState) {
+    val summary = state.summary
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Из накоплений", fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                InfoHint("Из накоплений", Hints.FROM_SAVINGS)
+            }
+            Text(
+                "потрачено ${MoneyFormat.format(summary.expenseFromSavings, false)} · по плану ${MoneyFormat.format(summary.plannedFromSavings, false)}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (!summary.unplannedFromSavings.isZero) {
+                Text(
+                    "вне плана ${MoneyFormat.format(summary.unplannedFromSavings, false)}: не было в плане, деньги взяты из накоплений",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppTheme.colors.warning,
+                )
+            }
+        }
     }
 }

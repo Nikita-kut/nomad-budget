@@ -43,10 +43,19 @@ data class CategoryBudget(
     val itemsPlanned: Money = Money.zero(Currency.BASE),
     val freeFromSavings: Boolean = false,
     val fromSavingsPlanned: Money = Money.zero(Currency.BASE),
+    val factFromSavings: Money = Money.zero(Currency.BASE),
 ) {
-    val remaining: Money get() = planned - fact
+    val incomePlanned: Money get() = planned - fromSavingsPlanned
 
-    val remainingWhole: Money get() = planned.withoutFraction() - fact.withoutFraction()
+    val incomeFact: Money get() = fact - factFromSavings
+
+    val unplannedFromSavings: Money get() = if (factFromSavings > fromSavingsPlanned) factFromSavings - fromSavingsPlanned else Money.zero(Currency.BASE)
+
+    val hasSavingsPart: Boolean get() = !fromSavingsPlanned.isZero || !factFromSavings.isZero
+
+    val remaining: Money get() = incomePlanned - incomeFact
+
+    val remainingWhole: Money get() = incomePlanned.withoutFraction() - incomeFact.withoutFraction()
 
     val hasPlan: Boolean get() = planned.minor > 0L
 
@@ -55,40 +64,40 @@ data class CategoryBudget(
     fun expectedByNow(elapsedShare: Double): Money {
         val share = elapsedShare.coerceIn(0.0, 1.0)
         val settled = items
-            .filter { it.subcategory != null && it.planned != null && it.fact.wholeUnits >= it.planned.wholeUnits }
+            .filter { !it.fromSavings && it.subcategory != null && it.planned != null && it.fact.wholeUnits >= it.planned.wholeUnits }
             .mapNotNull { it.planned }
             .sumIn(Currency.BASE)
-        val flexible = planned - settled
+        val flexible = incomePlanned - settled
         return settled + Money((flexible.minor * share).toLong(), Currency.BASE)
     }
 
     fun pace(elapsedShare: Double): Pace {
-        if (!hasPlan) return Pace.ON_TRACK
+        if (incomePlanned.minor <= 0L) return Pace.ON_TRACK
         val expected = expectedByNow(elapsedShare)
-        val tolerance = (planned.wholeUnits * BudgetCalculator.PACE_TOLERANCE).toLong().coerceAtLeast(1L)
-        return if (fact.wholeUnits - expected.wholeUnits > tolerance) Pace.AHEAD else Pace.ON_TRACK
+        val tolerance = (incomePlanned.wholeUnits * BudgetCalculator.PACE_TOLERANCE).toLong().coerceAtLeast(1L)
+        return if (incomeFact.wholeUnits - expected.wholeUnits > tolerance) Pace.AHEAD else Pace.ON_TRACK
     }
 
-    fun aheadBy(elapsedShare: Double): Money = (fact.withoutFraction() - expectedByNow(elapsedShare).withoutFraction())
+    fun aheadBy(elapsedShare: Double): Money = (incomeFact.withoutFraction() - expectedByNow(elapsedShare).withoutFraction())
 
     private fun isSlightOverrun(): Boolean {
-        val plannedWhole = planned.wholeUnits
+        val plannedWhole = incomePlanned.wholeUnits
         if (plannedWhole <= 0L) return false
-        return (fact.wholeUnits - plannedWhole).toDouble() / plannedWhole <= BudgetCalculator.SLIGHT_OVERRUN
+        return (incomeFact.wholeUnits - plannedWhole).toDouble() / plannedWhole <= BudgetCalculator.SLIGHT_OVERRUN
     }
 
     val progress: Double
         get() = when {
-            planned.wholeUnits > 0L -> fact.wholeUnits.toDouble() / planned.wholeUnits
-            fact.wholeUnits > 0L -> 1.0
+            incomePlanned.wholeUnits > 0L -> incomeFact.wholeUnits.toDouble() / incomePlanned.wholeUnits
+            incomeFact.wholeUnits > 0L -> 1.0
             else -> 0.0
         }
 
     val status: BudgetStatus
         get() = when {
-            fact.wholeUnits > planned.wholeUnits && isSlightOverrun() -> BudgetStatus.OVER_SLIGHTLY
-            fact.wholeUnits > planned.wholeUnits -> BudgetStatus.OVER
-            planned.wholeUnits > 0L && fact.wholeUnits == planned.wholeUnits -> BudgetStatus.DONE
+            incomeFact.wholeUnits > incomePlanned.wholeUnits && isSlightOverrun() -> BudgetStatus.OVER_SLIGHTLY
+            incomeFact.wholeUnits > incomePlanned.wholeUnits -> BudgetStatus.OVER
+            incomePlanned.wholeUnits > 0L && incomeFact.wholeUnits == incomePlanned.wholeUnits -> BudgetStatus.DONE
             progress >= BudgetCalculator.WARNING_THRESHOLD -> BudgetStatus.WARNING
             else -> BudgetStatus.OK
         }
@@ -101,10 +110,17 @@ data class MonthSummary(
     val expenseFact: Money,
     val savedToSavings: Money,
     val takenFromSavings: Money,
+    val expenseFromSavings: Money = Money.zero(Currency.BASE),
+    val plannedFromSavings: Money = Money.zero(Currency.BASE),
+    val unplannedFromSavings: Money = Money.zero(Currency.BASE),
 ) {
     val netSaved: Money get() = savedToSavings - takenFromSavings
 
-    val remaining: Money get() = incomeFact - expenseFact - netSaved
+    val expenseFromIncome: Money get() = expenseFact - expenseFromSavings
+
+    val remaining: Money get() = incomeFact - expenseFromIncome - netSaved
+
+    val hasSavingsSpending: Boolean get() = !expenseFromSavings.isZero || !plannedFromSavings.isZero
 }
 
 object BudgetCalculator {
@@ -119,6 +135,7 @@ object BudgetCalculator {
         transactions: List<Transaction>,
         period: Period,
         subcategories: List<Subcategory> = emptyList(),
+        savingsAccountIds: Set<String> = emptySet(),
     ): List<CategoryBudget> {
         val subcategoriesById = subcategories.associateBy { it.id }
         val inPeriod = transactions.filter { it.date in period }
@@ -144,6 +161,10 @@ object BudgetCalculator {
                     itemsPlanned = itemsPlanned,
                     freeFromSavings = categoryLines.firstOrNull { it.subcategoryId == null }?.fromSavings == true,
                     fromSavingsPlanned = categoryLines.filter { it.fromSavings }.map { it.planned }.sumIn(Currency.BASE),
+                    factFromSavings = related.filterIsInstance<Transaction.Expense>()
+                        .filter { it.accountId in savingsAccountIds }
+                        .map { it.amountBase }
+                        .sumIn(Currency.BASE),
                 )
             }
     }
@@ -198,6 +219,9 @@ object BudgetCalculator {
             expenseFact = expense.map { it.fact }.sumIn(Currency.BASE),
             savedToSavings = saved,
             takenFromSavings = taken,
+            expenseFromSavings = expense.map { it.factFromSavings }.sumIn(Currency.BASE),
+            plannedFromSavings = expense.map { it.fromSavingsPlanned }.sumIn(Currency.BASE),
+            unplannedFromSavings = expense.map { it.unplannedFromSavings }.sumIn(Currency.BASE),
         )
     }
 
