@@ -205,7 +205,7 @@ private class DemoSeed(private val db: DemoDatabase) {
             BudgetLine(housing.id, Money.rub(90_000L), internet.id),
             BudgetLine(comm.id, Money.rub(65_000L), mobile.id),
             BudgetLine(health.id, Money.rub(300_000L)),
-            BudgetLine(gifts.id, Money.rub(500_000L)),
+            BudgetLine(gifts.id, Money.rub(500_000L), fromSavings = true),
             BudgetLine(fees.id, Money.rub(50_000L)),
             BudgetLine(loans.id, Money.rub(1_206_000L), loanSubA.id),
             BudgetLine(loans.id, Money.rub(500_000L), loanSubB.id),

@@ -354,7 +354,7 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
         if (periodId.startsWith(PeriodRepositoryImpl.OFFLINE_PREFIX)) return emptyList()
         return cache.throughOrDefault("lines:$periodId", ListSerializer(BudgetLineDto.serializer()), emptyList()) {
             client.from(Tables.BUDGET_LINES).select { filter { eq("period_id", periodId) } }.decodeList<BudgetLineDto>()
-        }.map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
+        }.map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId, fromSavings = it.fromSavings) }
     }
 
     override suspend fun getAllLines(): List<PeriodBudgetLine> {
@@ -394,6 +394,7 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
                 categoryId = line.categoryId,
                 subcategoryId = line.subcategoryId,
                 plannedBase = line.planned.minor,
+                fromSavings = line.fromSavings,
             ),
         ) { onConflict = "period_id,category_id,subcategory_id" }
     }

@@ -423,7 +423,7 @@ class HomeViewModel(
                 val current = _state.value
                 val periodId = current.periodId ?: periodRepository.ensure(current.period)
                 val categoryId = draft.categoryId
-                val limitLine = draft.free?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it) }
+                val limitLine = draft.free?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it, null, draft.freeFromSavings) }
                 val hadLimit = current.budgetLines.any { it.categoryId == categoryId && it.subcategoryId == null }
                 when {
                     limitLine != null -> budgetRepository.setPlanned(periodId, limitLine)
@@ -432,7 +432,7 @@ class HomeViewModel(
                 draft.removedSubcategoryIds.forEach { budgetRepository.deleteLine(periodId, categoryId, it) }
                 val itemLines = draft.items.map { item ->
                     val subcategoryId = requireNotNull(resolveSubcategory(categoryId, item.name)) { "Введи название подкатегории" }
-                    BudgetLine(categoryId, item.planned, subcategoryId)
+                    BudgetLine(categoryId, item.planned, subcategoryId, item.fromSavings)
                 }
                 itemLines.forEach { budgetRepository.setPlanned(periodId, it) }
                 val touched: Set<String?> = setOf<String?>(null) + draft.removedSubcategoryIds + itemLines.map { it.subcategoryId }
