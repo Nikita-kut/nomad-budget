@@ -67,6 +67,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
+import ru.nomadbudget.domain.logic.MonthVerdict
+import ru.nomadbudget.domain.logic.SavingsState
+import ru.nomadbudget.domain.logic.VerdictLevel
 
 @Composable
 fun MonthScreen(
@@ -105,6 +108,7 @@ fun MonthScreen(
             item { FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry) }
         }
         item { SummaryRow(state) }
+        state.verdict?.let { verdict -> item { VerdictCard(verdict) } }
         item { OperationalRow(state) }
         if (state.summary.hasSavingsSpending) {
             item { FromSavingsCard(state) }
@@ -657,5 +661,62 @@ private fun FromSavingsCard(state: HomeState) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun VerdictCard(verdict: MonthVerdict) {
+    val colors = AppTheme.colors
+    val tone = when (verdict.level) {
+        VerdictLevel.GOOD -> colors.good
+        VerdictLevel.WARNING -> colors.warning
+        VerdictLevel.BAD -> colors.bad
+    }
+    val title = when (verdict.level) {
+        VerdictLevel.GOOD -> "Месяц идёт по плану"
+        VerdictLevel.WARNING -> "Есть что проверить"
+        VerdictLevel.BAD -> "Есть отклонения от плана"
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontWeight = FontWeight.SemiBold, color = tone, modifier = Modifier.weight(1f))
+                InfoHint("Итог месяца", Hints.VERDICT)
+            }
+            VerdictLine(
+                ok = verdict.incomeSpendOk,
+                text = "Расходы из дохода ${MoneyFormat.format(verdict.spentFromIncome, false)} из ${MoneyFormat.format(verdict.plannedFromIncome, false)}",
+            )
+            when (verdict.savingsState) {
+                SavingsState.NONE -> Unit
+                SavingsState.DONE -> VerdictLine(true, "Себе отложено ${MoneyFormat.format(verdict.saved, false)} из ${MoneyFormat.format(verdict.savingsTarget, false)}")
+                SavingsState.PENDING -> VerdictLine(null, "Себе отложено ${MoneyFormat.format(verdict.saved, false)} из ${MoneyFormat.format(verdict.savingsTarget, false)}, ещё ${MoneyFormat.format(verdict.savingsTarget - verdict.saved, false)}")
+                SavingsState.MISSED -> VerdictLine(false, "Себе не добрано: ${MoneyFormat.format(verdict.saved, false)} из ${MoneyFormat.format(verdict.savingsTarget, false)}")
+            }
+            if (!verdict.unplannedFromSavings.isZero) {
+                VerdictLine(null, "Из накоплений вне плана ${MoneyFormat.format(verdict.unplannedFromSavings, false)}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun VerdictLine(ok: Boolean?, text: String) {
+    val colors = AppTheme.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        Text(
+            when (ok) {
+                true -> "✓"
+                false -> "✕"
+                null -> "•"
+            },
+            color = when (ok) {
+                true -> colors.good
+                false -> colors.bad
+                null -> colors.warning
+            },
+            fontWeight = FontWeight.Bold,
+        )
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }

@@ -28,6 +28,7 @@ import ru.nomadbudget.domain.model.sumIn
 import kotlin.time.Instant
 import ru.nomadbudget.domain.logic.CategoryHistory
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
+import ru.nomadbudget.domain.logic.MonthVerdict
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -156,6 +157,8 @@ data class HomeState(
         BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories, accounts.filter { it.isSavings }.map { it.id }.toSet())
 
     val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
+
+    val verdict: MonthVerdict? = MonthVerdict.evaluate(summary, savingsTarget, today >= period.endExclusive)
 
     val planSummary: PlanSummary = PlanCalculator.summary(budgets, savingsTarget ?: Money.zero(Currency.BASE))
 
