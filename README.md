@@ -22,6 +22,10 @@
 - Web: добавить `?demo` к адресу, например `http://localhost:8080/?demo`.
 - Android: `adb shell am start -n ru.nomadbudget/.android.MainActivity --ez demo true`.
 
+## Планирование
+
+Как планировать месяц, накопления и траты из накоплений: [docs/PLANNING.md](docs/PLANNING.md).
+
 ## Проверки
 
 ```bash
