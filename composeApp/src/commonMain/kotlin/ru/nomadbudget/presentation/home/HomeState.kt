@@ -29,6 +29,7 @@ import kotlin.time.Instant
 import ru.nomadbudget.domain.logic.CategoryHistory
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.logic.MonthVerdict
+import ru.nomadbudget.domain.logic.SavingsForecast
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -157,6 +158,10 @@ data class HomeState(
         BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories, accounts.filter { it.isSavings }.map { it.id }.toSet())
 
     val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
+
+    val savingsBalance: Money get() = totalBase - operationalBase
+
+    val savingsForecast: SavingsForecast? get() = HistoryCalculator.savingsForecast(monthlyHistory, today in period, savingsBalance, savingsTarget)
 
     val verdict: MonthVerdict? = MonthVerdict.evaluate(summary, savingsTarget, today >= period.endExclusive)
 

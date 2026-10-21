@@ -56,6 +56,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.components.TagChip
+import ru.nomadbudget.domain.logic.SavingsForecast
 
 @Composable
 fun PlanningScreen(
@@ -154,6 +155,8 @@ fun PlanningScreen(
                 }
             }
         }
+
+        state.savingsForecast?.let { forecast -> item { ForecastCard(forecast) } }
 
         item {
             SectionTitle(
@@ -404,4 +407,33 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
         confirmButton = { Button(onClick = { onConfirm(parsed) }, enabled = text.isBlank() || parsed != null) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
+}
+
+@Composable
+private fun ForecastCard(forecast: SavingsForecast) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("ПРОГНОЗ НАКОПЛЕНИЙ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                InfoHint("Прогноз накоплений", Hints.FORECAST)
+            }
+            PlanLine("Сейчас в накоплениях", MoneyFormat.format(forecast.balance, false))
+            forecast.byTargetInYear?.let { PlanLine("Через год по плану «Себе»", MoneyFormat.format(it, false), bold = true) }
+            forecast.byActualInYear?.let { total ->
+                PlanLine(
+                    "Через год при темпе за ${forecast.monthsUsed} мес.",
+                    MoneyFormat.format(total, false),
+                    bold = forecast.byTargetInYear == null,
+                    highlight = forecast.actualPerMonth?.takeIf { it.isNegative }?.let { AppTheme.colors.bad },
+                )
+                forecast.actualPerMonth?.let {
+                    Text(
+                        "в среднем ${MoneyFormat.formatSigned(it, false)} в месяц",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
 }
