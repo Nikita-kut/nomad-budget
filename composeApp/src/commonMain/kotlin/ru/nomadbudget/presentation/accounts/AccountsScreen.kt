@@ -67,6 +67,7 @@ fun AccountsScreen(
     onSetRole: (String, AccountRole) -> Unit = { _, _ -> },
     onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
     onCheckBalance: () -> Unit = {},
+    twoColumns: Boolean = false,
     onOpenDebts: () -> Unit = {},
     onOpenExchange: () -> Unit = {},
 ) {
@@ -100,16 +101,33 @@ fun AccountsScreen(
                 TextButton(onClick = { editMode = !editMode }) { Text(if (editMode) "Готово" else "Изменить") }
             }
         }
-        item {
+        val lifeCard: @Composable () -> Unit = {
             AccountsCard(daily, state, totalLabel = "Итого на жизнь", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
-        item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
-        item {
+        val fundsCard: @Composable () -> Unit = {
             AccountsCard(funds, state, totalLabel = "Итого в копилках", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it }, onOpen = { editingFund = it }, empty = "Копилок нет. Сделай копилкой счёт, на котором копишь на аренду или подарки: «Изменить» → тип счёта.")
         }
-        item { SectionTitle("Подушка", hint = "неприкосновенный запас") }
-        item {
+        val cushionCard: @Composable () -> Unit = {
             AccountsCard(savings, state, totalLabel = "Итого в подушке", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
+        }
+        if (twoColumns) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { lifeCard() }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionTitle("Копилки", hint = "под крупные траты", info = Hints.FUNDS)
+                        fundsCard()
+                        SectionTitle("Подушка", hint = "неприкосновенный запас")
+                        cushionCard()
+                    }
+                }
+            }
+        } else {
+            item { lifeCard() }
+            item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
+            item { fundsCard() }
+            item { SectionTitle("Подушка", hint = "неприкосновенный запас") }
+            item { cushionCard() }
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

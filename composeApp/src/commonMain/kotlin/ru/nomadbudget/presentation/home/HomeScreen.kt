@@ -265,7 +265,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             }
         }
         val back = fun() { navController.popBackStack() }
-        val contentMaxWidth = if (twoColumns && backStack != null && (navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>())) WIDE_CONTENT_MAX_WIDTH else if (wide) WIDE_SINGLE_MAX_WIDTH else CONTENT_MAX_WIDTH
+        val contentMaxWidth = if (twoColumns && backStack != null && (navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>() || navController.isOn<JournalRoute>() || navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>())) WIDE_CONTENT_MAX_WIDTH else if (wide) WIDE_SINGLE_MAX_WIDTH else CONTENT_MAX_WIDTH
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
@@ -330,6 +330,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onDelete = viewModel::deleteTransaction,
                                     onUpdate = viewModel::updateTransaction,
                                     onRepeat = viewModel::repeatTransaction,
+                                    twoColumns = twoColumns,
                                 )
                             }
                             composable<PlanningRoute> {
@@ -379,6 +380,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSetRole = viewModel::setAccountRole,
                                     onSetFund = viewModel::setFund,
                                     onCheckBalance = { navController.navigate(BalanceCheckRoute) },
+                                    twoColumns = twoColumns,
                                     onOpenDebts = { navController.navigate(DebtsRoute) },
                                     onOpenExchange = { navController.navigate(ExchangeRoute) },
                                 )
@@ -430,6 +432,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSave = viewModel::saveDebt,
                                     onClose = viewModel::closeDebt,
                                     onPay = viewModel::payDebt,
+                                    twoColumns = twoColumns,
                                 )
                             }
                         }

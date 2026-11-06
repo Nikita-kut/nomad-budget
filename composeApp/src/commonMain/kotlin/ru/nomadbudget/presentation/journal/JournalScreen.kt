@@ -91,6 +91,9 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import ru.nomadbudget.presentation.entry.EditTransactionDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 
 private enum class JournalFilter(val label: String) {
     ALL("Все"),
@@ -114,6 +117,7 @@ fun JournalScreen(
     onDelete: (String) -> Unit,
     onUpdate: (Transaction, String?) -> Unit,
     onRepeat: (Transaction) -> Unit = {},
+    twoColumns: Boolean = false,
 ) {
     var editing by remember { mutableStateOf<Transaction?>(null) }
     var query by remember { mutableStateOf("") }
@@ -130,7 +134,56 @@ fun JournalScreen(
     val spent = filtered.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE)
     val earned = filtered.filterIsInstance<Transaction.Income>().map { it.amountBase }.sumIn(Currency.BASE)
 
-    LazyColumn(
+    if (twoColumns) {
+        Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(modifier = Modifier.width(260.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Поиск по всем месяцам") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("Тип", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                JournalFilter.entries.forEach { option ->
+                    Row(modifier = Modifier.fillMaxWidth().clickable { filter = option }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = filter == option, onClick = { filter = option })
+                        Text(option.label)
+                    }
+                }
+                Dropdown(
+                    label = "Счёт",
+                    items = listOf<Account?>(null) + state.activeAccounts,
+                    selected = account,
+                    itemLabel = { it?.name ?: "Все счета" },
+                    onSelect = { account = it },
+                )
+                HorizontalDivider()
+                Text("${filtered.size} операций", style = MaterialTheme.typography.bodyMedium)
+                if (!spent.isZero) Text("расход ${MoneyFormat.format(spent, false)}", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.bad)
+                if (!earned.isZero) Text("доход ${MoneyFormat.format(earned, false)}", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.good)
+            }
+            Card(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item { JournalHeaderRow() }
+                    if (days.isEmpty()) item { EmptyHint(if (searching) "Ничего не нашлось" else "Пока пусто") }
+                    days.forEach { day ->
+                        item(key = "d" + day.date.toString()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("${DateFormat.dayMonth(day.date)} · ${DateFormat.weekdayFull(day.date)}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                Text(if (day.spentBase.isZero) "без расходов" else "расход ${MoneyFormat.format(day.spentBase, false)}", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                        items(day.transactions, key = { it.id }) { tx -> JournalTableRow(tx, state, onClick = { editing = tx }) }
+                    }
+                }
+            }
+        }
+    } else LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -424,3 +477,51 @@ private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
     )
 }
 
+private val JOURNAL_AMOUNT = 120.dp
+
+@Composable
+private fun JournalHeaderRow() {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Text("Что", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1.4f))
+        Text("Счёт", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1f))
+        Text("Заметка", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1.2f))
+        Text("Сумма", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.width(JOURNAL_AMOUNT), textAlign = TextAlign.End)
+        Text("В рублях", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.width(JOURNAL_AMOUNT), textAlign = TextAlign.End)
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun JournalTableRow(tx: Transaction, state: HomeState, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val (what, account, amount, sign) = when (tx) {
+        is Transaction.Expense -> listOf(listOfNotNull(state.categoryName(tx.categoryId), state.subcategoryName(tx.subcategoryId)).joinToString(" › "), state.accountName(tx.accountId), MoneyFormat.format(tx.amount), "−")
+        is Transaction.Income -> listOf("Доход · ${state.categoryName(tx.categoryId)}", state.accountName(tx.accountId), MoneyFormat.format(tx.amount), "+")
+        is Transaction.Transfer -> listOf("Перевод", "${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", MoneyFormat.format(tx.amount), "")
+        is Transaction.Exchange -> listOf("Обмен", "${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", "${MoneyFormat.format(tx.given)} → ${MoneyFormat.format(tx.received)}", "")
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(what, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.4f))
+        Text(account, style = MaterialTheme.typography.bodyMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(tx.note, style = MaterialTheme.typography.bodyMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.2f))
+        Text(amount, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.width(JOURNAL_AMOUNT), textAlign = TextAlign.End)
+        Text(
+            sign + MoneyFormat.format(tx.amountBase, false),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = when (sign) {
+                "−" -> colors.bad
+                "+" -> colors.good
+                else -> MaterialTheme.colorScheme.onSurface
+            },
+            modifier = Modifier.width(JOURNAL_AMOUNT),
+            textAlign = TextAlign.End,
+        )
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+}
