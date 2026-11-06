@@ -222,7 +222,7 @@ private fun SummaryCard(summary: PlanSummary) {
                 InfoHint("Сводка плана", Hints.PLAN_SUMMARY)
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(MoneyFormat.format(summary.expensePlanned + summary.savingsTarget, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                Text(MoneyFormat.format(summary.fromIncomePlanned + summary.savingsTarget, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                 Text(
                     "из дохода ${MoneyFormat.format(summary.incomePlanned, false)}",
                     style = MaterialTheme.typography.bodyMedium,
@@ -233,7 +233,7 @@ private fun SummaryCard(summary: PlanSummary) {
             summary.allocatedShare?.let { share ->
                 LinearProgressIndicator(
                     progress = { share.toFloat().coerceIn(0f, 1f) },
-                    color = if (share > 1.0) AppTheme.colors.bad else MaterialTheme.colorScheme.primary,
+                    color = if (free.isNegative) AppTheme.colors.bad else MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 )

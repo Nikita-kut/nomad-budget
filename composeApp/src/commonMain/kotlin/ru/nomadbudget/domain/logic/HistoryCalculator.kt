@@ -36,10 +36,13 @@ object HistoryCalculator {
             val inPeriod = transactions.filter { it.date in period }
             val income = inPeriod.filterIsInstance<Transaction.Income>().map { it.amountBase }.sumIn(Currency.BASE)
             val expense = inPeriod.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE)
-            val transfers = inPeriod.filterIsInstance<Transaction.Transfer>()
-            val saved = transfers.filter { it.toAccountId in savingsIds && it.fromAccountId !in savingsIds }.map { it.amountBase }.sumIn(Currency.BASE)
-            val taken = transfers.filter { it.fromAccountId in savingsIds && it.toAccountId !in savingsIds }.map { it.amountBase }.sumIn(Currency.BASE)
-            points += MonthPoint(period, income, expense, saved - taken)
+            val saved = BudgetCalculator.savingsInflow(inPeriod, savingsIds)
+            val taken = BudgetCalculator.savingsOutflow(inPeriod, savingsIds)
+            val spentFromSavings = inPeriod.filterIsInstance<Transaction.Expense>()
+                .filter { it.accountId in savingsIds }
+                .map { it.amountBase }
+                .sumIn(Currency.BASE)
+            points += MonthPoint(period, income, expense, saved - taken - spentFromSavings)
             period = SalaryCycle.next(period)
         }
         return points
@@ -106,9 +109,15 @@ object HistoryCalculator {
             monthsUsed = recent.size,
             actualPerMonth = actualPerMonth,
             targetPerMonth = target,
-            byTargetInYear = target?.let { savingsBalance + Money(it.minor * MONTHS_IN_YEAR, Currency.BASE) },
-            byActualInYear = actualPerMonth?.let { savingsBalance + Money(it.minor * MONTHS_IN_YEAR, Currency.BASE) },
+            byTargetInYear = target?.let { inYear(savingsBalance, it) },
+            byActualInYear = actualPerMonth?.let { inYear(savingsBalance, it) },
         )
+    }
+
+    private fun inYear(balance: Money, perMonth: Money): Money? {
+        val limit = Long.MAX_VALUE / (MONTHS_IN_YEAR * 2)
+        if (perMonth.minor > limit || perMonth.minor < -limit || balance.minor > limit || balance.minor < -limit) return null
+        return balance + Money(perMonth.minor * MONTHS_IN_YEAR, Currency.BASE)
     }
 
     private const val FORECAST_MONTHS = 3

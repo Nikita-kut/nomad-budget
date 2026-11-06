@@ -9,6 +9,7 @@ import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.sumIn
+import ru.nomadbudget.domain.model.CorrectionCategory
 
 enum class BudgetStatus { OK, WARNING, DONE, OVER_SLIGHTLY, OVER }
 
@@ -113,6 +114,8 @@ data class MonthSummary(
     val expenseFromSavings: Money = Money.zero(Currency.BASE),
     val plannedFromSavings: Money = Money.zero(Currency.BASE),
     val unplannedFromSavings: Money = Money.zero(Currency.BASE),
+    val plannedFromIncomeWhole: Money = (expensePlanned - plannedFromSavings).withoutFraction(),
+    val spentFromIncomeWhole: Money = (expenseFact - expenseFromSavings).withoutFraction(),
 ) {
     val netSaved: Money get() = savedToSavings - takenFromSavings
 
@@ -143,7 +146,8 @@ object BudgetCalculator {
             .sortedBy { it.sortOrder }
             .map { category ->
                 val related = inPeriod.filter { it.belongsTo(category.id) }
-                val categoryLines = lines.filter { it.categoryId == category.id }
+                val categoryLines = if (category.isArchived) emptyList() else lines.filter { it.categoryId == category.id }
+                val isCorrection = category.name == CorrectionCategory.NAME
                 val itemLines = categoryLines.filter { it.subcategoryId != null }
                 val items = buildItems(related, itemLines, subcategoriesById)
                 val plannedByItems = itemLines.isNotEmpty()
@@ -162,7 +166,7 @@ object BudgetCalculator {
                     freeFromSavings = categoryLines.firstOrNull { it.subcategoryId == null }?.fromSavings == true,
                     fromSavingsPlanned = categoryLines.filter { it.fromSavings }.map { it.planned }.sumIn(Currency.BASE),
                     factFromSavings = related.filterIsInstance<Transaction.Expense>()
-                        .filter { it.accountId in savingsAccountIds }
+                        .filter { !isCorrection && it.accountId in savingsAccountIds }
                         .map { it.amountBase }
                         .sumIn(Currency.BASE),
                 )
@@ -203,15 +207,9 @@ object BudgetCalculator {
         val income = budgets.filter { it.category.kind == CategoryKind.INCOME }
         val expense = budgets.filter { it.category.kind == CategoryKind.EXPENSE }
         val savingsIds = accounts.filter { it.isSavings }.map { it.id }.toSet()
-        val transfers = transactions.filterIsInstance<Transaction.Transfer>().filter { it.date in period }
-        val saved = transfers
-            .filter { it.toAccountId in savingsIds && it.fromAccountId !in savingsIds }
-            .map { it.amountBase }
-            .sumIn(Currency.BASE)
-        val taken = transfers
-            .filter { it.fromAccountId in savingsIds && it.toAccountId !in savingsIds }
-            .map { it.amountBase }
-            .sumIn(Currency.BASE)
+        val inPeriod = transactions.filter { it.date in period }
+        val saved = savingsInflow(inPeriod, savingsIds)
+        val taken = savingsOutflow(inPeriod, savingsIds)
         return MonthSummary(
             incomePlanned = income.map { it.planned }.sumIn(Currency.BASE),
             incomeFact = income.map { it.fact }.sumIn(Currency.BASE),
@@ -222,8 +220,27 @@ object BudgetCalculator {
             expenseFromSavings = expense.map { it.factFromSavings }.sumIn(Currency.BASE),
             plannedFromSavings = expense.map { it.fromSavingsPlanned }.sumIn(Currency.BASE),
             unplannedFromSavings = expense.map { it.unplannedFromSavings }.sumIn(Currency.BASE),
+            plannedFromIncomeWhole = expense.map { it.incomePlanned.withoutFraction() }.sumIn(Currency.BASE),
+            spentFromIncomeWhole = expense.map { it.incomeFact.withoutFraction() }.sumIn(Currency.BASE),
         )
     }
+
+    fun savingsInflow(transactions: List<Transaction>, savingsIds: Set<String>): Money = transactions.mapNotNull {
+        when (it) {
+            is Transaction.Transfer -> it.amountBase.takeIf { _ -> it.toAccountId in savingsIds && it.fromAccountId !in savingsIds }
+            is Transaction.Exchange -> it.amountBase.takeIf { _ -> it.toAccountId in savingsIds && it.fromAccountId !in savingsIds }
+            is Transaction.Income -> it.amountBase.takeIf { _ -> it.accountId in savingsIds && it.categoryId.isNotEmpty() }
+            is Transaction.Expense -> null
+        }
+    }.sumIn(Currency.BASE)
+
+    fun savingsOutflow(transactions: List<Transaction>, savingsIds: Set<String>): Money = transactions.mapNotNull {
+        when (it) {
+            is Transaction.Transfer -> it.amountBase.takeIf { _ -> it.fromAccountId in savingsIds && it.toAccountId !in savingsIds }
+            is Transaction.Exchange -> it.amountBase.takeIf { _ -> it.fromAccountId in savingsIds && it.toAccountId !in savingsIds }
+            is Transaction.Income, is Transaction.Expense -> null
+        }
+    }.sumIn(Currency.BASE)
 
     private fun Transaction.belongsTo(categoryId: String): Boolean = when (this) {
         is Transaction.Expense -> this.categoryId == categoryId

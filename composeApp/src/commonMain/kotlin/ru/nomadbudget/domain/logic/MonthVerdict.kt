@@ -38,7 +38,7 @@ data class MonthVerdict(
             return MonthVerdict(
                 spentFromIncome = spent,
                 plannedFromIncome = plannedFromIncome,
-                incomeSpendOk = spent.wholeUnits <= plannedFromIncome.wholeUnits,
+                incomeSpendOk = summary.spentFromIncomeWhole <= summary.plannedFromIncomeWhole,
                 savingsState = state,
                 saved = summary.netSaved,
                 savingsTarget = target,

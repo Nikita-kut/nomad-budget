@@ -31,7 +31,7 @@ data class PlanSummary(
     val free: Money get() = incomePlanned + fromSavingsPlanned - expensePlanned - savingsTarget
 
     val allocatedShare: Double?
-        get() = if (incomePlanned.minor > 0L) (expensePlanned + savingsTarget).minor.toDouble() / incomePlanned.minor else null
+        get() = if (incomePlanned.minor > 0L) (fromIncomePlanned + savingsTarget).minor.toDouble() / incomePlanned.minor else null
 
     val savingsShare: Double?
         get() = if (incomePlanned.minor > 0L) savingsTarget.minor.toDouble() / incomePlanned.minor else null
