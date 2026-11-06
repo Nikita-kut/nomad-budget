@@ -401,7 +401,8 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 val periodId = _state.value.periodId ?: periodRepository.ensure(_state.value.period)
-                val line = BudgetLine(categoryId, planned, subcategoryId)
+                val existing = _state.value.budgetLines.firstOrNull { it.categoryId == categoryId && it.subcategoryId == subcategoryId }
+                val line = BudgetLine(categoryId, planned, subcategoryId, existing?.fromSavings == true)
                 budgetRepository.setPlanned(periodId, line)
                 _state.update { state ->
                     state.copy(

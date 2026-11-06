@@ -153,6 +153,13 @@ fun EntryScreen(
     val prefill = state.entryPrefill
     var confirmLarge by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        if (!form.isDirty) {
+            form.date = state.today
+            form.category = null
+        }
+    }
+
     LaunchedEffect(prefill) {
         if (prefill != null) {
             form.type = EntryType.EXPENSE
