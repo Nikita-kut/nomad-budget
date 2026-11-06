@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -121,8 +124,10 @@ fun PlanningScreen(
         item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
         item { SavingsCard(month, state.savingsForecast, onClick = { editingSavings = true }) }
 
-        item { SectionTitle("Обязательные", hint = "собираются сами", info = Hints.OBLIGATIONS) }
-        item { ObligationsPlanCard(state, onOpenDebts, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
+        item { SectionTitle("Кредиты", hint = "платежи берутся из экрана «Кредиты»", info = Hints.OBLIGATIONS) }
+        item { DebtsPlanCard(state, onOpenDebts) }
+        item { SectionTitle("Копилки", hint = "взносы и траты из копилок", info = Hints.FUNDS) }
+        item { FundsPlanCard(state, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
 
         item { SectionTitle("Гибкие", hint = "план · обычно", info = Hints.PLAN_CATEGORY) }
         items(month.envelopes.filterNot { it.category.isArchived || state.isDebtOnlyEnvelope(it) }, key = { it.category.id }) { budget ->
@@ -197,27 +202,30 @@ private fun UnallocatedCard(month: MonthModel) {
                 fontWeight = FontWeight.Bold,
                 color = if (negative) colors.bad else colors.good,
             )
-            if (month.incomePlanned.minor > 0L) {
-                SegmentBar(
-                    listOf(
-                        month.obligationsPlanned to MaterialTheme.colorScheme.outline,
-                        month.flexiblePlanned to MaterialTheme.colorScheme.primary,
-                        (month.savingsTarget ?: Money.zero(Currency.BASE)) to colors.save,
-                        (if (negative) Money.zero(Currency.BASE) else month.unallocated) to colors.good,
-                    ),
-                )
-            }
             Text(
-                buildString {
-                    append("доход ${MoneyFormat.format(month.incomePlanned, false)}")
-                    append(" = обязательные ${MoneyFormat.format(month.obligationsPlanned, false)}")
-                    append(" + гибкие ${MoneyFormat.format(month.flexiblePlanned, false)}")
-                    append(" + себе ${MoneyFormat.format(month.savingsTarget ?: Money.zero(Currency.BASE), false)}")
-                    month.allocatedShare?.let { append(" · распределено ${MoneyFormat.formatShare(it)}") }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "Плановый доход ${MoneyFormat.format(month.incomePlanned, false)}" + (month.allocatedShare?.let { ", распределено ${MoneyFormat.formatShare(it)}" } ?: ""),
+                style = MaterialTheme.typography.bodyMedium,
             )
+            val parts = listOf(
+                Triple("Кредиты", month.debtsPlanned, MaterialTheme.colorScheme.outline),
+                Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
+                Triple("Гибкие категории", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
+                Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
+                Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
+            )
+            if (month.incomePlanned.minor > 0L) {
+                SegmentBar(parts.filterNot { it.first == "Не хватает" }.map { it.second to it.third })
+            }
+            parts.filter { it.second.minor > 0L }.forEach { (label, money, color) ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
+                    Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(MoneyFormat.format(money, false), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    month.incomePlanned.takeIf { it.minor > 0L }?.let {
+                        Text(MoneyFormat.formatShare(money.minor.toDouble() / it.minor), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(44.dp), textAlign = TextAlign.End)
+                    }
+                }
+            }
         }
     }
 }
@@ -300,31 +308,59 @@ private fun SavingsCard(month: MonthModel, forecast: SavingsForecast?, onClick: 
 }
 
 @Composable
-private fun ObligationsPlanCard(state: HomeState, onOpenDebts: () -> Unit, onEditFund: (Account) -> Unit, onOpenAccounts: () -> Unit) {
+private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit) {
     val month = state.month
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDebts)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (month.debts.isEmpty()) {
+                Text("Кредитов нет. Добавь их в «Кредитах», платежи попадут в план сами.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 6.dp))
+            }
+            month.debts.sortedWith(compareBy(nullsLast()) { it.due }).forEach { d ->
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(d.debt.name, modifier = Modifier.weight(1f))
+                    Text(d.due?.let { "к ${it.day}-му" }.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 12.dp))
+                    Text(MoneyFormat.format(d.planned, false), fontWeight = FontWeight.Medium)
+                }
+            }
+            if (month.debts.isNotEmpty()) {
+                HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text("Итого по кредитам", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(MoneyFormat.format(month.debtsPlanned, false), fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpenAccounts: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
-            val extra = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.extraPayment) }.fold(Money.zero(Currency.BASE)) { a, b -> a + b }
-            PlanRow(
-                if (month.debts.isEmpty()) "Кредитов нет" else "Кредиты, платежей: ${month.debts.size}",
-                month.debtsPlanned.takeIf { month.debts.isNotEmpty() },
-                onClick = onOpenDebts,
-                sub = if (month.debts.isEmpty()) "добавь в «Кредитах», платежи попадут сюда сами" else "из экрана «Кредиты»" + (if (extra.isZero) "" else " · досрочно ${MoneyFormat.format(extra, false)}"),
-            )
-            state.fundAccounts.forEach { fund ->
-                HorizontalDivider()
+            state.fundAccounts.forEachIndexed { index, fund ->
+                if (index > 0) HorizontalDivider()
                 val monthly = fund.fundMonthly?.let(state.rates::toBaseOrNull)
+                val balance = state.rates.toBaseOrNull(state.balances.getValue(fund.id))
                 PlanRow(
-                    "Взнос в «${fund.name}»",
+                    fund.name,
                     monthly,
                     onClick = { onEditFund(fund) },
-                    sub = fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "копилка · к оплате ${MoneyFormat.format(goal, false)} к $d-му" } ?: "копилка · цель ${MoneyFormat.format(goal, false)}" } ?: "копилка",
+                    sub = listOfNotNull(
+                        balance?.let { "в копилке ${MoneyFormat.format(it, false)}" },
+                        if (monthly == null) "взнос в этом месяце не планируется" else "взнос в месяц",
+                        fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} к $d-му" } ?: "цель ${MoneyFormat.format(goal, false)}" },
+                    ).joinToString(" · "),
                 )
             }
             if (state.fundAccounts.isEmpty()) {
-                HorizontalDivider()
                 PlanRow("Копилок нет", null, onClick = onOpenAccounts, sub = "аренда, подарки, поездки: заведи счёт-копилку в «Счетах»")
             }
+            Text(
+                "Трату, которую платишь частично из копилки, запиши двумя операциями: часть со счёта копилки, часть с карты. В плане категории оставь только часть из дохода.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+            )
         }
     }
 }

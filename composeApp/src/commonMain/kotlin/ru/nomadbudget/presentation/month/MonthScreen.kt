@@ -94,7 +94,7 @@ fun MonthScreen(
         if (month.savingsTarget != null || !month.saved.isZero || !month.takenFromCushion.isZero) {
             item { SavedCard(month) }
         }
-        if (month.obligationsCount > 0) {
+        if (month.debts.isNotEmpty()) {
             item { ObligationsCard(month, onOpenDebts) }
         }
         item { SectionTitle("Доходы", hint = "факт из плана", info = Hints.INCOME) }
@@ -197,7 +197,7 @@ private fun SpendCard(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit
             ProgressTrack(
                 fraction = share(month.flexibleFactWhole, month.flexiblePlannedWhole),
                 marker = if (month.isCurrent) month.elapsedShare.toFloat() else null,
-                color = if (over) colors.bad else MaterialTheme.colorScheme.onSurface,
+                color = if (over) colors.bad else MaterialTheme.colorScheme.primary,
             )
             val paceText = if (month.isCurrent) paceNote(month) else null
             Text(
@@ -271,22 +271,23 @@ private fun ObligationsCard(month: MonthModel, onOpenDebts: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Обязательные платежи", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        InfoHint("Обязательные платежи", Hints.OBLIGATIONS)
+                        Text("Платежи по кредитам", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        InfoHint("Платежи по кредитам", Hints.OBLIGATIONS)
                     }
-                    Text("оплачено ${month.obligationsPaid} из ${month.obligationsCount}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    val paidDebts = month.debts.count { it.status == ObligationStatus.PAID }
+                    Text("оплачено $paidDebts из ${month.debts.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
                 when {
-                    month.hasOverdue -> StatusPill("есть просрочка", PillTone.BAD)
+                    month.debts.any { it.status == ObligationStatus.OVERDUE } -> StatusPill("есть просрочка", PillTone.BAD)
                     next != null -> StatusPill(
                         "${next.debt.name}${next.due?.let { " к ${it.day}-му" }.orEmpty()}",
                         if (next.status == ObligationStatus.SOON) PillTone.WARNING else PillTone.NEUTRAL,
                     )
-                    month.obligationsPaid == month.obligationsCount -> StatusPill("всё оплачено", PillTone.GOOD)
+                    else -> StatusPill("всё оплачено", PillTone.GOOD)
                 }
             }
             Text(
-                "осталось заплатить ${MoneyFormat.format(month.obligationsLeft, false)} из ${MoneyFormat.format(month.obligationsPlanned, false)}",
+                "осталось заплатить ${MoneyFormat.format(month.debts.map { it.left }.fold(Money.zero(Currency.BASE)) { a, b -> a + b }, false)} из ${MoneyFormat.format(month.debtsPlanned, false)} · подробнее в «Кредитах»",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -351,7 +352,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
                 ProgressTrack(
                     fraction = budget.progress.toFloat(),
                     marker = if (state.month.isCurrent) (budget.expectedByNow(state.month.elapsedShare).minor.toDouble() / budget.planned.minor).toFloat() else null,
-                    color = if (over) tone else MaterialTheme.colorScheme.onSurface,
+                    color = if (over) tone else MaterialTheme.colorScheme.primary,
                 )
             }
             when {

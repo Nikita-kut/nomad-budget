@@ -18,6 +18,20 @@
     </style>
     <script type="application/javascript" src="composeApp.js"></script>
     <script>
+        document.addEventListener('keydown', function (e) {
+            var active = document.activeElement;
+            if (active && active !== document.body && active !== document.documentElement) return;
+            var root = document.getElementById('root');
+            if (!root) return;
+            var hosts = [root].concat(Array.prototype.slice.call(root.querySelectorAll('*'))).filter(function (el) { return el.shadowRoot; });
+            var target = null;
+            for (var i = 0; i < hosts.length && !target; i++) target = hosts[i].shadowRoot.querySelector('canvas');
+            if (!target) target = root.querySelector('canvas');
+            if (!target) return;
+            target.focus();
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, keyCode: e.keyCode, which: e.which, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true, cancelable: true, composed: true }));
+            e.preventDefault();
+        }, true);
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('sw.js').catch(function () {});

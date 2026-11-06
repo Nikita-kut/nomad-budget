@@ -47,6 +47,12 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -163,6 +169,7 @@ private data class Tab(
 
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
 private val CONTENT_MAX_WIDTH = 760.dp
+private val ENTRY_PANEL_WIDTH = 460.dp
 private val WIDE_CONTENT_MAX_WIDTH = 1240.dp
 private val TWO_COLUMN_MIN_WIDTH = 1100.dp
 
@@ -172,12 +179,14 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val snackbar = remember { SnackbarHostState() }
     val navController = rememberNavController()
     val entryForm = remember { EntryFormState(state.today) }
+    var entryPanel by remember { mutableStateOf(false) }
+    var isWide by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
     LaunchedEffect(viewModel) {
-        viewModel.navigateToEntry.collect { navController.navigate(EntryRoute) { launchSingleTop = true } }
+        viewModel.navigateToEntry.collect { if (isWide) entryPanel = true else navController.navigate(EntryRoute) { launchSingleTop = true } }
     }
     LaunchedEffect(viewModel) {
         viewModel.undoRequests.collect { request ->
@@ -222,12 +231,13 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                     false
                 } else {
                     when (event.key) {
-                        Key.N -> navController.navigate(EntryRoute) { launchSingleTop = true }
+                        Key.N -> if (isWide) entryPanel = true else navController.navigate(EntryRoute) { launchSingleTop = true }
                         Key.J -> navController.switchTo(JournalRoute)
                         Key.P -> navController.switchTo(PlanningRoute)
                         Key.M -> navController.switchTo(MonthRoute)
                         Key.A -> navController.switchTo(AccountsRoute)
-                        Key.Escape -> navController.popBackStack()
+                        Key.D -> navController.switchTo(DebtsRoute)
+                        Key.Escape -> if (entryPanel) entryPanel = false else navController.popBackStack()
                         else -> return@onKeyEvent false
                     }
                     true
@@ -235,10 +245,23 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             },
     ) {
         val wide = maxWidth >= WIDE_LAYOUT_MIN_WIDTH
+        SideEffect { isWide = wide }
+        LaunchedEffect(entryPanel) {
+            if (!entryPanel) {
+                withFrameNanos { }
+                runCatching { rootFocus.requestFocus() }
+            }
+        }
         val twoColumns = maxWidth >= TWO_COLUMN_MIN_WIDTH
         val backStack by navController.currentBackStackEntryAsState()
         val onEntry = backStack != null && navController.isOn<EntryRoute>()
-        val openEntry = { navController.navigate(EntryRoute) { launchSingleTop = true } }
+        val openEntry = { if (wide) entryPanel = true else navController.navigate(EntryRoute) { launchSingleTop = true } }
+        LaunchedEffect(backStack) {
+            if (!entryPanel) {
+                withFrameNanos { }
+                runCatching { rootFocus.requestFocus() }
+            }
+        }
         val back = fun() { navController.popBackStack() }
         val contentMaxWidth = if (twoColumns && backStack != null && navController.isOn<MonthRoute>()) WIDE_CONTENT_MAX_WIDTH else CONTENT_MAX_WIDTH
 
@@ -284,7 +307,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                         }
                     }
                 }
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     Box(modifier = Modifier.widthIn(max = contentMaxWidth).fillMaxSize()) {
                         NavHost(navController = navController, startDestination = MonthRoute) {
                             composable<MonthRoute> {
@@ -409,6 +432,36 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                         }
                     }
                 }
+                if (wide && entryPanel) {
+                    Surface(
+                        modifier = Modifier.width(ENTRY_PANEL_WIDTH).fillMaxHeight().onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                                entryPanel = false
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 2.dp,
+                        shadowElevation = 6.dp,
+                    ) {
+                        EntryScreen(
+                            state = state,
+                            form = entryForm,
+                            onSubmit = viewModel::addEntry,
+                            onAddDraft = viewModel::addDraft,
+                            onUseDraft = viewModel::useDraft,
+                            onRemoveDraft = viewModel::removeDraft,
+                            onClearPrefill = viewModel::clearPrefill,
+                            onOpenExchange = {
+                                entryPanel = false
+                                navController.navigate(ExchangeRoute)
+                            },
+                            onBack = { entryPanel = false },
+                        )
+                    }
+                }
             }
         }
     }
@@ -439,14 +492,12 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     if (state.loading) {
                         LinearProgressIndicator(modifier = Modifier.weight(1f))
                     } else {
-                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TotalsInline(state)
+                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
+                            HeaderAmount("Всего", state.totalBase, emphasize = true)
+                            HeaderAmount("На жизнь", state.operationalBase)
+                            if (state.fundAccounts.isNotEmpty()) HeaderAmount("Копилки", state.fundsBalance)
+                            HeaderAmount("Подушка", state.savingsBalance)
                         }
-                        Text(
-                            "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · подушка ${MoneyFormat.format(state.savingsBalance, false)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                     PeriodSwitcher(state, viewModel)
                 }
@@ -609,6 +660,18 @@ private fun DemoBadge() {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onTertiary,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun HeaderAmount(label: String, money: ru.nomadbudget.domain.model.Money, emphasize: Boolean = false) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            MoneyFormat.format(money, false),
+            style = if (emphasize) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+            fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Medium,
         )
     }
 }
