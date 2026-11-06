@@ -169,6 +169,7 @@ private data class Tab(
 
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
 private val CONTENT_MAX_WIDTH = 760.dp
+private val WIDE_SINGLE_MAX_WIDTH = 960.dp
 private val ENTRY_PANEL_WIDTH = 460.dp
 private val WIDE_CONTENT_MAX_WIDTH = 1240.dp
 private val TWO_COLUMN_MIN_WIDTH = 1100.dp
@@ -179,6 +180,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val snackbar = remember { SnackbarHostState() }
     val navController = rememberNavController()
     val entryForm = remember { EntryFormState(state.today) }
+    val balanceForm = remember { ru.nomadbudget.presentation.more.BalanceCheckForm(state.today) }
     var entryPanel by remember { mutableStateOf(false) }
     var isWide by remember { mutableStateOf(false) }
 
@@ -263,7 +265,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             }
         }
         val back = fun() { navController.popBackStack() }
-        val contentMaxWidth = if (twoColumns && backStack != null && navController.isOn<MonthRoute>()) WIDE_CONTENT_MAX_WIDTH else CONTENT_MAX_WIDTH
+        val contentMaxWidth = if (twoColumns && backStack != null && (navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>())) WIDE_CONTENT_MAX_WIDTH else if (wide) WIDE_SINGLE_MAX_WIDTH else CONTENT_MAX_WIDTH
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
@@ -340,6 +342,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSetFund = viewModel::setFund,
                                     onOpenDebts = { navController.navigate(DebtsRoute) },
                                     onOpenAccounts = { navController.switchTo(AccountsRoute) },
+                                    twoColumns = twoColumns,
                                 )
                             }
                             composable<EntryRoute> {
@@ -418,7 +421,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 )
                             }
                             composable<BalanceCheckRoute> {
-                                BalanceCheckScreen(state = state, onBack = back, onCheck = viewModel::checkBalance, onAddMissed = viewModel::prefillMissedExpense)
+                                BalanceCheckScreen(state = state, onBack = back, onCheck = viewModel::checkBalance, onAddMissed = viewModel::prefillMissedExpense, form = balanceForm)
                             }
                             composable<DebtsRoute> {
                                 DebtsScreen(

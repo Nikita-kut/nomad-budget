@@ -43,6 +43,8 @@ data class EntryDraft(
     val debtId: String? = null,
     val debtEarly: Boolean = false,
     val fromDraftId: String? = null,
+    val splitAccountId: String? = null,
+    val splitAmount: Money? = null,
 )
 
 data class PlanItemInput(val name: String, val planned: Money, val subcategoryId: String? = null)

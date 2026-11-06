@@ -73,6 +73,7 @@ fun PlanningScreen(
     onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
     onOpenDebts: () -> Unit = {},
     onOpenAccounts: () -> Unit = {},
+    twoColumns: Boolean = false,
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
@@ -80,11 +81,7 @@ fun PlanningScreen(
     var editingFund by remember { mutableStateOf<Account?>(null) }
     val month = state.month
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    val summaryItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
         if (onBack != null) {
             item { SubScreenHeader("Планирование", onBack) }
         }
@@ -106,6 +103,8 @@ fun PlanningScreen(
             }
         }
 
+    }
+    val sectionItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
         item { SectionTitle("Доход", hint = "только регулярный", info = Hints.INCOME) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -132,6 +131,31 @@ fun PlanningScreen(
         item { SectionTitle("Гибкие", hint = "план · обычно", info = Hints.PLAN_CATEGORY) }
         items(month.envelopes.filterNot { it.category.isArchived || state.isDebtOnlyEnvelope(it) }, key = { it.category.id }) { budget ->
             CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
+        }
+    }
+    if (twoColumns) {
+        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(
+                modifier = Modifier.width(420.dp).fillMaxHeight(),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = summaryItems,
+            )
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                contentPadding = PaddingValues(end = 16.dp, top = 16.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = sectionItems,
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            summaryItems()
+            sectionItems()
         }
     }
 
