@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.logic.BalanceCalculator
@@ -53,11 +54,12 @@ fun BalanceCheckScreen(
     onBack: () -> Unit,
     onCheck: (String, Money, String, LocalDate) -> Unit,
     onAddMissed: (String, LocalDate) -> Unit = { _, _ -> },
+    form: BalanceCheckForm = remember { BalanceCheckForm(state.today) },
 ) {
-    var account by remember(state.activeAccounts) { mutableStateOf(state.activeAccounts.firstOrNull()) }
-    var actualText by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(state.today) }
+    val account: Account? = form.accountId?.let { id -> state.activeAccounts.firstOrNull { it.id == id } } ?: state.activeAccounts.firstOrNull()
+    val actualText = form.actualText
+    val note = form.note
+    val date = form.date
     val transformation = remember { ThousandsVisualTransformation() }
 
     val computed = account?.let { acc -> BalanceCalculator.balanceBefore(acc, state.transactions, date.plus(1, DateTimeUnit.DAY)) }
@@ -82,8 +84,8 @@ fun BalanceCheckScreen(
         val acc = account ?: return
         val money = actual ?: return
         onCheck(acc.id, money, note, date)
-        actualText = ""
-        note = ""
+        form.actualText = ""
+        form.note = ""
     }
 
     LazyColumn(
@@ -100,13 +102,13 @@ fun BalanceCheckScreen(
                         accounts = state.activeAccounts,
                         selected = account,
                         state = state,
-                        onSelect = { account = it },
+                        onSelect = { form.accountId = it.id },
                     )
-                    DateField(date = date, today = state.today, onChange = { date = it })
+                    DateField(date = date, today = state.today, onChange = { form.date = it })
                     computed?.let { KeyValueRow("По записям на конец дня", MoneyFormat.format(it)) }
                     OutlinedTextField(
                         value = actualText,
-                        onValueChange = { actualText = ThousandsVisualTransformation.sanitize(it, account?.currency?.minorUnits ?: 2) },
+                        onValueChange = { form.actualText = ThousandsVisualTransformation.sanitize(it, account?.currency?.minorUnits ?: 2) },
                         label = { Text("Фактический остаток${account?.let { ", ${it.currency.code}" }.orEmpty()}") },
                         singleLine = true,
                         visualTransformation = transformation,
@@ -123,7 +125,7 @@ fun BalanceCheckScreen(
                     }
                     OutlinedTextField(
                         value = note,
-                        onValueChange = { note = it },
+                        onValueChange = { form.note = it },
                         label = { Text("Заметка") },
                         placeholder = { Text("пересчитал кошелёк") },
                         singleLine = true,
@@ -225,4 +227,11 @@ private fun describe(tx: Transaction, state: HomeState): String = when (tx) {
     is Transaction.Income -> "доход · ${state.categoryName(tx.categoryId)}"
     is Transaction.Transfer -> "перевод"
     is Transaction.Exchange -> "обмен"
+}
+
+class BalanceCheckForm(today: LocalDate) {
+    var accountId by mutableStateOf<String?>(null)
+    var actualText by mutableStateOf("")
+    var note by mutableStateOf("")
+    var date by mutableStateOf(today)
 }

@@ -209,11 +209,29 @@ class HomeViewModel(
                     )
                 }
                 val saved = transactionRepository.add(transaction, current.accounts)
+                val second = if (transaction is Transaction.Expense && draft.splitAccountId != null && draft.splitAmount != null) {
+                    require(rates.hasRate(draft.splitAmount.currency)) { "Нет курса для ${draft.splitAmount.currency.code}" }
+                    transactionRepository.add(
+                        transaction.copy(
+                            id = "",
+                            accountId = draft.splitAccountId,
+                            amount = draft.splitAmount,
+                            amountBase = rates.toBase(draft.splitAmount),
+                            rateSource = rateSourceFor(draft.splitAmount),
+                            debtId = null,
+                            debtPrincipal = null,
+                            debtEarly = false,
+                        ),
+                        current.accounts,
+                    )
+                } else {
+                    null
+                }
                 draft.fromDraftId?.let(draftRepository::remove)
                 _state.update {
                     it.copy(
                         saving = false,
-                        transactions = listOf(saved) + it.transactions,
+                        transactions = listOfNotNull(second, saved) + it.transactions,
                         pendingCount = transactionRepository.pendingCount(),
                         drafts = draftRepository.all(),
                         entryPrefill = null,
@@ -223,6 +241,7 @@ class HomeViewModel(
                 _messages.send(
                     when {
                         saved.pending -> "Записано без сети, отправится при обновлении"
+                        second != null -> "Записано двумя операциями: ${MoneyFormat.format(draft.amount, false)} + ${MoneyFormat.format(draft.splitAmount ?: draft.amount, false)}"
                         draft.type == EntryType.EXPENSE -> "Расход записан" + debtNote.orEmpty()
                         draft.type == EntryType.INCOME -> "Доход записан"
                         else -> "Перевод записан"

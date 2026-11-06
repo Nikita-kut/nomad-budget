@@ -27,6 +27,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -118,6 +119,9 @@ class EntryFormState(today: LocalDate) {
     var debt by mutableStateOf<Debt?>(null)
     var debtEarly by mutableStateOf(false)
     var submitCount by mutableStateOf(0)
+    var splitOn by mutableStateOf(false)
+    var splitAccount by mutableStateOf<Account?>(null)
+    var splitAmountText by mutableStateOf("")
     var showErrors by mutableStateOf(false)
 
     val isDirty: Boolean get() = amountText.isNotBlank() || note.isNotBlank() || subcategory.isNotBlank()
@@ -130,6 +134,8 @@ class EntryFormState(today: LocalDate) {
         debtEarly = false
         category = null
         showErrors = false
+        splitOn = false
+        splitAmountText = ""
         submitCount++
     }
 
@@ -204,7 +210,10 @@ fun EntryScreen(
         if (!debtCategory && prefill?.debtId == null) form.debt = null
     }
 
-    val canSubmit = !state.saving && account != null && amount != null &&
+    val splitAccount = form.splitAccount?.takeIf { it.id != account?.id }
+    val splitAmount = splitAccount?.let { MoneyFormat.parse(form.splitAmountText, it.currency) }
+    val splitActive = form.type == EntryType.EXPENSE && form.splitOn && splitAccount != null && splitAmount != null && form.debt == null
+    val canSubmit = !state.saving && account != null && amount != null && (!form.splitOn || splitActive || form.type != EntryType.EXPENSE) &&
         (form.type == EntryType.TRANSFER && selectedTo != null || form.type != EntryType.TRANSFER && selectedCategory != null)
 
     fun submit() {
@@ -223,6 +232,8 @@ fun EntryScreen(
                 debtId = form.debt?.id.takeIf { debtCategory },
                 debtEarly = form.debtEarly && form.debt != null && debtCategory,
                 fromDraftId = prefill?.draftId,
+                splitAccountId = form.splitAccount?.id?.takeIf { splitActive },
+                splitAmount = splitAmount?.takeIf { splitActive },
             ),
         )
         form.resetAfterSubmit()
@@ -253,8 +264,8 @@ fun EntryScreen(
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SubScreenHeader("Новая запись", onBack)
-                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                    Text("Новая запись", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     TextButton(onClick = onOpenExchange) { Text("Обмен валюты") }
                     if (form.isDirty) TextButton(onClick = form::clear) { Text("Очистить") }
                 }
@@ -413,6 +424,44 @@ private fun EntryForm(
                 modifier = Modifier.fillMaxWidth().focusRequester(focus).focusProperties { next = categoryFocus }.submitOnEnter(onSubmit),
             )
             if (amount != null && amount.currency != Currency.BASE) AmountHint(state, amount)
+            if (form.type == EntryType.EXPENSE && form.debt == null) {
+                if (!form.splitOn) {
+                    TextButton(onClick = {
+                        form.splitOn = true
+                        if (form.splitAccount == null) form.splitAccount = state.activeAccounts.firstOrNull { it.isFund && it.id != account?.id } ?: state.activeAccounts.firstOrNull { it.id != account?.id }
+                    }) { Text("+ часть с другого счёта") }
+                } else {
+                    Text("Вторая часть", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AccountDropdown(
+                        label = "Со счёта",
+                        accounts = state.activeAccounts.filter { it.id != account?.id },
+                        selected = form.splitAccount,
+                        state = state,
+                        onSelect = { form.splitAccount = it },
+                    )
+                    OutlinedTextField(
+                        value = form.splitAmountText,
+                        onValueChange = { form.splitAmountText = ThousandsVisualTransformation.sanitize(it, form.splitAccount?.currency?.minorUnits ?: 2) },
+                        label = { Text("Сумма второй части") },
+                        singleLine = true,
+                        visualTransformation = amountTransformation,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        trailingIcon = form.splitAccount?.currency?.let { { CurrencyChip(it, state, Modifier.padding(end = 12.dp)) } },
+                        modifier = Modifier.fillMaxWidth().submitOnEnter(onSubmit),
+                    )
+                    val first = amount?.let(state.rates::toBaseOrNull)
+                    val secondPart = form.splitAccount?.let { MoneyFormat.parse(form.splitAmountText, it.currency) }?.let(state.rates::toBaseOrNull)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (first != null && secondPart != null) "Итого ${MoneyFormat.format(first + secondPart, false)}: две операции с одной категорией" else "Запишется двумя операциями с одной категорией и датой",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { form.splitOn = false }) { Text("Убрать") }
+                    }
+                }
+            }
 
             DateField(date = form.date, today = state.today, onChange = { form.date = it })
             if (form.date != state.today) {
