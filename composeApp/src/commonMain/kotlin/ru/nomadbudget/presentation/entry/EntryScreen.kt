@@ -41,6 +41,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
@@ -99,10 +100,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 
-private const val MAX_SUGGESTIONS = 8
-private const val MAX_TEMPLATES = 6
+private const val MAX_TEMPLATES = 4
 private const val MAX_QUICK_CATEGORIES = 8
-private const val RECENT_DAYS = 90
 
 class EntryFormState(today: LocalDate) {
     var type by mutableStateOf(EntryType.EXPENSE)
@@ -165,12 +164,22 @@ fun EntryScreen(
             form.type = EntryType.EXPENSE
             form.amountText = prefill.amountText.orEmpty()
             form.note = prefill.note
+            prefill.categoryId?.let { id -> form.category = state.categoriesById[id] }
+            prefill.subcategoryName?.let { form.subcategory = it }
+            prefill.accountId?.let { id ->
+                state.accountsById[id]?.let {
+                    form.account = it
+                    form.accountTouched = true
+                }
+            }
+            prefill.debtId?.let { id -> form.debt = state.debts.firstOrNull { it.id == id } }
+            prefill.date?.let { form.date = it }
         }
     }
 
     val kind = if (form.type == EntryType.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
-    val categories = state.activeCategories.filter { it.kind == kind }
-    val selectedCategory = form.category?.takeIf { it.kind == kind } ?: rankedCategories(state, kind).firstOrNull() ?: categories.firstOrNull()
+    val categories = state.activeCategories.filter { it.kind == kind }.sortedBy { it.sortOrder }
+    val selectedCategory = form.category?.takeIf { it.kind == kind }
 
     LaunchedEffect(form.type, selectedCategory?.id, state.activeAccounts) {
         if (!form.accountTouched || form.account == null) {
@@ -186,8 +195,8 @@ fun EntryScreen(
     val debtCategory = form.type == EntryType.EXPENSE && state.isDebtCategory(selectedCategory?.id)
 
     LaunchedEffect(form.subcategory, debtCategory) {
-        if (debtCategory && form.debt == null) state.debtBySubcategoryName(form.subcategory)?.let { form.debt = it }
-        if (!debtCategory) form.debt = null
+        if (debtCategory && form.debt == null && prefill?.debtId == null) state.debtBySubcategoryName(form.subcategory)?.let { form.debt = it }
+        if (!debtCategory && prefill?.debtId == null) form.debt = null
     }
 
     val canSubmit = !state.saving && account != null && amount != null &&
@@ -295,24 +304,6 @@ fun EntryScreen(
     }
 }
 
-private fun rankedCategories(state: HomeState, kind: CategoryKind): List<Category> {
-    val since = state.today.plus(-RECENT_DAYS, DateTimeUnit.DAY)
-    val counts = state.transactions
-        .filter { it.date >= since }
-        .mapNotNull {
-            when (it) {
-                is Transaction.Expense -> it.categoryId
-                is Transaction.Income -> it.categoryId
-                is Transaction.Transfer, is Transaction.Exchange -> null
-            }
-        }
-        .groupingBy { it }
-        .eachCount()
-    return state.activeCategories
-        .filter { it.kind == kind && it.name != CorrectionCategory.NAME }
-        .sortedWith(compareByDescending<Category> { counts[it.id] ?: 0 }.thenBy { it.sortOrder })
-}
-
 private fun preferredAccount(state: HomeState, type: EntryType, categoryId: String?): Account? {
     val active = state.activeAccounts.associateBy { it.id }
     val sorted = state.transactions.sortedByDescending { it.date }
@@ -328,17 +319,29 @@ private fun preferredAccount(state: HomeState, type: EntryType, categoryId: Stri
     return accountId?.let(active::get)
 }
 
-private fun recentTemplates(state: HomeState): List<EntryTemplate> =
-    state.transactions
+private fun frequentTemplates(state: HomeState): List<EntryTemplate> {
+    val since = state.today.plus(-TEMPLATE_DAYS, DateTimeUnit.DAY)
+    return state.transactions
+        .asSequence()
         .filterIsInstance<Transaction.Expense>()
-        .filter { it.debtId == null && state.accountsById[it.accountId]?.isArchived == false }
-        .sortedByDescending { it.date }
-        .distinctBy { Triple(it.categoryId, it.subcategoryId, it.accountId) }
+        .filter { it.date >= since && it.debtId == null }
+        .filter { state.accountsById[it.accountId]?.isArchived == false }
+        .filter { state.categoriesById[it.categoryId]?.let { c -> !c.isSystem && !c.isArchived } == true }
+        .groupBy { listOf(it.categoryId, it.subcategoryId, it.accountId, it.amount.minor.toString()) }
+        .filter { it.value.size >= MIN_TEMPLATE_USES }
+        .entries
+        .sortedByDescending { it.value.size }
         .take(MAX_TEMPLATES)
-        .map { expense ->
-            val name = state.subcategoryName(expense.subcategoryId) ?: state.categoryName(expense.categoryId)
-            EntryTemplate("$name ${MoneyFormat.format(expense.amount, false)}", expense)
+        .map { (_, list) ->
+            val expense = list.maxBy { it.date }
+            val name = listOfNotNull(state.categoryName(expense.categoryId), state.subcategoryName(expense.subcategoryId)).joinToString(" · ")
+            EntryTemplate("$name · ${MoneyFormat.format(expense.amount, false)}", expense)
         }
+        .toList()
+}
+
+private const val TEMPLATE_DAYS = 60
+private const val MIN_TEMPLATE_USES = 2
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -360,17 +363,10 @@ private fun EntryForm(
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val account = form.account
     val currency = account?.currency
-    val suggestions = selectedCategory?.let { cat ->
-        state.subcategories
-            .filter { it.categoryId == cat.id && (form.subcategory.isBlank() || it.name.contains(form.subcategory, ignoreCase = true)) }
-            .map { it.name }
-            .distinct()
-            .take(MAX_SUGGESTIONS)
-    }.orEmpty()
-    val kind = if (form.type == EntryType.INCOME) CategoryKind.INCOME else CategoryKind.EXPENSE
-    val quickCategories = rankedCategories(state, kind).take(MAX_QUICK_CATEGORIES).let { top ->
-        if (selectedCategory != null && selectedCategory !in top) top + selectedCategory else top
-    }
+    var showAllCategories by remember { mutableStateOf(false) }
+    var addingSubcategory by remember { mutableStateOf(false) }
+    var pickingDate by remember { mutableStateOf(false) }
+    val yesterday = state.today.plus(-1, DateTimeUnit.DAY)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -388,6 +384,120 @@ private fun EntryForm(
                 }
             }
 
+            OutlinedTextField(
+                value = form.amountText,
+                onValueChange = { form.amountText = ThousandsVisualTransformation.sanitize(it, currency?.minorUnits ?: 2) },
+                label = { Text("Сумма") },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.headlineMedium,
+                visualTransformation = amountTransformation,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                trailingIcon = currency?.let { { CurrencyChip(it, state, Modifier.padding(end = 12.dp)) } },
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).submitOnEnter(onSubmit),
+            )
+            if (amount != null && amount.currency != Currency.BASE) AmountHint(state, amount)
+
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                TagChip(text = "Сегодня", selected = form.date == state.today, onClick = { form.date = state.today; pickingDate = false })
+                TagChip(text = "Вчера", selected = form.date == yesterday, onClick = { form.date = yesterday; pickingDate = false })
+                TagChip(
+                    text = if (form.date != state.today && form.date != yesterday) DateFormat.dayMonth(form.date) else "Другая дата",
+                    selected = form.date != state.today && form.date != yesterday,
+                    onClick = { pickingDate = !pickingDate },
+                )
+            }
+            if (pickingDate) DateField(date = form.date, today = state.today, onChange = { form.date = it })
+            if (form.date != state.today) {
+                Text("Запись уйдёт на ${DateFormat.dayMonth(form.date)}, ${DateFormat.weekdayFull(form.date)}", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+            }
+
+            if (form.type == EntryType.EXPENSE) {
+                val templates = frequentTemplates(state)
+                if (templates.isNotEmpty()) {
+                    Text("Шаблоны", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        templates.forEach { template ->
+                            TagChip(text = template.label, onClick = {
+                                val expense = template.expense
+                                form.category = state.categoriesById[expense.categoryId]
+                                form.subcategory = state.subcategoryName(expense.subcategoryId).orEmpty()
+                                form.account = state.accountsById[expense.accountId]
+                                form.accountTouched = true
+                                if (form.amountText.isBlank()) form.amountText = MoneyFormat.format(expense.amount).filter { it.isDigit() || it == ',' }
+                            })
+                        }
+                    }
+                }
+            }
+
+            if (form.type != EntryType.TRANSFER) {
+                Text("Категория", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val visible = if (showAllCategories || categories.size <= MAX_QUICK_CATEGORIES + 1) categories else {
+                    val top = categories.take(MAX_QUICK_CATEGORIES)
+                    if (selectedCategory != null && selectedCategory !in top) top + selectedCategory else top
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    visible.forEach { category ->
+                        TagChip(text = category.name, selected = category.id == selectedCategory?.id, onClick = {
+                            if (form.category?.id != category.id) form.subcategory = ""
+                            form.category = category
+                            addingSubcategory = false
+                        })
+                    }
+                    if (visible.size < categories.size) TagChip(text = "Ещё…", onClick = { showAllCategories = true })
+                }
+            }
+
+            if (form.type == EntryType.EXPENSE && selectedCategory != null) {
+                if (debtCategory) {
+                    Text("Кредит", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TagChip(text = "не кредит", selected = form.debt == null, onClick = { form.debt = null; form.debtEarly = false })
+                        state.openDebts.forEach { d ->
+                            TagChip(text = d.name, selected = form.debt?.id == d.id, onClick = {
+                                form.debt = d
+                                form.subcategory = d.name
+                                if (form.amountText.isBlank() && account?.currency == d.currency) {
+                                    form.amountText = MoneyFormat.format(d.plannedPayment).filter { it.isDigit() || it == ',' }
+                                }
+                            })
+                        }
+                    }
+                    form.debt?.let { d ->
+                        EarlyPaymentToggle(
+                            checked = form.debtEarly,
+                            onChange = { form.debtEarly = it },
+                            preview = amount?.let { DebtCalculator.principalFor(d, it, form.debtEarly) },
+                            differentCurrency = amount != null && amount.currency != d.currency,
+                        )
+                    }
+                }
+                if (form.debt == null) {
+                    val subs = state.activeSubcategories.filter { it.categoryId == selectedCategory.id }.map { it.name }
+                    val isNew = form.subcategory.isNotBlank() && subs.none { it.equals(form.subcategory.trim(), ignoreCase = true) }
+                    Text("Подкатегория", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        subs.forEach { name ->
+                            TagChip(text = name, selected = name.equals(form.subcategory, ignoreCase = true), onClick = {
+                                form.subcategory = if (name.equals(form.subcategory, ignoreCase = true)) "" else name
+                                addingSubcategory = false
+                            })
+                        }
+                        TagChip(text = "+ новая", selected = addingSubcategory || isNew, onClick = { addingSubcategory = !addingSubcategory })
+                    }
+                    if (addingSubcategory || isNew) {
+                        OutlinedTextField(
+                            value = form.subcategory,
+                            onValueChange = { form.subcategory = it },
+                            label = { Text("Новая подкатегория") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+
             AccountDropdown(
                 label = when (form.type) {
                     EntryType.EXPENSE -> "Со счёта"
@@ -402,6 +512,13 @@ private fun EntryForm(
                     form.accountTouched = true
                 },
             )
+            if (form.type == EntryType.EXPENSE && account != null) {
+                when (account.role) {
+                    AccountRole.FUND -> Text("Трата из копилки «${account.name}»: в конверты месяца не попадёт", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+                    AccountRole.CUSHION -> Text("Трата из подушки: уменьшит «Отложено» за месяц", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+                    AccountRole.LIFE -> Unit
+                }
+            }
 
             if (form.type == EntryType.TRANSFER) {
                 AccountDropdown(
@@ -414,7 +531,7 @@ private fun EntryForm(
                 if (transferTargets.isEmpty()) {
                     Text("Нет второго счёта в этой валюте. Другая валюта — это обмен.", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(
                         onClick = {
                             val from = form.account
@@ -424,109 +541,14 @@ private fun EntryForm(
                         },
                         enabled = selectedTo != null,
                     ) { Text("Поменять местами") }
-                    state.activeAccounts.firstOrNull { it.isSavings && it.currency == currency && it.id != account?.id }?.let { savings ->
-                        OutlinedButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В накопления") }
+                    state.activeAccounts.firstOrNull { it.role == AccountRole.CUSHION && it.currency == currency && it.id != account?.id }?.let { savings ->
+                        OutlinedButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В подушку") }
+                    }
+                    state.activeAccounts.filter { it.role == AccountRole.FUND && it.currency == currency && it.id != account?.id }.forEach { fund ->
+                        OutlinedButton(onClick = { form.toAccount = fund }, enabled = fund.id != selectedTo?.id) { Text("В «${fund.name}»") }
                     }
                 }
             }
-
-            OutlinedTextField(
-                value = form.amountText,
-                onValueChange = { form.amountText = ThousandsVisualTransformation.sanitize(it, currency?.minorUnits ?: 2) },
-                label = { Text("Сумма") },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.headlineSmall,
-                visualTransformation = amountTransformation,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                trailingIcon = currency?.let { { CurrencyChip(it, state, Modifier.padding(end = 12.dp)) } },
-                modifier = Modifier.fillMaxWidth().focusRequester(focus).submitOnEnter(onSubmit),
-            )
-            AmountHint(state, amount)
-
-            if (form.type == EntryType.EXPENSE) {
-                val templates = recentTemplates(state)
-                if (templates.isNotEmpty()) {
-                    Text("Недавние", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        templates.forEach { template ->
-                            TagChip(text = template.label, onClick = {
-                                val expense = template.expense
-                                form.category = state.categoriesById[expense.categoryId]
-                                form.subcategory = state.subcategoryName(expense.subcategoryId).orEmpty()
-                                form.account = state.accountsById[expense.accountId]
-                                form.accountTouched = true
-                                form.amountText = MoneyFormat.format(expense.amount).filter { it.isDigit() || it == ',' }
-                            })
-                        }
-                    }
-                }
-            }
-
-            if (form.type != EntryType.TRANSFER) {
-                Text("Категория", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    quickCategories.forEach { category ->
-                        TagChip(text = category.name, selected = category.id == selectedCategory?.id, onClick = { form.category = category })
-                    }
-                }
-                if (categories.size > quickCategories.size) {
-                    Dropdown(
-                        label = "Все категории",
-                        items = categories,
-                        selected = selectedCategory,
-                        itemLabel = Category::name,
-                        onSelect = { form.category = it },
-                    )
-                }
-            }
-
-            if (form.type == EntryType.EXPENSE) {
-                if (suggestions.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        suggestions.forEach { name ->
-                            TagChip(text = name, selected = name.equals(form.subcategory, ignoreCase = true), onClick = { form.subcategory = name })
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = form.subcategory,
-                    onValueChange = { form.subcategory = it },
-                    label = { Text("Подкатегория") },
-                    placeholder = { Text("выбери выше или впиши новую") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            if (debtCategory) {
-                Dropdown(
-                    label = "Кредит, если это платёж по нему",
-                    items = listOf<Debt?>(null) + state.openDebts,
-                    selected = form.debt,
-                    itemLabel = { it?.let { d -> "${d.name} · ${MoneyFormat.format(d.monthlyPayment, false)}" } ?: "не платёж по кредиту" },
-                    onSelect = { selected ->
-                        form.debt = selected
-                        if (selected == null) form.debtEarly = false
-                        selected?.let { d ->
-                            form.subcategory = d.name
-                            if (form.amountText.isBlank() && account?.currency == d.currency && !form.debtEarly) {
-                                form.amountText = (d.monthlyPayment.minor / d.currency.minorFactor).toString()
-                            }
-                        }
-                    },
-                )
-                form.debt?.let { d ->
-                    EarlyPaymentToggle(
-                        checked = form.debtEarly,
-                        onChange = { form.debtEarly = it },
-                        preview = amount?.let { DebtCalculator.principalFor(d, it, form.debtEarly) },
-                        differentCurrency = amount != null && amount.currency != d.currency,
-                    )
-                }
-            }
-
-            DateField(date = form.date, today = state.today, onChange = { form.date = it })
 
             OutlinedTextField(
                 value = form.note,
@@ -561,7 +583,11 @@ private fun PrefillBanner(prefill: EntryPrefill, onClear: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Из Входящих: «${prefill.note}»" + (prefill.amountText?.let { " $it" } ?: ""),
+                when {
+                    prefill.debtId != null -> "Платёж по кредиту: проверь сумму и счёт"
+                    prefill.draftId == null -> "Пропущенная трата на ${prefill.date?.let { DateFormat.dayMonth(it) }.orEmpty()}"
+                    else -> "Из Входящих: «${prefill.note}»" + (prefill.amountText?.let { " $it" } ?: "")
+                },
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f),
             )

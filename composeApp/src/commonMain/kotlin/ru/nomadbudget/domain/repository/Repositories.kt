@@ -33,7 +33,9 @@ interface CurrencyRepository {
 
 interface AccountRepository {
     suspend fun getAll(): List<Account>
-    suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, sortOrder: Int): Account
+    suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, isFund: Boolean, sortOrder: Int): Account
+    suspend fun setRole(id: String, isSavings: Boolean, isFund: Boolean)
+    suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?)
     suspend fun rename(id: String, name: String)
     suspend fun setSortOrder(id: String, sortOrder: Int)
     suspend fun archive(id: String)
@@ -42,12 +44,16 @@ interface AccountRepository {
 interface CategoryRepository {
     suspend fun getCategories(): List<Category>
     suspend fun getSubcategories(): List<Subcategory>
-    suspend fun addCategory(name: String, kind: CategoryKind, sortOrder: Int): Category
+    suspend fun addCategory(name: String, kind: CategoryKind, sortOrder: Int, isSystem: Boolean = false): Category
+    suspend fun setSystem(id: String, isSystem: Boolean)
+    suspend fun setCategorySortOrder(id: String, sortOrder: Int)
     suspend fun renameCategory(id: String, name: String)
     suspend fun archiveCategory(id: String)
     suspend fun addSubcategory(categoryId: String, name: String): Subcategory
     suspend fun renameSubcategory(id: String, name: String)
     suspend fun deleteSubcategory(id: String)
+    suspend fun archiveSubcategory(id: String, archived: Boolean)
+    suspend fun mergeSubcategory(fromId: String, toId: String)
 }
 
 interface PeriodRepository {

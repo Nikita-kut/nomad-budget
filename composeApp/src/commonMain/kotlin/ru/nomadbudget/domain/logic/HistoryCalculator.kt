@@ -26,7 +26,7 @@ data class CategoryTotal(val category: Category, val total: Money, val share: Do
 
 object HistoryCalculator {
 
-    fun monthly(transactions: List<Transaction>, accounts: List<Account>, upTo: Period): List<MonthPoint> {
+    fun monthly(transactions: List<Transaction>, accounts: List<Account>, upTo: Period, systemIds: Set<String> = emptySet()): List<MonthPoint> {
         if (transactions.isEmpty()) return emptyList()
         val savingsIds = accounts.filter { it.isSavings }.map { it.id }.toSet()
         val first = SalaryCycle.periodContaining(transactions.minOf { it.date })
@@ -36,13 +36,10 @@ object HistoryCalculator {
             val inPeriod = transactions.filter { it.date in period }
             val income = inPeriod.filterIsInstance<Transaction.Income>().map { it.amountBase }.sumIn(Currency.BASE)
             val expense = inPeriod.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE)
-            val saved = BudgetCalculator.savingsInflow(inPeriod, savingsIds)
-            val taken = BudgetCalculator.savingsOutflow(inPeriod, savingsIds)
-            val spentFromSavings = inPeriod.filterIsInstance<Transaction.Expense>()
-                .filter { it.accountId in savingsIds }
-                .map { it.amountBase }
-                .sumIn(Currency.BASE)
-            points += MonthPoint(period, income, expense, saved - taken - spentFromSavings)
+            val saved = BudgetCalculator.cushionInflow(inPeriod, savingsIds, systemIds)
+            val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds)
+            val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds)
+            points += MonthPoint(period, income, expense, saved - taken - spent)
             period = SalaryCycle.next(period)
         }
         return points

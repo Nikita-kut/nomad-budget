@@ -290,10 +290,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             composable<MonthRoute> {
                                 MonthScreen(
                                     state = state,
-                                    onSetItemPlanned = viewModel::setPlannedForSubcategoryName,
-                                    onRemoveItem = viewModel::removePlanLine,
-                                    onSaveCategoryPlan = viewModel::saveCategoryPlan,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
+                                    onOpenDebts = { navController.navigate(DebtsRoute) },
                                     onOpenPlanning = { navController.switchTo(PlanningRoute) },
                                     onRetry = viewModel::load,
                                     twoColumns = twoColumns,
@@ -316,6 +314,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSaveCategoryPlan = viewModel::saveCategoryPlan,
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
                                     onSetSavingsTarget = viewModel::setSavingsTarget,
+                                    onSetFund = viewModel::setFund,
+                                    onOpenDebts = { navController.navigate(DebtsRoute) },
+                                    onOpenAccounts = { navController.switchTo(AccountsRoute) },
                                 )
                             }
                             composable<EntryRoute> {
@@ -349,6 +350,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onRename = viewModel::renameAccount,
                                     onMove = viewModel::moveAccount,
                                     onArchive = viewModel::archiveAccount,
+                                    onSetRole = viewModel::setAccountRole,
+                                    onSetFund = viewModel::setFund,
+                                    onCheckBalance = { navController.navigate(BalanceCheckRoute) },
                                     onOpenDebts = { navController.navigate(DebtsRoute) },
                                     onOpenExchange = { navController.navigate(ExchangeRoute) },
                                 )
@@ -384,10 +388,14 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onAddSubcategory = viewModel::addSubcategoryWithPlan,
                                     onRenameSubcategory = viewModel::renameSubcategory,
                                     onDeleteSubcategory = viewModel::deleteSubcategory,
+                                    onRestoreSubcategory = viewModel::restoreSubcategory,
+                                    onMergeSubcategory = viewModel::mergeSubcategory,
+                                    onSetSystem = viewModel::setCategorySystem,
+                                    onMoveCategory = viewModel::moveCategory,
                                 )
                             }
                             composable<BalanceCheckRoute> {
-                                BalanceCheckScreen(state = state, onBack = back, onCheck = viewModel::checkBalance)
+                                BalanceCheckScreen(state = state, onBack = back, onCheck = viewModel::checkBalance, onAddMissed = viewModel::prefillMissedExpense)
                             }
                             composable<DebtsRoute> {
                                 DebtsScreen(
@@ -395,7 +403,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onBack = if (wide) null else back,
                                     onSave = viewModel::saveDebt,
                                     onClose = viewModel::closeDebt,
-                                    onPlanIntoMonth = viewModel::planDebtsIntoMonth,
+                                    onPay = viewModel::payDebt,
                                 )
                             }
                         }
@@ -435,7 +443,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                             TotalsInline(state)
                         }
                         Text(
-                            "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
+                            "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · подушка ${MoneyFormat.format(state.savingsBalance, false)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

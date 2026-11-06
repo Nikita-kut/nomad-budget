@@ -14,6 +14,10 @@ import ru.nomadbudget.core.TodayProvider
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.AccountKind
+import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.logic.BalanceCalculator
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Category
@@ -401,8 +405,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 val periodId = _state.value.periodId ?: periodRepository.ensure(_state.value.period)
-                val existing = _state.value.budgetLines.firstOrNull { it.categoryId == categoryId && it.subcategoryId == subcategoryId }
-                val line = BudgetLine(categoryId, planned, subcategoryId, existing?.fromSavings == true)
+                val line = BudgetLine(categoryId, planned, subcategoryId)
                 budgetRepository.setPlanned(periodId, line)
                 _state.update { state ->
                     state.copy(
@@ -424,7 +427,7 @@ class HomeViewModel(
                 val current = _state.value
                 val periodId = current.periodId ?: periodRepository.ensure(current.period)
                 val categoryId = draft.categoryId
-                val limitLine = draft.free?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it, null, draft.freeFromSavings) }
+                val limitLine = draft.free?.takeIf { it.minor > 0L }?.let { BudgetLine(categoryId, it, null) }
                 val hadLimit = current.budgetLines.any { it.categoryId == categoryId && it.subcategoryId == null }
                 when {
                     limitLine != null -> budgetRepository.setPlanned(periodId, limitLine)
@@ -432,8 +435,17 @@ class HomeViewModel(
                 }
                 draft.removedSubcategoryIds.forEach { budgetRepository.deleteLine(periodId, categoryId, it) }
                 val itemLines = draft.items.map { item ->
-                    val subcategoryId = requireNotNull(resolveSubcategory(categoryId, item.name)) { "Введи название подкатегории" }
-                    BudgetLine(categoryId, item.planned, subcategoryId, item.fromSavings)
+                    val existing = item.subcategoryId?.let { id -> current.subcategoriesById[id] }
+                    val subcategoryId = if (existing != null) {
+                        if (!existing.name.equals(item.name.trim(), ignoreCase = false) && item.name.isNotBlank()) {
+                            categoryRepository.renameSubcategory(existing.id, item.name.trim())
+                            _state.update { state -> state.copy(subcategories = state.subcategories.map { if (it.id == existing.id) it.copy(name = item.name.trim()) else it }) }
+                        }
+                        existing.id
+                    } else {
+                        requireNotNull(resolveSubcategory(categoryId, item.name)) { "Введи название подкатегории" }
+                    }
+                    BudgetLine(categoryId, item.planned, subcategoryId)
                 }
                 itemLines.forEach { budgetRepository.setPlanned(periodId, it) }
                 val touched: Set<String?> = setOf<String?>(null) + draft.removedSubcategoryIds + itemLines.map { it.subcategoryId }
@@ -590,30 +602,100 @@ class HomeViewModel(
     fun deleteSubcategory(id: String) {
         viewModelScope.launch {
             try {
-                val used = _state.value.transactions.any { it is Transaction.Expense && it.subcategoryId == id }
-                require(!used) { "Подкатегория используется в операциях, удалить нельзя" }
-                categoryRepository.deleteSubcategory(id)
-                _state.update { state -> state.copy(subcategories = state.subcategories.filterNot { it.id == id }) }
-                _messages.send("Подкатегория удалена")
+                val current = _state.value
+                val used = current.transactions.any { it is Transaction.Expense && it.subcategoryId == id } ||
+                    current.allPlanLines.any { it.line.subcategoryId == id }
+                if (used) {
+                    categoryRepository.archiveSubcategory(id, true)
+                    _state.update { state -> state.copy(subcategories = state.subcategories.map { if (it.id == id) it.copy(isArchived = true) else it }) }
+                    _messages.send("Подкатегория убрана в архив, история сохранена")
+                } else {
+                    categoryRepository.deleteSubcategory(id)
+                    _state.update { state -> state.copy(subcategories = state.subcategories.filterNot { it.id == id }) }
+                    _messages.send("Подкатегория удалена")
+                }
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось удалить")
             }
         }
     }
 
-    fun checkBalance(accountId: String, actual: Money, note: String) {
+    fun restoreSubcategory(id: String) {
+        viewModelScope.launch {
+            try {
+                categoryRepository.archiveSubcategory(id, false)
+                _state.update { state -> state.copy(subcategories = state.subcategories.map { if (it.id == id) it.copy(isArchived = false) else it }) }
+                _messages.send("Подкатегория возвращена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось вернуть")
+            }
+        }
+    }
+
+    fun mergeSubcategory(fromId: String, toId: String) {
+        viewModelScope.launch {
+            try {
+                require(fromId != toId) { "Выбери другую подкатегорию" }
+                _state.update { it.copy(saving = true) }
+                categoryRepository.mergeSubcategory(fromId, toId)
+                _state.update { it.copy(saving = false) }
+                _messages.send("Подкатегории объединены")
+                reload(initial = false)
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось объединить")
+            }
+        }
+    }
+
+    fun setCategorySystem(id: String, isSystem: Boolean) {
+        viewModelScope.launch {
+            try {
+                categoryRepository.setSystem(id, isSystem)
+                _state.update { state -> state.copy(categories = state.categories.map { if (it.id == id) it.copy(isSystem = isSystem) else it }) }
+                _messages.send(if (isSystem) "Категория стала служебной: в бюджете не учитывается" else "Категория снова учитывается в бюджете")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось изменить категорию")
+            }
+        }
+    }
+
+    fun moveCategory(id: String, up: Boolean) {
+        viewModelScope.launch {
+            try {
+                val current = _state.value
+                val target = current.categoriesById[id] ?: return@launch
+                val group = current.activeCategories.filter { it.kind == target.kind }.sortedBy { it.sortOrder }
+                val index = group.indexOfFirst { it.id == id }
+                val neighbourIndex = if (up) index - 1 else index + 1
+                val neighbour = group.getOrNull(neighbourIndex) ?: return@launch
+                val reordered = group.toMutableList().apply {
+                    this[index] = neighbour
+                    this[neighbourIndex] = target
+                }
+                val orders = reordered.mapIndexed { position, category -> category.id to (position + 1) * SORT_STEP }.toMap()
+                orders.forEach { (categoryId, order) -> categoryRepository.setCategorySortOrder(categoryId, order) }
+                _state.update { state -> state.copy(categories = state.categories.map { c -> orders[c.id]?.let { c.copy(sortOrder = it) } ?: c }) }
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось переставить категорию")
+            }
+        }
+    }
+
+    fun checkBalance(accountId: String, actual: Money, note: String, date: LocalDate = today) {
         viewModelScope.launch {
             try {
                 _state.update { it.copy(saving = true) }
                 val current = _state.value
                 val account = requireNotNull(current.accountsById[accountId]) { "Счёт не найден" }
-                val computed = current.balances.getValue(accountId)
+                require(date <= today) { "Сверку нельзя провести будущей датой" }
+                val computed = BalanceCalculator.balanceBefore(account, current.transactions, date.plus(1, DateTimeUnit.DAY))
                 require(actual.currency == account.currency) { "Валюта не совпадает со счётом" }
                 val check = balanceCheckRepository.add(
-                    BalanceCheck(id = "", accountId = accountId, date = today, actual = actual, computed = computed, note = note),
+                    BalanceCheck(id = "", accountId = accountId, date = date, actual = actual, computed = computed, note = note),
                 )
                 val difference = actual - computed
-                val correction = if (difference.isZero) null else createCorrection(account.id, difference, computed, actual)
+                val correction = if (difference.isZero) null else createCorrection(account.id, difference, computed, actual, date)
                 _state.update { state ->
                     state.copy(
                         saving = false,
@@ -632,15 +714,16 @@ class HomeViewModel(
         }
     }
 
-    fun addAccount(name: String, currency: Currency, isSavings: Boolean) {
+    fun addAccount(name: String, currency: Currency, role: AccountRole) {
         viewModelScope.launch {
             try {
                 val trimmed = name.trim()
                 require(trimmed.isNotEmpty()) { "Введи название счёта" }
                 require(_state.value.activeAccounts.none { it.name.equals(trimmed, ignoreCase = true) }) { "Счёт с таким именем уже есть" }
                 val order = (_state.value.accounts.maxOfOrNull { it.sortOrder } ?: 0) + SORT_STEP
+                val isSavings = role == AccountRole.CUSHION
                 val kind = if (isSavings) AccountKind.SAVINGS else AccountKind.ACCOUNT
-                val created = accountRepository.add(trimmed, currency, kind, isSavings, order)
+                val created = accountRepository.add(trimmed, currency, kind, isSavings, role == AccountRole.FUND, order)
                 _state.update { it.copy(accounts = it.accounts + created) }
                 _messages.send("Счёт добавлен")
             } catch (e: Exception) {
@@ -663,12 +746,79 @@ class HomeViewModel(
         }
     }
 
+    fun setAccountRole(id: String, role: AccountRole) {
+        viewModelScope.launch {
+            try {
+                val isSavings = role == AccountRole.CUSHION
+                val isFund = role == AccountRole.FUND
+                accountRepository.setRole(id, isSavings, isFund)
+                _state.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(isSavings = isSavings, isFund = isFund) else it }) }
+                _messages.send(
+                    when (role) {
+                        AccountRole.LIFE -> "Счёт теперь на жизнь"
+                        AccountRole.FUND -> "Счёт теперь копилка"
+                        AccountRole.CUSHION -> "Счёт теперь подушка"
+                    },
+                )
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось изменить счёт")
+            }
+        }
+    }
+
+    fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?) {
+        viewModelScope.launch {
+            try {
+                require(day == null || day in 1..31) { "День от 1 до 31" }
+                val m = monthly?.takeIf { it.minor > 0L }
+                val g = goal?.takeIf { it.minor > 0L }
+                accountRepository.setFund(id, m, g, day)
+                _state.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(fundMonthly = m, fundGoal = g, fundDay = day) else it }) }
+                _messages.send("Копилка обновлена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить копилку")
+            }
+        }
+    }
+
+    fun payDebt(debtId: String) {
+        viewModelScope.launch {
+            val current = _state.value
+            val debt = current.debts.firstOrNull { it.id == debtId } ?: return@launch
+            val lastPayment = current.transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId == debtId }.maxByOrNull { it.date }
+            val categoryId = lastPayment?.categoryId
+                ?: current.activeCategories.firstOrNull { it.kind == CategoryKind.EXPENSE && it.name.equals(DEBT_CATEGORY, ignoreCase = true) }?.id
+            _state.update {
+                it.copy(
+                    entryPrefill = EntryPrefill(
+                        draftId = null,
+                        amountText = MoneyFormat.format(debt.plannedPayment, true).filter { c -> c.isDigit() || c == ',' },
+                        note = "",
+                        categoryId = categoryId,
+                        subcategoryName = lastPayment?.subcategoryId?.let(current::subcategoryName) ?: debt.name,
+                        accountId = lastPayment?.accountId?.takeIf { id -> current.accountsById[id]?.isArchived == false },
+                        debtId = debtId,
+                        date = today,
+                    ),
+                )
+            }
+            _navigateToEntry.send(Unit)
+        }
+    }
+
+    fun prefillMissedExpense(accountId: String, date: LocalDate) {
+        viewModelScope.launch {
+            _state.update { it.copy(entryPrefill = EntryPrefill(draftId = null, amountText = null, note = "", accountId = accountId, date = date)) }
+            _navigateToEntry.send(Unit)
+        }
+    }
+
     fun moveAccount(id: String, up: Boolean) {
         viewModelScope.launch {
             try {
                 val current = _state.value
                 val target = current.accountsById[id] ?: return@launch
-                val group = current.activeAccounts.filter { it.isSavings == target.isSavings }.sortedBy { it.sortOrder }
+                val group = current.activeAccounts.filter { it.role == target.role }.sortedBy { it.sortOrder }
                 val index = group.indexOfFirst { it.id == id }
                 val neighbourIndex = if (up) index - 1 else index + 1
                 val neighbour = group.getOrNull(neighbourIndex) ?: return@launch
@@ -746,34 +896,6 @@ class HomeViewModel(
         }
     }
 
-    fun planDebtsIntoMonth(categoryId: String) {
-        viewModelScope.launch {
-            try {
-                val current = _state.value
-                val debts = current.openDebts
-                require(debts.isNotEmpty()) { "Открытых кредитов нет" }
-                val periodId = current.periodId ?: periodRepository.ensure(current.period)
-                var count = 0
-                debts.forEach { debt ->
-                    require(current.rates.hasRate(debt.currency)) { "Нет курса для ${debt.currency.code}" }
-                    val subcategoryId = requireNotNull(resolveSubcategory(categoryId, debt.name))
-                    val line = BudgetLine(categoryId, current.rates.toBase(debt.plannedPayment), subcategoryId)
-                    budgetRepository.setPlanned(periodId, line)
-                    _state.update { state ->
-                        state.copy(
-                            periodId = periodId,
-                            budgetLines = state.budgetLines.filterNot { it.categoryId == categoryId && it.subcategoryId == subcategoryId } + line,
-                        )
-                    }
-                    count++
-                }
-                _messages.send("В план добавлено строк: $count")
-            } catch (e: Exception) {
-                _messages.send(e.message ?: "Не удалось добавить кредиты в план")
-            }
-        }
-    }
-
     private fun withDebtPrincipal(original: Transaction.Expense?, updated: Transaction.Expense): Transaction.Expense {
         val debtId = updated.debtId ?: return updated.copy(debtPrincipal = null, debtEarly = false)
         val debt = _state.value.debts.firstOrNull { it.id == debtId } ?: return updated
@@ -847,7 +969,7 @@ class HomeViewModel(
         }
     }
 
-    private suspend fun createCorrection(accountId: String, difference: Money, computed: Money, actual: Money): Transaction {
+    private suspend fun createCorrection(accountId: String, difference: Money, computed: Money, actual: Money, date: LocalDate): Transaction {
         val current = _state.value
         require(current.rates.hasRate(difference.currency)) { "Нет курса для ${difference.currency.code}, корректировку не записать" }
         val kind = if (difference.isNegative) CategoryKind.EXPENSE else CategoryKind.INCOME
@@ -856,11 +978,11 @@ class HomeViewModel(
         val note = "Сверка: расчёт ${MoneyFormat.format(computed)}, факт ${MoneyFormat.format(actual)}"
         val transaction = when (kind) {
             CategoryKind.EXPENSE -> Transaction.Expense(
-                id = "", date = today, accountId = accountId, amount = amount, categoryId = category.id, subcategoryId = null,
+                id = "", date = date, accountId = accountId, amount = amount, categoryId = category.id, subcategoryId = null,
                 amountBase = current.rates.toBase(amount), rateSource = rateSourceFor(amount), note = note,
             )
             CategoryKind.INCOME -> Transaction.Income(
-                id = "", date = today, accountId = accountId, amount = amount, categoryId = category.id,
+                id = "", date = date, accountId = accountId, amount = amount, categoryId = category.id,
                 amountBase = current.rates.toBase(amount), rateSource = rateSourceFor(amount), note = note,
             )
         }
@@ -868,13 +990,19 @@ class HomeViewModel(
     }
 
     private suspend fun ensureCategory(name: String, kind: CategoryKind): Category {
-        val existing = _state.value.activeCategories.firstOrNull { it.kind == kind && it.name.equals(name, ignoreCase = true) }
-        return existing ?: createCategory(name, kind, sortOrder = CORRECTION_SORT_ORDER)
+        val existing = _state.value.categories.firstOrNull { it.kind == kind && it.name.equals(name, ignoreCase = true) && !it.isArchived }
+        if (existing != null && !existing.isSystem) {
+            categoryRepository.setSystem(existing.id, true)
+            val system = existing.copy(isSystem = true)
+            _state.update { state -> state.copy(categories = state.categories.map { if (it.id == system.id) system else it }) }
+            return system
+        }
+        return existing ?: createCategory(name, kind, sortOrder = CORRECTION_SORT_ORDER, isSystem = true)
     }
 
-    private suspend fun createCategory(name: String, kind: CategoryKind, sortOrder: Int? = null): Category {
+    private suspend fun createCategory(name: String, kind: CategoryKind, sortOrder: Int? = null, isSystem: Boolean = false): Category {
         val order = sortOrder ?: ((_state.value.categories.filter { it.kind == kind }.maxOfOrNull { it.sortOrder } ?: 0) + SORT_STEP)
-        val created = categoryRepository.addCategory(name, kind, order)
+        val created = categoryRepository.addCategory(name, kind, order, isSystem)
         _state.update { it.copy(categories = it.categories + created) }
         return created
     }
@@ -885,7 +1013,13 @@ class HomeViewModel(
         val existing = _state.value.subcategories.firstOrNull {
             it.categoryId == categoryId && it.name.equals(trimmed, ignoreCase = true)
         }
-        if (existing != null) return existing.id
+        if (existing != null) {
+            if (existing.isArchived) {
+                categoryRepository.archiveSubcategory(existing.id, false)
+                _state.update { state -> state.copy(subcategories = state.subcategories.map { if (it.id == existing.id) it.copy(isArchived = false) else it }) }
+            }
+            return existing.id
+        }
         val created = categoryRepository.addSubcategory(categoryId, trimmed)
         _state.update { it.copy(subcategories = it.subcategories + created) }
         return created.id
@@ -897,6 +1031,7 @@ class HomeViewModel(
     private companion object {
         const val SORT_STEP = 10
         const val CORRECTION_SORT_ORDER = 900
+        const val DEBT_CATEGORY = "Долг"
     }
 
     private fun undoLabel(transaction: Transaction): String = when (transaction) {

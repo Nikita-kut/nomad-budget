@@ -26,7 +26,6 @@ data class BudgetLineDto(
     @SerialName("category_id") val categoryId: String,
     @SerialName("subcategory_id") val subcategoryId: String? = null,
     @SerialName("planned_base") val plannedBase: Long,
-    @SerialName("from_savings") val fromSavings: Boolean = false,
 )
 
 @Serializable
@@ -35,7 +34,6 @@ data class BudgetLineUpsertDto(
     @SerialName("category_id") val categoryId: String,
     @SerialName("subcategory_id") val subcategoryId: String?,
     @SerialName("planned_base") val plannedBase: Long,
-    @SerialName("from_savings") val fromSavings: Boolean = false,
 )
 
 @Serializable

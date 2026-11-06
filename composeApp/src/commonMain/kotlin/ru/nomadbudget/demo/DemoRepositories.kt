@@ -83,8 +83,13 @@ private class DemoCurrencyRepository(private val db: DemoDatabase) : CurrencyRep
 private class DemoAccountRepository(private val db: DemoDatabase) : AccountRepository {
     override suspend fun getAll(): List<Account> = db.accounts.toList()
 
-    override suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, sortOrder: Int): Account =
-        Account(db.newId("account"), name, currency, kind, isSavings, Money.zero(currency), sortOrder).also { db.accounts += it }
+    override suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, isFund: Boolean, sortOrder: Int): Account =
+        Account(db.newId("account"), name, currency, kind, isSavings, Money.zero(currency), sortOrder, isFund = isFund).also { db.accounts += it }
+
+    override suspend fun setRole(id: String, isSavings: Boolean, isFund: Boolean) = replace(id) { it.copy(isSavings = isSavings, isFund = isFund) }
+
+    override suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?) =
+        replace(id) { it.copy(fundMonthly = monthly, fundGoal = goal, fundDay = day) }
 
     override suspend fun rename(id: String, name: String) = replace(id) { it.copy(name = name) }
 
@@ -102,8 +107,16 @@ private class DemoCategoryRepository(private val db: DemoDatabase) : CategoryRep
 
     override suspend fun getSubcategories(): List<Subcategory> = db.subcategories.toList()
 
-    override suspend fun addCategory(name: String, kind: CategoryKind, sortOrder: Int): Category =
-        Category(db.newId("category"), name, kind, sortOrder).also { db.categories += it }
+    override suspend fun addCategory(name: String, kind: CategoryKind, sortOrder: Int, isSystem: Boolean): Category =
+        Category(db.newId("category"), name, kind, sortOrder, isSystem = isSystem).also { db.categories += it }
+
+    override suspend fun setSystem(id: String, isSystem: Boolean) {
+        db.categories.replaceEach { if (it.id == id) it.copy(isSystem = isSystem) else it }
+    }
+
+    override suspend fun setCategorySortOrder(id: String, sortOrder: Int) {
+        db.categories.replaceEach { if (it.id == id) it.copy(sortOrder = sortOrder) else it }
+    }
 
     override suspend fun renameCategory(id: String, name: String) {
         db.categories.replaceEach { if (it.id == id) it.copy(name = name) else it }
@@ -122,6 +135,21 @@ private class DemoCategoryRepository(private val db: DemoDatabase) : CategoryRep
 
     override suspend fun deleteSubcategory(id: String) {
         db.subcategories.removeAll { it.id == id }
+    }
+
+    override suspend fun archiveSubcategory(id: String, archived: Boolean) {
+        db.subcategories.replaceEach { if (it.id == id) it.copy(isArchived = archived) else it }
+    }
+
+    override suspend fun mergeSubcategory(fromId: String, toId: String) {
+        db.transactions.replaceEach { if (it is Transaction.Expense && it.subcategoryId == fromId) it.copy(subcategoryId = toId) else it }
+        db.budgetLines.values.forEach { lines ->
+            val from = lines.firstOrNull { it.subcategoryId == fromId } ?: return@forEach
+            val to = lines.firstOrNull { it.subcategoryId == toId }
+            lines.remove(from)
+            if (to == null) lines += from.copy(subcategoryId = toId) else lines.replaceEach { if (it === to) it.copy(planned = it.planned + from.planned) else it }
+        }
+        db.subcategories.removeAll { it.id == fromId }
     }
 }
 

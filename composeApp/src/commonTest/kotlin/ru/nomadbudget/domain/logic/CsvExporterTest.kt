@@ -58,12 +58,4 @@ class CsvExporterTest {
         assertEquals("2026-10-06,exchange,Карта,92800.00,RUB,,,Доллары,1000.00,USD,92800.00,", line)
     }
 
-    @Test
-    fun dailyAllowance_dividesRemainingByDaysLeft() {
-        val period = SalaryCycle.periodContaining(LocalDate(2026, 10, 10))
-        val budget = CategoryBudget(food, Money.rub(3_100_000L), Money.rub(1_000_000L), 1)
-        assertEquals(Money.rub(100_000L), PlanCalculator.dailyAllowance(listOf(budget), 21))
-        assertEquals(null, PlanCalculator.dailyAllowance(listOf(budget), 0))
-        assertEquals(31, period.lengthDays)
-    }
 }

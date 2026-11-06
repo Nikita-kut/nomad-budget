@@ -15,13 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,31 +34,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.logic.CategoryBudget
-import ru.nomadbudget.domain.logic.PlanSummary
+import ru.nomadbudget.domain.logic.CategoryHistory
+import ru.nomadbudget.domain.logic.MonthModel
+import ru.nomadbudget.domain.logic.SavingsForecast
+import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Category
-import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.InfoHint
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.TagChip
+import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
-import ru.nomadbudget.presentation.format.DateFormat
-import ru.nomadbudget.domain.logic.CategoryHistory
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
-import ru.nomadbudget.presentation.components.TagChip
-import ru.nomadbudget.domain.logic.SavingsForecast
+import kotlin.math.abs
 
 @Composable
 fun PlanningScreen(
@@ -65,13 +67,15 @@ fun PlanningScreen(
     onSaveCategoryPlan: (CategoryPlanDraft) -> Unit,
     onCopyPlan: () -> Unit,
     onSetSavingsTarget: (Money?) -> Unit = {},
+    onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
+    onOpenDebts: () -> Unit = {},
+    onOpenAccounts: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
     var editingSavings by remember { mutableStateOf(false) }
-    val summary = state.planSummary
-    val income = state.budgets.filter { it.category.kind == CategoryKind.INCOME }
-    val expenses = state.budgets.filter { it.category.kind == CategoryKind.EXPENSE }
+    var editingFund by remember { mutableStateOf<Account?>(null) }
+    val month = state.month
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -88,20 +92,10 @@ fun PlanningScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { SummaryCard(summary) }
+        item { UnallocatedCard(month) }
         item {
-            if (summary.expensePlanned.isZero) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("План расходов пока пустой", fontWeight = FontWeight.Medium)
-                            InfoHint("Копирование плана", Hints.PLAN_COPY)
-                        }
-                        Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
-                            Text("Скопировать план с прошлого месяца")
-                        }
-                    }
-                }
+            if (!month.hasPlan) {
+                Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) { Text("Скопировать план с прошлого месяца") }
             } else {
                 OutlinedButton(onClick = { confirmCopy = true }, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
                     Text("Скопировать план с прошлого месяца")
@@ -109,77 +103,41 @@ fun PlanningScreen(
             }
         }
 
-        item { SectionTitle("Доходы", hint = "план", info = Hints.INCOME) }
+        item { SectionTitle("Доход", hint = "только регулярный", info = Hints.INCOME) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                if (income.isEmpty()) EmptyHint("Категорий доходов нет")
-                income.forEachIndexed { index, budget ->
-                    if (index > 0) HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { editing = budget.category }.padding(horizontal = 14.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(budget.category.name)
-                        Text(
-                            if (budget.hasPlan) MoneyFormat.format(budget.planned, false) else "задать",
-                            fontWeight = if (budget.hasPlan) FontWeight.SemiBold else null,
-                            color = if (budget.hasPlan) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
-                        )
+                Column {
+                    month.incomeBudgets.filterNot { it.category.isArchived }.forEachIndexed { index, budget ->
+                        if (index > 0) HorizontalDivider()
+                        PlanRow(budget.category.name, budget.planned.takeIf { budget.hasPlan }, onClick = { editing = budget.category })
+                    }
+                    if (month.incomeBudgets.isEmpty()) {
+                        Text("Категорий дохода нет", modifier = Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
 
         item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
-        item {
-            Card(modifier = Modifier.fillMaxWidth().clickable { editingSavings = true }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Отложить в накопления")
-                        Text(
-                            "отложено ${MoneyFormat.format(state.summary.netSaved, false)}" +
-                                (summary.savingsShare?.takeIf { !summary.savingsTarget.isZero }?.let { " · ${MoneyFormat.formatShare(it)} дохода" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Text(
-                        if (summary.savingsTarget.isZero) "задать" else MoneyFormat.format(summary.savingsTarget, false),
-                        fontWeight = if (summary.savingsTarget.isZero) null else FontWeight.SemiBold,
-                        color = if (summary.savingsTarget.isZero) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-        }
+        item { SavingsCard(month, state.savingsForecast, onClick = { editingSavings = true }) }
 
-        state.savingsForecast?.let { forecast -> item { ForecastCard(forecast) } }
+        item { SectionTitle("Обязательные", hint = "собираются сами", info = Hints.OBLIGATIONS) }
+        item { ObligationsPlanCard(state, onOpenDebts, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
 
-        item {
-            SectionTitle(
-                "Расходы",
-                hint = "${summary.plannedCategories} из ${summary.expenseCategories} с планом",
-                info = Hints.PLAN_CATEGORY,
-            )
-        }
-        items(expenses, key = { it.category.id }) { budget ->
+        item { SectionTitle("Гибкие", hint = "план · обычно", info = Hints.PLAN_CATEGORY) }
+        items(month.envelopes.filterNot { it.category.isArchived || state.isDebtOnlyEnvelope(it) }, key = { it.category.id }) { budget ->
             CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
-        }
-
-        if (summary.shares.isNotEmpty()) {
-            item { SectionTitle("Структура плана", hint = if (summary.incomePlanned.minor > 0L) "доля от дохода" else "доля от расходов", info = Hints.PLAN_STRUCTURE) }
-            item { StructureCard(summary) }
         }
     }
 
     editing?.let { category ->
         PlanEditorDialog(
             state = state,
-            initialCategoryId = category.id,
-            onSave = onSaveCategoryPlan,
+            categoryId = category.id,
+            onSave = {
+                onSaveCategoryPlan(it)
+                editing = null
+            },
             onDismiss = { editing = null },
         )
     }
@@ -187,11 +145,22 @@ fun PlanningScreen(
     if (editingSavings) {
         SavingsTargetDialog(
             current = state.savingsTarget,
-            income = summary.incomePlanned,
+            income = month.incomePlanned,
             onDismiss = { editingSavings = false },
             onConfirm = {
                 onSetSavingsTarget(it)
                 editingSavings = false
+            },
+        )
+    }
+
+    editingFund?.let { fund ->
+        FundSettingsDialog(
+            account = fund,
+            onDismiss = { editingFund = null },
+            onConfirm = { monthly, goal, day ->
+                onSetFund(fund.id, monthly, goal, day)
+                editingFund = null
             },
         )
     }
@@ -213,55 +182,148 @@ fun PlanningScreen(
 }
 
 @Composable
-private fun SummaryCard(summary: PlanSummary) {
-    val free = summary.free
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun UnallocatedCard(month: MonthModel) {
+    val colors = AppTheme.colors
+    val negative = month.unallocated.isNegative
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ЗАПЛАНИРОВАНО", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                InfoHint("Сводка плана", Hints.PLAN_SUMMARY)
+                Text(if (negative) "Не хватает" else "Не распределено", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                InfoHint("Не распределено", Hints.UNALLOCATED)
             }
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(MoneyFormat.format(summary.fromIncomePlanned + summary.savingsTarget, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "из дохода ${MoneyFormat.format(summary.incomePlanned, false)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 3.dp),
-                )
-            }
-            summary.allocatedShare?.let { share ->
-                LinearProgressIndicator(
-                    progress = { share.toFloat().coerceIn(0f, 1f) },
-                    color = if (free.isNegative) AppTheme.colors.bad else MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                )
-            }
-            PlanLine(
-                if (free.isNegative) "Перепланировано" else "Свободно от дохода",
-                MoneyFormat.format(if (free.isNegative) -free else free, false) +
-                    (summary.allocatedShare?.let { " · распределено ${MoneyFormat.formatShare(it)}" } ?: ""),
-                bold = true,
-                highlight = if (free.isNegative) AppTheme.colors.bad else AppTheme.colors.good,
+            Text(
+                MoneyFormat.format(if (negative) -month.unallocated else month.unallocated, false),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = if (negative) colors.bad else colors.good,
             )
-            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-            if (!summary.fromSavingsPlanned.isZero) {
-                PlanLine("Расходы из дохода", MoneyFormat.format(summary.fromIncomePlanned, false))
-                PlanLine("Расходы из накоплений", MoneyFormat.format(summary.fromSavingsPlanned, false))
-            }
-            if (!summary.savingsTarget.isZero) PlanLine("Себе по плану", MoneyFormat.format(summary.savingsTarget, false))
-            PlanLine("Свободные суммы", MoneyFormat.format(summary.freeAmounts, false))
-            PlanLine("По подкатегориям", MoneyFormat.format(summary.itemized, false))
-            PlanLine("Категорий с планом", "${summary.plannedCategories} из ${summary.expenseCategories}")
-            if (!summary.fromSavingsPlanned.isZero || !summary.savingsTarget.isZero) {
-                Text(
-                    "Доход ${MoneyFormat.format(summary.incomePlanned, false)} + из накоплений ${MoneyFormat.format(summary.fromSavingsPlanned, false)}" +
-                        " = расходы ${MoneyFormat.format(summary.expensePlanned, false)} + себе ${MoneyFormat.format(summary.savingsTarget, false)}" +
-                        if (summary.free.isZero) " · сходится" else if (summary.free.isNegative) " · не хватает ${MoneyFormat.format(-summary.free, false)}" else " · свободно ${MoneyFormat.format(summary.free, false)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (month.incomePlanned.minor > 0L) {
+                SegmentBar(
+                    listOf(
+                        month.obligationsPlanned to MaterialTheme.colorScheme.outline,
+                        month.flexiblePlanned to MaterialTheme.colorScheme.primary,
+                        (month.savingsTarget ?: Money.zero(Currency.BASE)) to colors.save,
+                        (if (negative) Money.zero(Currency.BASE) else month.unallocated) to colors.good,
+                    ),
                 )
+            }
+            Text(
+                buildString {
+                    append("доход ${MoneyFormat.format(month.incomePlanned, false)}")
+                    append(" = обязательные ${MoneyFormat.format(month.obligationsPlanned, false)}")
+                    append(" + гибкие ${MoneyFormat.format(month.flexiblePlanned, false)}")
+                    append(" + себе ${MoneyFormat.format(month.savingsTarget ?: Money.zero(Currency.BASE), false)}")
+                    month.allocatedShare?.let { append(" · распределено ${MoneyFormat.formatShare(it)}") }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentBar(parts: List<Pair<Money, Color>>) {
+    val total = parts.sumOf { it.first.minor.coerceAtLeast(0L) }
+    if (total <= 0L) return
+    Row(
+        modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        parts.filter { it.first.minor > 0L }.forEach { (money, color) ->
+            Box(modifier = Modifier.weight(money.minor.toFloat() / total).fillMaxHeight().background(color))
+        }
+    }
+}
+
+@Composable
+private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: String? = null) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name)
+            sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        Text(
+            planned?.let { MoneyFormat.format(it, false) } ?: "задать",
+            fontWeight = if (planned != null) FontWeight.SemiBold else null,
+            color = if (planned != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun SavingsCard(month: MonthModel, forecast: SavingsForecast?, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val target = month.savingsTarget
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        if (target == null) "Задать «Себе»" else "${MoneyFormat.format(target, false)} в месяц",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (target == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (target != null && month.incomePlanned.minor > 0L) {
+                        Text(
+                            "${MoneyFormat.formatShare(target.minor.toDouble() / month.incomePlanned.minor)} дохода · отложено ${MoneyFormat.format(month.saved, false)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            forecast?.let { f ->
+                HorizontalDivider()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Прогноз подушки", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    InfoHint("Прогноз накоплений", Hints.FORECAST)
+                }
+                PlanLine("В подушке сейчас", MoneyFormat.format(f.balance, false))
+                f.byTargetInYear?.let { PlanLine("Через год по плану", MoneyFormat.format(it, false), bold = true) }
+                f.byActualInYear?.let { total ->
+                    PlanLine(
+                        "Через год при твоём темпе",
+                        MoneyFormat.format(total, false),
+                        highlight = f.actualPerMonth?.takeIf { it.isNegative }?.let { AppTheme.colors.bad },
+                    )
+                }
+                f.actualPerMonth?.let {
+                    Text("темп за ${f.monthsUsed} мес.: ${MoneyFormat.formatSigned(it, false)} в месяц", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ObligationsPlanCard(state: HomeState, onOpenDebts: () -> Unit, onEditFund: (Account) -> Unit, onOpenAccounts: () -> Unit) {
+    val month = state.month
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            val extra = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.extraPayment) }.fold(Money.zero(Currency.BASE)) { a, b -> a + b }
+            PlanRow(
+                if (month.debts.isEmpty()) "Кредитов нет" else "Кредиты, платежей: ${month.debts.size}",
+                month.debtsPlanned.takeIf { month.debts.isNotEmpty() },
+                onClick = onOpenDebts,
+                sub = if (month.debts.isEmpty()) "добавь в «Кредитах», платежи попадут сюда сами" else "из экрана «Кредиты»" + (if (extra.isZero) "" else " · досрочно ${MoneyFormat.format(extra, false)}"),
+            )
+            state.fundAccounts.forEach { fund ->
+                HorizontalDivider()
+                val monthly = fund.fundMonthly?.let(state.rates::toBaseOrNull)
+                PlanRow(
+                    "Взнос в «${fund.name}»",
+                    monthly,
+                    onClick = { onEditFund(fund) },
+                    sub = fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "копилка · к оплате ${MoneyFormat.format(goal, false)} к $d-му" } ?: "копилка · цель ${MoneyFormat.format(goal, false)}" } ?: "копилка",
+                )
+            }
+            if (state.fundAccounts.isEmpty()) {
+                HorizontalDivider()
+                PlanRow("Копилок нет", null, onClick = onOpenAccounts, sub = "аренда, подарки, поездки: заведи счёт-копилку в «Счетах»")
             }
         }
     }
@@ -269,117 +331,49 @@ private fun SummaryCard(summary: PlanSummary) {
 
 @Composable
 private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, onClick: () -> Unit) {
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val colors = AppTheme.colors
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(budget.category.name, fontWeight = FontWeight.Medium)
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(budget.category.name, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                 Text(
-                    if (budget.hasPlan) MoneyFormat.format(budget.planned, false) else "задать план",
+                    if (budget.hasPlan) MoneyFormat.format(budget.planned, false) else "задать",
                     fontWeight = if (budget.hasPlan) FontWeight.SemiBold else null,
                     color = if (budget.hasPlan) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
                 )
             }
-            val meta = buildList {
-                if (budget.plannedByItems && !budget.freePlanned.isZero) add("свободно ${MoneyFormat.format(budget.freePlanned, false)}")
-                if (budget.plannedByItems) add("подкатегории ${MoneyFormat.format(budget.itemsPlanned, false)}")
-                if (!budget.fact.isZero) add("потрачено ${MoneyFormat.format(budget.fact, false)}")
-                if (!budget.fromSavingsPlanned.isZero) add("из накоплений ${MoneyFormat.format(budget.fromSavingsPlanned, false)}")
-                history?.let { add("в среднем ${MoneyFormat.format(it.average, false)}/мес") }
+            history?.takeIf { it.average.minor > 0L }?.let { h ->
+                val differs = budget.hasPlan && abs(h.average.minor - budget.planned.minor).toDouble() / h.average.minor > DIFF_THRESHOLD
+                Text(
+                    "обычно ~${MoneyFormat.format(h.average.withoutFraction(), false)} в месяц",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (differs) colors.warning else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            if (meta.isNotEmpty()) {
-                Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = muted)
+            val items = budget.items.filter { it.planned != null && it.subcategory != null }
+            items.forEach { item ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(item.subcategory?.name.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(item.planned?.let { MoneyFormat.format(it, false) }.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                }
             }
-            val planned = budget.items.filter { it.planned != null && it.subcategory != null }
-            if (planned.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                planned.forEach { item ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(
-                            item.subcategory?.name.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(item.planned?.let { MoneyFormat.format(it, false) }.orEmpty(), style = MaterialTheme.typography.bodySmall)
-                    }
+            if (items.isNotEmpty() && budget.freePlanned.minor > 0L) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text("прочее", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    Text(MoneyFormat.format(budget.freePlanned, false), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
     }
 }
 
-@Composable
-private fun StructureCard(summary: PlanSummary) {
-    val maxShare = summary.shares.maxOfOrNull { it.share }?.coerceAtLeast(0.0001) ?: 1.0
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            summary.shares.forEach { share ->
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(share.category.name, style = MaterialTheme.typography.bodySmall)
-                        Text(
-                            "${MoneyFormat.format(share.planned, false)} · ${MoneyFormat.formatShare(share.share)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    ShareBar((share.share / maxShare).toFloat())
-                }
-            }
-            if (!summary.savingsTarget.isZero && summary.incomePlanned.minor > 0L) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Себе", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                        Text(
-                            "${MoneyFormat.format(summary.savingsTarget, false)} · ${MoneyFormat.formatShare(summary.savingsShare ?: 0.0)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AppTheme.colors.good,
-                        )
-                    }
-                    ShareBar(((summary.savingsShare ?: 0.0) / maxShare).toFloat())
-                }
-            }
-            if (summary.incomePlanned.minor > 0L && !summary.free.isNegative && !summary.free.isZero) {
-                HorizontalDivider()
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Свободно", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                    Text(
-                        "${MoneyFormat.format(summary.free, false)} · ${MoneyFormat.formatShare(summary.free.minor.toDouble() / summary.incomePlanned.minor)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AppTheme.colors.good,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShareBar(fraction: Float) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(8.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.primary),
-        )
-    }
-}
+private const val DIFF_THRESHOLD = 0.2
 
 @Composable
 private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () -> Unit, onConfirm: (Money?) -> Unit) {
     var text by remember { mutableStateOf(current?.let(::majorText).orEmpty()) }
     val transformation = remember { ThousandsVisualTransformation() }
-    val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, ru.nomadbudget.domain.model.Currency.BASE)
+    val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, Currency.BASE)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Себе в этом месяце") },
@@ -387,8 +381,8 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
-                    label = { Text("Отложить в накопления, ₽") },
+                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
+                    label = { Text("Отложить в подушку, ₽") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -407,33 +401,4 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
         confirmButton = { Button(onClick = { onConfirm(parsed) }, enabled = text.isBlank() || parsed != null) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
-}
-
-@Composable
-private fun ForecastCard(forecast: SavingsForecast) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ПРОГНОЗ НАКОПЛЕНИЙ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                InfoHint("Прогноз накоплений", Hints.FORECAST)
-            }
-            PlanLine("Сейчас в накоплениях", MoneyFormat.format(forecast.balance, false))
-            forecast.byTargetInYear?.let { PlanLine("Через год по плану «Себе»", MoneyFormat.format(it, false), bold = true) }
-            forecast.byActualInYear?.let { total ->
-                PlanLine(
-                    "Через год при темпе за ${forecast.monthsUsed} мес.",
-                    MoneyFormat.format(total, false),
-                    bold = forecast.byTargetInYear == null,
-                    highlight = forecast.actualPerMonth?.takeIf { it.isNegative }?.let { AppTheme.colors.bad },
-                )
-                forecast.actualPerMonth?.let {
-                    Text(
-                        "в среднем ${MoneyFormat.formatSigned(it, false)} в месяц",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
 }

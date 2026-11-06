@@ -25,6 +25,7 @@ data class AppColors(
     val warning: Color,
     val bad: Color,
     val muted: Color,
+    val save: Color,
 ) {
     fun currency(currency: Currency, ordinal: Int = 0): Color = when (currency.code) {
         Currency.BASE.code -> base
@@ -49,6 +50,7 @@ private val LightAppColors = AppColors(
     warning = Color(0xFFC98A1C),
     bad = Color(0xFFC4463A),
     muted = Color(0xFF7C8683),
+    save = Color(0xFF4A5FB0),
 )
 
 private val DarkAppColors = AppColors(
@@ -59,6 +61,7 @@ private val DarkAppColors = AppColors(
     warning = Color(0xFFDDA64E),
     bad = Color(0xFFE0695D),
     muted = Color(0xFF7C8683),
+    save = Color(0xFF9DADEE),
 )
 
 private val LightScheme: ColorScheme = lightColorScheme(
