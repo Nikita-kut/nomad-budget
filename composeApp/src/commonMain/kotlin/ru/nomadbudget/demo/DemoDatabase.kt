@@ -86,6 +86,14 @@ private class DemoSeed(private val db: DemoDatabase) {
     private val localCash = Account("local_cash", "Наличные ¤", local, AccountKind.CASH, false, Money(30_000L, local), 60)
     private val cushion = Account("cushion", "Подушка", Currency.RUB, AccountKind.SAVINGS, true, Money.rub(30_000_000L), 10)
     private val invest = Account("invest", "Инвесткопилка", Currency.RUB, AccountKind.INVESTMENT, true, Money.rub(15_000_000L), 20)
+    private val rentFund = Account(
+        "rent_fund", "На аренду", Currency.RUB, AccountKind.ACCOUNT, false, Money.rub(0L), 10,
+        isFund = true, fundMonthly = Money.rub(4_500_000L), fundGoal = Money.rub(4_500_000L), fundDay = 6,
+    )
+    private val giftsFund = Account(
+        "gifts_fund", "Подарки родным", Currency.RUB, AccountKind.ACCOUNT, false, Money.rub(1_500_000L), 20,
+        isFund = true, fundMonthly = Money.rub(500_000L), fundGoal = Money.rub(3_000_000L),
+    )
     private val oldCard = Account("old_card", "Старая карта", Currency.RUB, AccountKind.CARD, false, Money.rub(0L), 70, isArchived = true)
 
     private val salary = Category("salary", "Зарплата", CategoryKind.INCOME, 10)
@@ -100,6 +108,7 @@ private class DemoSeed(private val db: DemoDatabase) {
     private val docs = Category("docs", "Документы", CategoryKind.EXPENSE, 180)
     private val fees = Category("fees", "Комиссии", CategoryKind.EXPENSE, 190)
     private val loans = Category("loans", "Долг", CategoryKind.EXPENSE, 200)
+    private val correction = Category("correction", "Корректировка", CategoryKind.EXPENSE, 900, isSystem = true)
 
     private val grocery = Subcategory("sub_grocery", food.id, "супермаркет")
     private val cafe = Subcategory("sub_cafe", food.id, "кафе")
@@ -126,8 +135,8 @@ private class DemoSeed(private val db: DemoDatabase) {
     fun fill() {
         val current = SalaryCycle.periodContaining(db.today)
         val periods = generateSequence(current) { SalaryCycle.previous(it) }.take(PERIODS).toList().reversed()
-        db.accounts += listOf(card, rubAccount, rubCash, usdCard, usdCash, localCash, cushion, invest, oldCard)
-        db.categories += listOf(salary, side, food, transport, housing, comm, health, travel, gifts, docs, fees, loans)
+        db.accounts += listOf(card, rubAccount, rubCash, usdCard, usdCash, localCash, rentFund, giftsFund, cushion, invest, oldCard)
+        db.categories += listOf(salary, side, food, transport, housing, comm, health, travel, gifts, docs, fees, loans, correction)
         db.subcategories += listOf(grocery, cafe, delivery, taxi, metro, rent, utilities, internet, mobile, pharmacy, loanSubA, loanSubB)
         seedRates(periods.first().start)
         periods.forEachIndexed { index, period -> seedPeriod(period, index, isCurrent = period == current) }
@@ -155,7 +164,9 @@ private class DemoSeed(private val db: DemoDatabase) {
         exchange(period, 2, card, usdCard, Money.rub(3_712_000L), Money(40_000L, usd))
         exchange(period, 4, usdCard, localCash, Money(15_000L, usd), Money(22_350L, local))
 
-        expense(period, 0, card, Money.rub(4_500_000L), housing, rent)
+        transfer(period, 0, card, rentFund, Money.rub(4_500_000L), "в копилку аренды")
+        transfer(period, 0, card, giftsFund, Money.rub(500_000L))
+        expense(period, 1, rentFund, Money.rub(4_500_000L), housing, rent)
         expense(period, 7, card, Money.rub(550_000L + random.nextLong(0L, 80_000L)), housing, utilities)
         expense(period, 7, card, Money.rub(90_000L), housing, internet)
         expense(period, 9, card, Money.rub(65_000L), comm, mobile)
@@ -183,12 +194,14 @@ private class DemoSeed(private val db: DemoDatabase) {
         }
         repeat(4) { expense(period, random.nextInt(1, 29), rubCash, Money.rub(random.nextLong(6_000L, 12_000L)), transport, metro) }
         repeat(2) { expense(period, random.nextInt(1, 29), card, Money.rub(random.nextLong(40_000L, 180_000L)), health, pharmacy) }
-        expense(period, random.nextInt(1, 29), card, Money.rub(random.nextLong(300_000L, 800_000L)), gifts, null, "день рождения")
+        expense(period, random.nextInt(1, 29), card, Money.rub(random.nextLong(200_000L, 450_000L)), gifts, null, "день рождения")
+        if (index == 3) expense(period, 9, giftsFund, Money.rub(2_000_000L), gifts, null, "подарок на юбилей")
         expense(period, random.nextInt(1, 29), usdCard, Money(300L, usd), fees, null, "обслуживание карты")
         if (index == 2) expense(period, 16, usdCard, Money(45_000L, usd), travel, null, "билеты")
         if (index == 1) expense(period, 11, card, Money.rub(250_000L), docs, null)
 
-        if (isCurrent) expense(period, 10, cushion, Money.rub(800_000L), gifts, null, "билеты родителям")
+        if (isCurrent) expense(period, 10, cushion, Money.rub(800_000L), travel, null, "билеты на выходные")
+        if (isCurrent) expense(period, 12, card, Money.rub(23_000L), correction, null, "сверка: расчёт больше факта")
         seedPlan(period, index, isCurrent)
     }
 
@@ -200,18 +213,14 @@ private class DemoSeed(private val db: DemoDatabase) {
             BudgetLine(food.id, Money.rub(800_000L), cafe.id),
             BudgetLine(transport.id, Money.rub(500_000L), taxi.id),
             BudgetLine(transport.id, Money.rub(100_000L), metro.id),
-            BudgetLine(housing.id, Money.rub(4_500_000L), rent.id),
             BudgetLine(housing.id, Money.rub(600_000L), utilities.id),
             BudgetLine(housing.id, Money.rub(90_000L), internet.id),
             BudgetLine(comm.id, Money.rub(65_000L), mobile.id),
             BudgetLine(health.id, Money.rub(300_000L)),
-            BudgetLine(gifts.id, Money.rub(500_000L), fromSavings = true),
+            BudgetLine(gifts.id, Money.rub(500_000L)),
             BudgetLine(fees.id, Money.rub(50_000L)),
-            BudgetLine(loans.id, Money.rub(1_206_000L), loanSubA.id),
-            BudgetLine(loans.id, Money.rub(500_000L), loanSubB.id),
         )
         if (index == 2) lines += BudgetLine(travel.id, Money.rub(4_500_000L))
-        if (index == 3) lines.replaceEach { if (it.subcategoryId == loanSubA.id) it.copy(planned = Money.rub(3_206_000L)) else it }
         if (!isCurrent && index == 1) lines += BudgetLine(docs.id, Money.rub(300_000L))
         db.budgetLines[db.periodId(period)] = lines
         db.savingsTargets[db.periodId(period)] = Money.rub(4_000_000L)

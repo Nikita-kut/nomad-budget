@@ -19,6 +19,10 @@ object AccountMapper {
             openingBalance = Money(dto.openingBalance, currency),
             sortOrder = dto.sortOrder,
             isArchived = dto.archivedAt != null,
+            isFund = dto.isFund && !dto.isSavings,
+            fundMonthly = dto.fundMonthly?.let { Money(it, currency) },
+            fundGoal = dto.fundGoal?.let { Money(it, currency) },
+            fundDay = dto.fundDay,
         )
     }
 }

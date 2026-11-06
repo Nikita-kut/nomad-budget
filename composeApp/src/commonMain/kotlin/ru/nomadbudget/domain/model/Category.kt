@@ -8,10 +8,12 @@ data class Category(
     val kind: CategoryKind,
     val sortOrder: Int = 0,
     val isArchived: Boolean = false,
+    val isSystem: Boolean = false,
 )
 
 data class Subcategory(
     val id: String,
     val categoryId: String,
     val name: String,
+    val isArchived: Boolean = false,
 )

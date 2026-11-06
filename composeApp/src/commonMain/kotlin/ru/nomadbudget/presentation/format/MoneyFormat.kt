@@ -116,6 +116,13 @@ object DateFormat {
 
     fun monthName(date: LocalDate): String = months[date.month.number - 1]
 
+    fun monthGenitive(date: LocalDate): String = monthsGenitive[date.month.number - 1]
+
+    private val monthsGenitive = listOf(
+        "января", "февраля", "марта", "апреля", "мая", "июня",
+        "июля", "августа", "сентября", "октября", "ноября", "декабря",
+    )
+
     fun periodRange(period: Period): String = "${dayMonth(period.start)} – ${dayMonth(period.lastDay)}"
 
     fun dayMonth(date: LocalDate): String =

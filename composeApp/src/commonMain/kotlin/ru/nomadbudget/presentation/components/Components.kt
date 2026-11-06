@@ -253,7 +253,7 @@ fun SavingsTag(modifier: Modifier = Modifier) {
             .padding(horizontal = 6.dp, vertical = 1.dp),
     ) {
         Text(
-            "накопления",
+            "подушка",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             maxLines = 1,
@@ -280,6 +280,7 @@ fun AccountName(
             modifier = Modifier.weight(1f, fill = false),
         )
         if (account?.isSavings == true) SavingsTag()
+        if (account?.isFund == true) FundTag()
     }
 }
 
@@ -323,3 +324,40 @@ fun ArrowGlyph(color: Color = MaterialTheme.colorScheme.onSurfaceVariant, size: 
 @Composable
 fun amountColor(text: String): Color =
     if (text.startsWith("−") || text.startsWith("-")) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurface
+
+enum class PillTone { GOOD, WARNING, BAD, NEUTRAL }
+
+@Composable
+fun StatusPill(text: String, tone: PillTone, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    val fg = when (tone) {
+        PillTone.GOOD -> colors.good
+        PillTone.WARNING -> colors.warning
+        PillTone.BAD -> colors.bad
+        PillTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = fg,
+        maxLines = 1,
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(fg.copy(alpha = 0.14f))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+fun FundTag(modifier: Modifier = Modifier) {
+    Text(
+        "копилка",
+        style = MaterialTheme.typography.labelSmall,
+        color = AppTheme.colors.warning,
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(AppTheme.colors.warning.copy(alpha = 0.14f))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}

@@ -27,6 +27,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.domain.logic.BalanceCalculator
+import ru.nomadbudget.presentation.components.DateField
+import androidx.compose.material3.OutlinedButton
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.EmptyHint
@@ -41,13 +48,30 @@ import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.AccountsLine
 
 @Composable
-fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, Money, String) -> Unit) {
+fun BalanceCheckScreen(
+    state: HomeState,
+    onBack: () -> Unit,
+    onCheck: (String, Money, String, LocalDate) -> Unit,
+    onAddMissed: (String, LocalDate) -> Unit = { _, _ -> },
+) {
     var account by remember(state.activeAccounts) { mutableStateOf(state.activeAccounts.firstOrNull()) }
     var actualText by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(state.today) }
     val transformation = remember { ThousandsVisualTransformation() }
 
-    val computed = account?.let { state.balances[it.id] }
+    val computed = account?.let { acc -> BalanceCalculator.balanceBefore(acc, state.transactions, date.plus(1, DateTimeUnit.DAY)) }
+    val lastCheck = account?.let { acc -> state.balanceChecks.filter { it.accountId == acc.id && it.date < date }.maxByOrNull { it.date } }
+    val since = account?.let { acc ->
+        state.transactions.filter { tx ->
+            tx.date <= date && (lastCheck == null || tx.date > lastCheck.date) && when (tx) {
+                is Transaction.Expense -> tx.accountId == acc.id
+                is Transaction.Income -> tx.accountId == acc.id
+                is Transaction.Transfer -> tx.fromAccountId == acc.id || tx.toAccountId == acc.id
+                is Transaction.Exchange -> tx.fromAccountId == acc.id || tx.toAccountId == acc.id
+            }
+        }.sortedByDescending { it.date }
+    }.orEmpty()
     val actual = account?.let { acc ->
         if (actualText.trim() == "0") Money.zero(acc.currency) else MoneyFormat.parse(actualText, acc.currency)
     }
@@ -57,7 +81,7 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
     fun submit() {
         val acc = account ?: return
         val money = actual ?: return
-        onCheck(acc.id, money, note)
+        onCheck(acc.id, money, note, date)
         actualText = ""
         note = ""
     }
@@ -78,7 +102,8 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
                         state = state,
                         onSelect = { account = it },
                     )
-                    computed?.let { KeyValueRow("По записям в приложении", MoneyFormat.format(it)) }
+                    DateField(date = date, today = state.today, onChange = { date = it })
+                    computed?.let { KeyValueRow("По записям на конец дня", MoneyFormat.format(it)) }
                     OutlinedTextField(
                         value = actualText,
                         onValueChange = { actualText = ThousandsVisualTransformation.sanitize(it, account?.currency?.minorUnits ?: 2) },
@@ -104,14 +129,47 @@ fun BalanceCheckScreen(state: HomeState, onBack: () -> Unit, onCheck: (String, M
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    if (difference != null && !difference.isZero && account != null) {
+                        OutlinedButton(onClick = { account?.let { onAddMissed(it.id, date) } }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Сначала внести пропущенную трату")
+                        }
+                    }
                     Button(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (state.saving) "Сохраняем…" else "Записать сверку")
+                        Text(
+                            when {
+                                state.saving -> "Сохраняем…"
+                                difference == null || difference.isZero -> "Записать сверку на ${DateFormat.dayMonth(date)}"
+                                else -> "Записать корректировку ${MoneyFormat.formatSigned(difference)} на ${DateFormat.dayMonth(date)}"
+                            },
+                        )
                     }
                     Text(
-                        "Если позже найдёшь забытую трату, внеси её и удали корректировку в журнале.",
+                        "Корректировка — служебная запись: она выравнивает остаток счёта и не участвует в бюджете месяца.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+        if (account != null) {
+            item {
+                SectionTitle(
+                    if (lastCheck != null) "После сверки ${DateFormat.dayMonth(lastCheck.date)}" else "Последние операции по счёту",
+                    hint = "записей: ${since.size}",
+                )
+            }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (since.isEmpty()) Text("Операций нет", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        since.take(MAX_SINCE).forEach { tx ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(DateFormat.dayMonth(tx.date), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(describe(tx, state), style = MaterialTheme.typography.bodySmall, maxLines = 1, modifier = Modifier.weight(1f))
+                                Text(MoneyFormat.format(tx.amountBase, false), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -158,4 +216,13 @@ private fun CheckRow(check: BalanceCheck, state: HomeState) {
         }
         HorizontalDivider()
     }
+}
+
+private const val MAX_SINCE = 30
+
+private fun describe(tx: Transaction, state: HomeState): String = when (tx) {
+    is Transaction.Expense -> listOfNotNull(state.categoryName(tx.categoryId), state.subcategoryName(tx.subcategoryId)).joinToString(" · ")
+    is Transaction.Income -> "доход · ${state.categoryName(tx.categoryId)}"
+    is Transaction.Transfer -> "перевод"
+    is Transaction.Exchange -> "обмен"
 }

@@ -406,7 +406,13 @@ private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
         toAccountId = tx.toAccountId,
         note = tx.note,
         primary = MoneyFormat.format(tx.amount),
-        secondary = if (state.accountsById[tx.toAccountId]?.isSavings == true) "в накопления" else "",
+        secondary = when {
+            state.accountsById[tx.toAccountId]?.isSavings == true -> "в подушку"
+            state.accountsById[tx.toAccountId]?.isFund == true -> "в копилку"
+            state.accountsById[tx.fromAccountId]?.isSavings == true -> "из подушки"
+            state.accountsById[tx.fromAccountId]?.isFund == true -> "из копилки"
+            else -> ""
+        },
     )
     is Transaction.Exchange -> RowText(
         title = "Обмен ${tx.given.currency.code} на ${tx.received.currency.code}",

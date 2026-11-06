@@ -23,20 +23,6 @@ class PlanHistoryTest {
     )
 
     @Test
-    fun savingsTarget_reducesFree_andCountsInAllocated() {
-        val budgets = BudgetCalculator.categoryBudgets(
-            listOf(salary, food),
-            listOf(BudgetLine("salary", Money.rub(20_000_000L)), BudgetLine("food", Money.rub(10_000_000L))),
-            emptyList(),
-            current,
-        )
-        val summary = PlanCalculator.summary(budgets, savingsTarget = Money.rub(4_000_000L))
-        assertEquals(Money.rub(6_000_000L), summary.free)
-        assertEquals(0.7, summary.allocatedShare)
-        assertEquals(0.2, summary.savingsShare)
-    }
-
-    @Test
     fun history_averagesOverActiveMonths_andKeepsPrevious() {
         val tx = listOf(
             expense("a", LocalDate(2026, 9, 10), 3_000_000L),

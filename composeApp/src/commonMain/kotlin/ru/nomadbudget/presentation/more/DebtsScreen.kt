@@ -1,19 +1,36 @@
 package ru.nomadbudget.presentation.more
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -26,31 +43,35 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import ru.nomadbudget.domain.model.Category
-import ru.nomadbudget.domain.model.CategoryKind
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.number
+import kotlinx.datetime.plus
+import ru.nomadbudget.domain.logic.DebtObligation
+import ru.nomadbudget.domain.logic.ObligationStatus
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
-import ru.nomadbudget.presentation.components.InfoHint
-import ru.nomadbudget.presentation.components.KeyValueRow
+import ru.nomadbudget.presentation.components.PillTone
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.StatusPill
+import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
-import ru.nomadbudget.presentation.format.DateFormat
-import kotlinx.datetime.plus
-import kotlinx.datetime.number
-
-private const val DEFAULT_DEBT_CATEGORY = "Долг"
 
 @Composable
 fun DebtsScreen(
@@ -58,15 +79,13 @@ fun DebtsScreen(
     onBack: (() -> Unit)?,
     onSave: (Debt) -> Unit,
     onClose: (String) -> Unit,
-    onPlanIntoMonth: (String) -> Unit,
+    onPay: (String) -> Unit,
 ) {
     var editing by remember { mutableStateOf<Debt?>(null) }
     var creating by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf<Debt?>(null) }
-    val expenseCategories = state.activeCategories.filter { it.kind == CategoryKind.EXPENSE }
-    var planCategory by remember(expenseCategories) {
-        mutableStateOf(expenseCategories.firstOrNull { it.name.equals(DEFAULT_DEBT_CATEGORY, ignoreCase = true) } ?: expenseCategories.firstOrNull())
-    }
+    val month = state.month
+    val obligations = month.debts.sortedWith(compareBy<DebtObligation> { it.status == ObligationStatus.PAID }.thenBy(nullsLast()) { it.due })
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -76,43 +95,22 @@ fun DebtsScreen(
         if (onBack != null) {
             item { SubScreenHeader("Кредиты", onBack) }
         }
-        if (state.openDebts.isNotEmpty()) {
+        if (obligations.isNotEmpty()) {
             item { DebtsSummary(state) }
-            item { SectionTitle("Открытые", hint = "нажми, чтобы править", info = Hints.DEBTS) }
-            items(state.openDebts, key = Debt::id) { debt ->
-                DebtCard(debt, state, onClick = { editing = debt }, onClose = { closing = debt })
-            }
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("В план текущего месяца", fontWeight = FontWeight.Medium)
-                            InfoHint("План по кредитам", Hints.DEBTS_PLAN)
-                        }
-                        state.openDebts.forEach { debt ->
-                            KeyValueRow(
-                                debt.name,
-                                buildString {
-                                    append(MoneyFormat.format(debt.plannedPayment, false))
-                                    if (!debt.extraPayment.isZero) append(" (платёж + досрочно ${MoneyFormat.format(debt.extraPayment, false)})")
-                                },
-                            )
-                        }
-                        val byCurrency = state.openDebts.groupBy { it.currency }
-                        byCurrency.forEach { (currency, debts) ->
-                            KeyValueRow("Итого в план, ${currency.code}", MoneyFormat.format(debts.map { it.plannedPayment }.sumIn(currency), false), emphasize = true)
-                        }
-                        Dropdown("Категория плана", expenseCategories, planCategory, Category::name, { planCategory = it })
-                        Button(
-                            onClick = { planCategory?.let { onPlanIntoMonth(it.id) } },
-                            enabled = planCategory != null && !state.saving,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Добавить в план: ${DateFormat.periodRange(state.period)}") }
-                    }
-                }
+            item { SectionTitle("Платежи месяца", hint = DateFormat.periodRange(state.period), info = Hints.DEBTS) }
+            item { PaymentsTimeline(obligations, state.period, state.today) }
+            item { SectionTitle("Открытые", hint = "сначала ближайшие") }
+            items(obligations, key = { it.debt.id }) { obligation ->
+                DebtCard(
+                    obligation = obligation,
+                    today = state.today,
+                    onEdit = { editing = obligation.debt },
+                    onClose = { closing = obligation.debt },
+                    onPay = { onPay(obligation.debt.id) },
+                )
             }
         } else {
-            item { EmptyHint("Кредитов пока нет. Добавь первый, и он появится в плане месяца одной кнопкой.") }
+            item { EmptyHint("Кредитов пока нет. Добавь первый: его платёж сам попадёт в обязательные платежи месяца.") }
         }
         item {
             OutlinedButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить кредит") }
@@ -156,47 +154,155 @@ fun DebtsScreen(
 
 @Composable
 private fun DebtsSummary(state: HomeState) {
-    val byCurrency = state.openDebts.groupBy { it.currency }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            byCurrency.forEach { (currency, debts) ->
-                KeyValueRow("Должен, ${currency.code}", MoneyFormat.format(debts.map { it.principalRemaining }.sumIn(currency), false), emphasize = true)
-                KeyValueRow("Платежей в месяц, ${currency.code}", MoneyFormat.format(debts.map { it.monthlyPayment }.sumIn(currency), false))
+    val month = state.month
+    val owed = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE)
+    val lastClose = state.openDebts.mapNotNull { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }.maxOrNull()
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Должен всего", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(MoneyFormat.format(owed, false), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+            Text(
+                "в месяц ${MoneyFormat.format(month.debtsPlanned, false)} · оплачено ${month.debts.count { it.status == ObligationStatus.PAID }} из ${month.debts.size}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            lastClose?.let { months ->
+                val date = state.today.plus(months, DateTimeUnit.MONTH)
+                Text("последний закроется ${monthYear(date)}, через $months мес.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
 }
 
 @Composable
-private fun DebtCard(debt: Debt, state: HomeState, onClick: () -> Unit, onClose: () -> Unit) {
-    val paid = state.paidThisPeriod(debt)
-    val paidEnough = paid.wholeUnits >= debt.plannedPayment.wholeUnits
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(debt.name, fontWeight = FontWeight.SemiBold)
-                Text(MoneyFormat.format(debt.principalRemaining, false), fontWeight = FontWeight.SemiBold)
+private fun PaymentsTimeline(obligations: List<DebtObligation>, period: Period, today: LocalDate) {
+    val colors = AppTheme.colors
+    val length = period.lengthDays
+    fun toneOf(status: ObligationStatus): Color = when (status) {
+        ObligationStatus.PAID -> colors.good
+        ObligationStatus.OVERDUE -> colors.bad
+        ObligationStatus.SOON -> colors.warning
+        ObligationStatus.UPCOMING -> colors.muted
+    }
+    val byDate = obligations
+        .mapNotNull { o -> o.due?.let { it to o } }
+        .groupBy({ it.first }, { it.second })
+        .entries
+        .sortedBy { it.key }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                val width = maxWidth
+                fun x(date: LocalDate): androidx.compose.ui.unit.Dp {
+                    val index = (period.dayNumber(date) - 1).coerceIn(0, length - 1)
+                    return width * (index.toFloat() / (length - 1).coerceAtLeast(1))
+                }
+                Box(modifier = Modifier.fillMaxWidth().height(4.dp).offset(y = 26.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+                if (today in period) {
+                    val tx = x(today)
+                    Box(modifier = Modifier.width(width).height(4.dp).offset(y = 26.dp)) {
+                        Box(modifier = Modifier.width(tx).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.outline))
+                    }
+                    Box(modifier = Modifier.offset(x = (tx - 1.dp).coerceAtLeast(0.dp), y = 16.dp).width(2.dp).height(24.dp).background(MaterialTheme.colorScheme.onSurface))
+                    Text("сегодня", style = MaterialTheme.typography.labelSmall, modifier = Modifier.offset(x = (tx - 22.dp).coerceIn(0.dp, width - 48.dp), y = 40.dp))
+                }
+                byDate.forEach { entry ->
+                    val date = entry.key
+                    val list = entry.value
+                    val dx = x(date)
+                    val worst = list.map { it.status }.filter { it != ObligationStatus.PAID }.minByOrNull { it.ordinal } ?: ObligationStatus.PAID
+                    val tone = toneOf(worst)
+                    Box(modifier = Modifier.offset(x = (dx - 7.dp).coerceIn(0.dp, width - 14.dp), y = 21.dp).size(14.dp).clip(CircleShape).background(tone))
+                    Text(
+                        "${date.day}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = tone,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.offset(x = (dx - 12.dp).coerceIn(0.dp, width - 24.dp), y = 0.dp).width(24.dp),
+                    )
+                }
             }
-            val details = listOfNotNull(
-                "платёж ${MoneyFormat.format(debt.monthlyPayment, false)}",
-                debt.extraPayment.takeUnless { it.isZero }?.let { "досрочно ${MoneyFormat.format(it, false)}" },
-                debt.ratePercent?.let { MoneyFormat.formatPercentValue(it) },
-                debt.payDay?.let { "до $it числа" },
-                debt.ratePercent?.let { "проценты ≈ ${MoneyFormat.format(DebtCalculator.monthlyInterest(debt), false)} в месяц" },
-            )
-            Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            DebtForecastLine(debt, state.today)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (paid.isZero) "в этом месяце не платил" else "в этом месяце ${MoneyFormat.format(paid, false)} из ${MoneyFormat.format(debt.plannedPayment, false)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (paidEnough) AppTheme.colors.good else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = onClose) { Text("Закрыть") }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(DateFormat.dayMonth(period.start), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(DateFormat.dayMonth(period.lastDay), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            HorizontalDivider()
+            obligations.sortedWith(compareBy(nullsLast()) { it.due }).forEach { o ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(toneOf(o.status)))
+                    Text(o.due?.let { DateFormat.dayMonth(it) } ?: "без даты", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(48.dp))
+                    Text(o.debt.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text(MoneyFormat.format(o.planned, false), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
 }
+
+@Composable
+private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () -> Unit, onClose: () -> Unit, onPay: () -> Unit) {
+    val debt = obligation.debt
+    var menu by remember { mutableStateOf(false) }
+    val forecast = DebtCalculator.forecast(debt, debt.plannedPayment)
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)) {
+        Column(modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(debt.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                StatusPill(statusText(obligation), statusTone(obligation.status))
+                Box {
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Действия с кредитом") }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("Изменить") }, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Закрыть кредит") }, onClick = { menu = false; onClose() })
+                    }
+                }
+            }
+            Column(modifier = Modifier.padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Осталось", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(MoneyFormat.format(debt.principalRemaining, false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    listOfNotNull(
+                        "платёж ${MoneyFormat.format(debt.monthlyPayment, false)}",
+                        debt.extraPayment.takeUnless { it.isZero }?.let { "досрочно +${MoneyFormat.format(it, false)}" },
+                        debt.ratePercent?.let { MoneyFormat.formatPercentValue(it) },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    when {
+                        forecast == null -> "платёж не покрывает проценты: долг не уменьшается"
+                        forecast.totalInterest.isZero -> "закроется ${monthYear(today.plus(forecast.months, DateTimeUnit.MONTH))}"
+                        else -> "закроется ${monthYear(today.plus(forecast.months, DateTimeUnit.MONTH))} · переплата ≈ ${MoneyFormat.format(forecast.totalInterest, false)}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (forecast == null) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (obligation.status != ObligationStatus.PAID) {
+                    Button(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                        Text("Внести платёж ${MoneyFormat.format(debt.plannedPayment, false)}")
+                    }
+                } else if (obligation.paid > obligation.planned) {
+                    Text("в этом месяце внесено ${MoneyFormat.format(obligation.paid, false)}", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good)
+                }
+            }
+        }
+    }
+}
+
+private fun statusText(o: DebtObligation): String = when (o.status) {
+    ObligationStatus.PAID -> "оплачен"
+    ObligationStatus.OVERDUE -> "просрочен"
+    ObligationStatus.SOON, ObligationStatus.UPCOMING -> o.due?.let { "к ${it.day} ${DateFormat.monthGenitive(it)}" } ?: "к оплате"
+}
+
+private fun statusTone(status: ObligationStatus): PillTone = when (status) {
+    ObligationStatus.PAID -> PillTone.GOOD
+    ObligationStatus.OVERDUE -> PillTone.BAD
+    ObligationStatus.SOON -> PillTone.WARNING
+    ObligationStatus.UPCOMING -> PillTone.NEUTRAL
+}
+
+private fun monthYear(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${date.year}"
 
 @Composable
 private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (Debt) -> Unit) {
@@ -253,7 +359,7 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
                     )
                 }
                 Text(
-                    "Со ставкой остаток уменьшается на платёж минус проценты за месяц, без ставки — на весь платёж. Остаток можно править руками.",
+                    "Платёж и досрочка попадают в обязательные платежи месяца сами. Со ставкой остаток уменьшается на платёж минус проценты за месяц, без ставки — на весь платёж.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -286,28 +392,4 @@ private fun majorText(money: Money): String {
     val major = money.minor / money.currency.minorFactor
     val fraction = money.minor % money.currency.minorFactor
     return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
-}
-
-@Composable
-private fun DebtForecastLine(debt: Debt, today: kotlinx.datetime.LocalDate) {
-    val forecast = DebtCalculator.forecast(debt, debt.plannedPayment)
-    if (forecast == null) {
-        Text("Платёж не покрывает проценты: долг не уменьшается", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.bad)
-        return
-    }
-    val closes = today.plus(forecast.months, kotlinx.datetime.DateTimeUnit.MONTH)
-    Text(
-        "Закроется через ${forecast.months} мес., к ${closes.month.number.toString().padStart(2, '0')}.${closes.year}" +
-            (if (forecast.totalInterest.isZero) "" else " · проценты ещё ≈ ${MoneyFormat.format(forecast.totalInterest, false)}"),
-        style = MaterialTheme.typography.bodySmall,
-    )
-    if (!debt.extraPayment.isZero) {
-        val baseline = DebtCalculator.forecast(debt, debt.monthlyPayment)
-        val text = if (baseline == null) {
-            "Без досрочки долг не уменьшался бы"
-        } else {
-            "Досрочка сокращает срок на ${baseline.months - forecast.months} мес. и экономит ≈ ${MoneyFormat.format(baseline.totalInterest - forecast.totalInterest, false)}"
-        }
-        Text(text, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good)
-    }
 }

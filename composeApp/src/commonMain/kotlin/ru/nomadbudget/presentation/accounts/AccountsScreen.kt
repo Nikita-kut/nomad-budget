@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +35,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
+import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.presentation.planning.FundSettingsDialog
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.RadioButton
+import androidx.compose.material.icons.filled.SwapHoriz
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.domain.model.sumIn
@@ -55,16 +60,22 @@ import ru.nomadbudget.presentation.theme.AppTheme
 @Composable
 fun AccountsScreen(
     state: HomeState,
-    onAdd: (String, Currency, Boolean) -> Unit,
+    onAdd: (String, Currency, AccountRole) -> Unit,
     onRename: (String, String) -> Unit,
     onMove: (String, Boolean) -> Unit,
     onArchive: (String) -> Unit,
+    onSetRole: (String, AccountRole) -> Unit = { _, _ -> },
+    onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
+    onCheckBalance: () -> Unit = {},
     onOpenDebts: () -> Unit = {},
     onOpenExchange: () -> Unit = {},
 ) {
-    val daily = state.activeAccounts.filterNot { it.isSavings }.sortedBy { it.sortOrder }
-    val savings = state.activeAccounts.filter { it.isSavings }.sortedBy { it.sortOrder }
+    val daily = state.activeAccounts.filter { it.role == AccountRole.LIFE }.sortedBy { it.sortOrder }
+    val funds = state.activeAccounts.filter { it.role == AccountRole.FUND }.sortedBy { it.sortOrder }
+    val savings = state.activeAccounts.filter { it.role == AccountRole.CUSHION }.sortedBy { it.sortOrder }
     var adding by remember { mutableStateOf(false) }
+    var changingRole by remember { mutableStateOf<Account?>(null) }
+    var editingFund by remember { mutableStateOf<Account?>(null) }
     var archiving by remember { mutableStateOf<Account?>(null) }
     var renaming by remember { mutableStateOf<Account?>(null) }
     var editMode by remember { mutableStateOf(false) }
@@ -85,28 +96,47 @@ fun AccountsScreen(
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("Ежедневные", hint = if (editMode) "стрелки меняют порядок" else "в валюте счёта · в ₽", modifier = Modifier.weight(1f), info = Hints.ACCOUNTS_TOTAL)
+                SectionTitle("На жизнь", hint = if (editMode) "стрелки меняют порядок" else "карты и наличные", modifier = Modifier.weight(1f), info = Hints.ACCOUNTS_TOTAL)
                 TextButton(onClick = { editMode = !editMode }) { Text(if (editMode) "Готово" else "Изменить") }
             }
         }
         item {
-            AccountsCard(daily, state, totalLabel = "Итого ежедневные", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it })
+            AccountsCard(daily, state, totalLabel = "Итого на жизнь", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
-        item { SectionTitle("Накопления") }
+        item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
         item {
-            AccountsCard(savings, state, totalLabel = "Итого накопления", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it })
+            AccountsCard(funds, state, totalLabel = "Итого в копилках", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it }, onOpen = { editingFund = it }, empty = "Копилок нет. Сделай копилкой счёт, на котором копишь на аренду или подарки: «Изменить» → тип счёта.")
+        }
+        item { SectionTitle("Подушка", hint = "неприкосновенный запас") }
+        item {
+            AccountsCard(savings, state, totalLabel = "Итого в подушке", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
         item {
-            OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить счёт") }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { adding = true }, modifier = Modifier.weight(1f)) { Text("Добавить счёт") }
+                OutlinedButton(onClick = onCheckBalance, modifier = Modifier.weight(1f)) { Text("Сверить остаток") }
+            }
         }
         item { SectionTitle("Курсы", hint = rateHint(state), info = Hints.RATES) }
         item { RatesCard(state) }
     }
 
     if (adding) {
-        AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { name, currency, isSavings ->
-            onAdd(name, currency, isSavings)
+        AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { name, currency, role ->
+            onAdd(name, currency, role)
             adding = false
+        }
+    }
+    changingRole?.let { account ->
+        RoleDialog(account, onDismiss = { changingRole = null }) { role ->
+            onSetRole(account.id, role)
+            changingRole = null
+        }
+    }
+    editingFund?.let { account ->
+        FundSettingsDialog(account, onDismiss = { editingFund = null }) { monthly, goal, day ->
+            onSetFund(account.id, monthly, goal, day)
+            editingFund = null
         }
     }
     renaming?.let { account ->
@@ -155,9 +185,12 @@ private fun AccountsCard(
     onRename: (Account) -> Unit,
     onMove: (String, Boolean) -> Unit,
     onArchive: (Account) -> Unit,
+    onRole: (Account) -> Unit = {},
+    onOpen: ((Account) -> Unit)? = null,
+    empty: String = "Счетов нет",
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        if (accounts.isEmpty()) EmptyHint("Счетов нет")
+        if (accounts.isEmpty()) EmptyHint(empty)
         accounts.forEachIndexed { index, account ->
             if (index > 0) HorizontalDivider()
             AccountRow(
@@ -170,8 +203,11 @@ private fun AccountsCard(
                 onMoveUp = { onMove(account.id, true) },
                 onMoveDown = { onMove(account.id, false) },
                 onArchive = { onArchive(account) },
+                onRole = { onRole(account) },
+                onOpen = onOpen?.let { open -> { open(account) } },
             )
         }
+        if (accounts.isEmpty()) return@Card
         HorizontalDivider()
         val total = accounts.mapNotNull { state.rates.toBaseOrNull(state.balances.getValue(it.id)) }.sumIn(Currency.BASE)
         Row(
@@ -195,10 +231,12 @@ private fun AccountRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onArchive: () -> Unit,
+    onRole: () -> Unit,
+    onOpen: (() -> Unit)?,
 ) {
     val balance = state.balances.getValue(account.id)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = if (editMode) 4.dp else 14.dp, top = 8.dp, bottom = 8.dp),
+        modifier = Modifier.fillMaxWidth().then(if (onOpen != null && !editMode) Modifier.clickable(onClick = onOpen) else Modifier).padding(start = 14.dp, end = if (editMode) 4.dp else 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (editMode) {
@@ -209,6 +247,17 @@ private fun AccountRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             AccountName(account, fontWeight = FontWeight.Medium)
+            if (account.isFund) {
+                val parts = listOfNotNull(
+                    account.fundMonthly?.let { "взнос ${MoneyFormat.format(it, false)} в месяц" },
+                    account.fundGoal?.let { goal -> account.fundDay?.let { d -> "к оплате ${MoneyFormat.format(goal, false)} к $d-му" } ?: "цель ${MoneyFormat.format(goal, false)}" },
+                )
+                Text(
+                    parts.joinToString(" · ").ifEmpty { "нажми, чтобы задать взнос" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CurrencyChip(account.currency, state)
                 if (!account.name.contains(kindLabel(account.kind), ignoreCase = true) && !account.isSavings) {
@@ -234,6 +283,9 @@ private fun AccountRow(
             IconButton(onClick = onRename) {
                 Icon(Icons.Filled.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            IconButton(onClick = onRole) {
+                Icon(Icons.Filled.SwapHoriz, contentDescription = "Тип счёта", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             IconButton(onClick = onArchive) {
                 Icon(Icons.Filled.Delete, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -256,10 +308,10 @@ private fun RenameDialog(initial: String, onDismiss: () -> Unit, onConfirm: (Str
 }
 
 @Composable
-private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (String, Currency, Boolean) -> Unit) {
+private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (String, Currency, AccountRole) -> Unit) {
     var name by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf(Currency.BASE) }
-    var isSavings by remember { mutableStateOf(false) }
+    var role by remember { mutableStateOf(AccountRole.LIFE) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новый счёт") },
@@ -274,13 +326,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Dropdown("Валюта", currencies, currency, { "${it.code} · ${it.symbol}" }, { currency = it })
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Накопительный", fontWeight = FontWeight.Medium)
-                        Text("не входит в «на жизнь», переводы на него считаются отложенными", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(checked = isSavings, onCheckedChange = { isSavings = it })
-                }
+                RolePicker(role) { role = it }
                 Text(
                     "Начальный остаток задаётся сверкой: «Ещё», раздел «Сверка остатков», введи фактическую сумму.",
                     style = MaterialTheme.typography.labelSmall,
@@ -288,7 +334,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                 )
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(name, currency, isSavings) }, enabled = name.isNotBlank()) { Text("Добавить") } },
+        confirmButton = { Button(onClick = { onConfirm(name, currency, role) }, enabled = name.isNotBlank()) { Text("Добавить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -342,10 +388,44 @@ private fun TotalsCard(state: HomeState) {
                 Text("≈ " + others.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · накопления ${MoneyFormat.format(state.totalBase - state.operationalBase, false)}",
+                "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · копилки ${MoneyFormat.format(state.fundsBalance, false)} · подушка ${MoneyFormat.format(state.savingsBalance, false)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+@Composable
+private fun RolePicker(selected: AccountRole, onSelect: (AccountRole) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        listOf(
+            AccountRole.LIFE to ("На жизнь" to "карты и наличные, из них идут обычные траты"),
+            AccountRole.FUND to ("Копилка" to "копишь на крупную регулярную трату и платишь её отсюда"),
+            AccountRole.CUSHION to ("Подушка" to "неприкосновенный запас, переводы сюда — «Себе»"),
+        ).forEach { (role, texts) ->
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onSelect(role) }.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected == role, onClick = { onSelect(role) })
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(texts.first, fontWeight = FontWeight.Medium)
+                    Text(texts.second, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoleDialog(account: Account, onDismiss: () -> Unit, onConfirm: (AccountRole) -> Unit) {
+    var role by remember { mutableStateOf(account.role) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Тип счёта «${account.name}»") },
+        text = { RolePicker(role) { role = it } },
+        confirmButton = { Button(onClick = { onConfirm(role) }, enabled = role != account.role) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }

@@ -2,14 +2,11 @@ package ru.nomadbudget.presentation.home
 
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BalanceCalculator
-import ru.nomadbudget.domain.logic.BudgetCalculator
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CategoryBudget
 import ru.nomadbudget.domain.logic.HistoryCalculator
 import ru.nomadbudget.domain.logic.MonthPoint
-import ru.nomadbudget.domain.logic.MonthSummary
 import ru.nomadbudget.domain.logic.PlanCalculator
-import ru.nomadbudget.domain.logic.PlanSummary
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
@@ -28,8 +25,9 @@ import ru.nomadbudget.domain.model.sumIn
 import kotlin.time.Instant
 import ru.nomadbudget.domain.logic.CategoryHistory
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
-import ru.nomadbudget.domain.logic.MonthVerdict
 import ru.nomadbudget.domain.logic.SavingsForecast
+import ru.nomadbudget.domain.logic.MonthModel
+import ru.nomadbudget.domain.model.AccountRole
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -47,17 +45,25 @@ data class EntryDraft(
     val fromDraftId: String? = null,
 )
 
-data class PlanItemInput(val name: String, val planned: Money, val fromSavings: Boolean = false)
+data class PlanItemInput(val name: String, val planned: Money, val subcategoryId: String? = null)
 
 data class CategoryPlanDraft(
     val categoryId: String,
     val free: Money?,
-    val freeFromSavings: Boolean = false,
     val items: List<PlanItemInput>,
     val removedSubcategoryIds: List<String>,
 )
 
-data class EntryPrefill(val draftId: String, val amountText: String?, val note: String)
+data class EntryPrefill(
+    val draftId: String?,
+    val amountText: String?,
+    val note: String,
+    val categoryId: String? = null,
+    val subcategoryName: String? = null,
+    val accountId: String? = null,
+    val debtId: String? = null,
+    val date: LocalDate? = null,
+)
 
 data class ExchangeDraft(
     val date: LocalDate,
@@ -101,7 +107,7 @@ data class HomeState(
     val debts: List<Debt> = emptyList(),
     val rateHistory: List<ExchangeRate> = emptyList(),
 ) {
-    val monthlyHistory: List<MonthPoint> = HistoryCalculator.monthly(transactions, accounts, period)
+    val monthlyHistory: List<MonthPoint> = HistoryCalculator.monthly(transactions, accounts, period, categories.filter { it.isSystem }.map { it.id }.toSet())
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
 
@@ -111,6 +117,9 @@ data class HomeState(
         val byPayments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }.map { it.categoryId }
         (bySubcategory + byPayments).toSet()
     }
+
+    fun isDebtOnlyEnvelope(budget: CategoryBudget): Boolean =
+        budget.category.id in debtCategoryIds && !budget.hasPlan && budget.fact.isZero
 
     fun isDebtCategory(categoryId: String?): Boolean =
         openDebts.isNotEmpty() && categoryId != null && (debtCategoryIds.isEmpty() || categoryId in debtCategoryIds)
@@ -130,8 +139,9 @@ data class HomeState(
 
     val activeAccounts: List<Account> = accounts
         .filterNot { it.isArchived }
-        .sortedWith(compareBy<Account> { it.isSavings }.thenBy { it.sortOrder })
-    val activeCategories: List<Category> = categories.filterNot { it.isArchived }
+        .sortedWith(compareBy<Account> { it.role.ordinal }.thenBy { it.sortOrder })
+    val activeCategories: List<Category> = categories.filterNot { it.isArchived || it.isSystem }
+    val activeSubcategories: List<Subcategory> = subcategories.filterNot { it.isArchived }
 
     val foreignCurrencies: List<Currency> = currencies.filter { it != Currency.BASE }
 
@@ -143,39 +153,43 @@ data class HomeState(
 
     val inPeriod: List<Transaction> = transactions.filter { it.date in period }
 
-    private val budgetCategories: List<Category> = run {
-        val usedInPeriod = inPeriod.mapNotNull {
-            when (it) {
-                is Transaction.Expense -> it.categoryId
-                is Transaction.Income -> it.categoryId
-                is Transaction.Transfer, is Transaction.Exchange -> null
-            }
-        }.toSet()
-        activeCategories + categories.filter { it.isArchived && it.id in usedInPeriod }
-    }
+    val balances: Map<String, Money> = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
 
-    val budgets: List<CategoryBudget> =
-        BudgetCalculator.categoryBudgets(budgetCategories, budgetLines, inPeriod, period, subcategories, accounts.filter { it.isSavings }.map { it.id }.toSet())
+    val month: MonthModel = MonthModel.build(
+        period = period,
+        today = today,
+        categories = categories,
+        subcategories = subcategories,
+        lines = budgetLines,
+        transactions = transactions,
+        accounts = accounts,
+        debts = debts,
+        rates = rates,
+        balances = balances,
+        savingsTarget = savingsTarget,
+    )
 
-    val summary: MonthSummary = BudgetCalculator.monthSummary(budgets, inPeriod, accounts, period)
+    val budgets: List<CategoryBudget> = month.incomeBudgets + month.envelopes
 
-    val savingsBalance: Money get() = totalBase - operationalBase
+    val cushionAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.CUSHION }
+
+    val fundAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.FUND }
+
+    val savingsBalance: Money
+        get() = cushionAccounts.mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }.sumIn(Currency.BASE)
+
+    val fundsBalance: Money
+        get() = fundAccounts.mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }.sumIn(Currency.BASE)
 
     val savingsForecast: SavingsForecast? get() = HistoryCalculator.savingsForecast(monthlyHistory, today in period, savingsBalance, savingsTarget)
 
-    val verdict: MonthVerdict? = MonthVerdict.evaluate(summary, savingsTarget, today >= period.endExclusive)
-
-    val planSummary: PlanSummary = PlanCalculator.summary(budgets, savingsTarget ?: Money.zero(Currency.BASE))
-
-    val categoryHistory: Map<String, CategoryHistory> = PlanCalculator.history(transactions, period)
-
-    val balances: Map<String, Money> = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
+    val categoryHistory: Map<String, CategoryHistory> = PlanCalculator.history(transactions, period, accounts)
 
     val totalBase: Money = activeAccounts
         .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
         .sumIn(Currency.BASE)
 
-    val operationalAccounts: List<Account> = activeAccounts.filterNot { it.isSavings }
+    val operationalAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.LIFE }
 
     val operationalBase: Money = operationalAccounts
         .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
@@ -185,7 +199,7 @@ data class HomeState(
         .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
         .sumIn(Currency.BASE)
 
-    val hasExpensePlan: Boolean = budgets.any { it.category.kind == CategoryKind.EXPENSE && it.planned.minor > 0L }
+    val hasExpensePlan: Boolean = month.envelopes.any { it.hasPlan }
 
     val journal: List<JournalDay> = inPeriod
         .groupBy { it.date }
@@ -206,8 +220,6 @@ data class HomeState(
     val isCurrentPeriod: Boolean = today in period
 
     val daysLeft: Int = if (today in period) period.lengthDays - period.dayNumber(today) + 1 else 0
-
-    val dailyAllowance: Money? = if (isCurrentPeriod) PlanCalculator.dailyAllowance(budgets, daysLeft) else null
 
     val isFirstRun: Boolean = !loading && transactions.isEmpty() && budgetLines.isEmpty()
 
