@@ -78,6 +78,20 @@ private val LightScheme: ColorScheme = lightColorScheme(
     outline = Color(0xFFB9C2BA),
     outlineVariant = Color(0xFFD6DCD6),
     error = Color(0xFFC4463A),
+    secondary = Color(0xFF3E6A6F),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD3E6E6),
+    onSecondaryContainer = Color(0xFF0F2A2D),
+    tertiaryContainer = Color(0xFFE2E7F7),
+    onTertiaryContainer = Color(0xFF26315C),
+    surfaceTint = Color(0xFF1F4E5F),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7F9F8),
+    surfaceContainer = Color(0xFFEEF2F0),
+    surfaceContainerHigh = Color(0xFFE7ECEA),
+    surfaceContainerHighest = Color(0xFFE0E6E3),
+    inverseSurface = Color(0xFF2B3130),
+    inverseOnSurface = Color(0xFFEDF1EF),
 )
 
 private val DarkScheme: ColorScheme = darkColorScheme(
@@ -94,6 +108,20 @@ private val DarkScheme: ColorScheme = darkColorScheme(
     outline = Color(0xFF3D4745),
     outlineVariant = Color(0xFF2D3533),
     error = Color(0xFFE0695D),
+    secondary = Color(0xFF9CC8CB),
+    onSecondary = Color(0xFF0F2426),
+    secondaryContainer = Color(0xFF26403F),
+    onSecondaryContainer = Color(0xFFD3E9E8),
+    tertiaryContainer = Color(0xFF2A3150),
+    onTertiaryContainer = Color(0xFFD9DEF5),
+    surfaceTint = Color(0xFF6FB1C4),
+    surfaceContainerLowest = Color(0xFF0F1312),
+    surfaceContainerLow = Color(0xFF171C1B),
+    surfaceContainer = Color(0xFF1C2221),
+    surfaceContainerHigh = Color(0xFF232A28),
+    surfaceContainerHighest = Color(0xFF2A3230),
+    inverseSurface = Color(0xFFE6EAE7),
+    inverseOnSurface = Color(0xFF1B201F),
 )
 
 val LocalAppColors = staticCompositionLocalOf { LightAppColors }
