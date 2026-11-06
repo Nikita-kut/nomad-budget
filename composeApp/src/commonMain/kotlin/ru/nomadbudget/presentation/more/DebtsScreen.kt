@@ -80,6 +80,7 @@ fun DebtsScreen(
     onSave: (Debt) -> Unit,
     onClose: (String) -> Unit,
     onPay: (String) -> Unit,
+    twoColumns: Boolean = false,
 ) {
     var editing by remember { mutableStateOf<Debt?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -100,14 +101,22 @@ fun DebtsScreen(
             item { SectionTitle("Платежи месяца", hint = DateFormat.periodRange(state.period), info = Hints.DEBTS) }
             item { PaymentsTimeline(obligations, state.period, state.today) }
             item { SectionTitle("Открытые", hint = "сначала ближайшие") }
-            items(obligations, key = { it.debt.id }) { obligation ->
-                DebtCard(
-                    obligation = obligation,
-                    today = state.today,
-                    onEdit = { editing = obligation.debt },
-                    onClose = { closing = obligation.debt },
-                    onPay = { onPay(obligation.debt.id) },
-                )
+            val perRow = if (twoColumns) 2 else 1
+            items(obligations.chunked(perRow), key = { row -> row.joinToString { it.debt.id } }) { row ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    row.forEach { obligation ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            DebtCard(
+                                obligation = obligation,
+                                today = state.today,
+                                onEdit = { editing = obligation.debt },
+                                onClose = { closing = obligation.debt },
+                                onPay = { onPay(obligation.debt.id) },
+                            )
+                        }
+                    }
+                    if (row.size < perRow) Box(modifier = Modifier.weight(1f)) {}
+                }
             }
         } else {
             item { EmptyHint("Кредитов пока нет. Добавь первый: его платёж сам попадёт в обязательные платежи месяца.") }
@@ -225,6 +234,19 @@ private fun PaymentsTimeline(obligations: List<DebtObligation>, period: Period, 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(DateFormat.dayMonth(period.start), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(DateFormat.dayMonth(period.lastDay), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                listOf(
+                    "оплачен" to ObligationStatus.PAID,
+                    "скоро" to ObligationStatus.SOON,
+                    "просрочен" to ObligationStatus.OVERDUE,
+                    "впереди" to ObligationStatus.UPCOMING,
+                ).forEach { (label, status) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(toneOf(status)))
+                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
             HorizontalDivider()
             obligations.sortedWith(compareBy(nullsLast()) { it.due }).forEach { o ->
