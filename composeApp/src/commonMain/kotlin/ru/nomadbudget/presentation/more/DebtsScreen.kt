@@ -164,7 +164,8 @@ fun DebtsScreen(
 private fun DebtsSummary(state: HomeState, wide: Boolean) {
     val month = state.month
     val owed = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE)
-    val lastClose = state.openDebts.mapNotNull { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }.maxOrNull()
+    val forecasts = state.openDebts.map { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }
+    val lastClose = if (forecasts.any { it == null }) null else forecasts.filterNotNull().maxOrNull()
     val paid = month.debts.count { it.status == ObligationStatus.PAID }
     TileRow(
         wide,
@@ -184,7 +185,7 @@ private fun DebtsSummary(state: HomeState, wide: Boolean) {
                 StatTile(
                     "Последний закроется",
                     lastClose?.let { monthYear(state.today.plus(it, DateTimeUnit.MONTH)) } ?: "—",
-                    lastClose?.let { "через $it мес. при текущих платежах" } ?: "платежи не покрывают проценты",
+                    lastClose?.let { "через $it мес. при текущих платежах" } ?: if (forecasts.isEmpty()) "кредитов нет" else "по одному из кредитов платёж не покрывает проценты",
                     modifier = m,
                 )
             },

@@ -149,7 +149,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
         },
         { m ->
             StatTile(
-                "Рост капитала в месяц",
+                "Отложено и погашено в месяц",
                 capital.paceMedian?.let { MoneyFormat.formatSigned(it + capital.principalPace, false) } ?: "—",
                 "«Себе» ${capital.paceMedian?.let { MoneyFormat.formatSigned(it, false) } ?: "—"} + тело кредитов ${MoneyFormat.format(capital.principalPace, false)}",
                 modifier = m,
@@ -335,7 +335,7 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
                     current = capital.cushion,
                     target = target,
                     lines = listOf(
-                        "обычные расходы ≈ ${MoneyFormat.format(capital.averageExpense ?: Money.zero(Currency.BASE), false)} в месяц",
+                        "обычные расходы (медиана за полгода) ≈ ${MoneyFormat.format(capital.averageExpense ?: Money.zero(Currency.BASE), false)} в месяц",
                         when {
                             byFact == 0 -> "уже собрана"
                             byFact != null -> "как сейчас: к ${monthYear(capital.dateAfterMonths(byFact))}, через $byFact мес."
@@ -354,7 +354,7 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
                     current = capital.cushion,
                     target = goal.amount,
                     lines = listOf(
-                        if (progress.requiredMonthly.isZero) "уже хватает" else "нужно откладывать ${MoneyFormat.format(progress.requiredMonthly, false)} в месяц, ${progress.monthsLeft} мес.",
+                        if (progress.overdue) "срок прошёл" else if (progress.requiredMonthly.isZero) "уже хватает" else "нужно откладывать ${MoneyFormat.format(progress.requiredMonthly, false)} в месяц, ${progress.monthsLeft} мес.",
                         if (progress.reachableByPace) "как сейчас — успеваешь" else "как сейчас — не успеваешь",
                     ),
                     lineColor = if (progress.reachableByPace) colors.good else colors.warning,
@@ -510,8 +510,9 @@ private fun monthYear(date: LocalDate): String = "${date.month.number.toString()
 private fun shortMonth(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${(date.year % 100).toString().padStart(2, '0')}"
 
 private fun formatMonths(value: Double): String {
-    val tenth = (value * 10).toLong()
-    return "${tenth / 10},${tenth % 10} мес."
+    if (value <= 0.0) return "0 мес."
+    val tenths = kotlin.math.round(value * 10).toLong()
+    return if (tenths % 10 == 0L) "${tenths / 10} мес." else "${tenths / 10},${tenths % 10} мес."
 }
 
 private fun LocalDate.plusMonths(months: Int): LocalDate = plus(months, kotlinx.datetime.DateTimeUnit.MONTH)

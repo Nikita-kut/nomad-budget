@@ -54,7 +54,19 @@ class ForecastAndNetWorthTest {
             subcategoryId = null, amountBase = Money.rub(200_000L), rateSource = RateSource.API,
         )
         val worth = HistoryCalculator.netWorth(listOf(period), listOf(rub, usd), listOf(spent)) { _, _ -> 90.0 }
-        assertEquals(listOf(Money.rub(1_700_000L)), worth)
+        assertEquals(listOf(period to Money.rub(1_700_000L)), worth)
+    }
+
+    @Test
+    fun netWorth_ignoresArchivedAccounts_andStartsAtTrackingStart() {
+        val live = Account("live", "Карта", Currency.RUB, AccountKind.CARD, false, Money.zero(Currency.RUB))
+        val archive = Account("old", "Архив", Currency.RUB, AccountKind.SAVINGS, true, Money.zero(Currency.RUB), isArchived = true)
+        val early = SalaryCycle.periodContaining(LocalDate(2025, 1, 10))
+        val late = SalaryCycle.periodContaining(LocalDate(2026, 9, 10))
+        val legacy = Transaction.Income("l", LocalDate(2025, 1, 10), "old", Money.rub(500_000_000L), "salary", Money.rub(500_000_000L), RateSource.API)
+        val opening = Transaction.Income("o", LocalDate(2026, 9, 10), "live", Money.rub(10_000_000L), "salary", Money.rub(10_000_000L), RateSource.API)
+        val worth = HistoryCalculator.netWorth(listOf(early, late), listOf(live, archive), listOf(legacy, opening)) { _, _ -> 1.0 }
+        assertEquals(listOf(late to Money.rub(10_000_000L)), worth)
     }
 
     @Test
