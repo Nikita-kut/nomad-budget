@@ -259,6 +259,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         val backStack by navController.currentBackStackEntryAsState()
         val onEntry = backStack != null && navController.isOn<EntryRoute>()
         val openEntry = { if (wide) entryPanel = true else navController.navigate(EntryRoute) { launchSingleTop = true } }
+        LaunchedEffect(backStack?.destination?.route) { entryPanel = false }
         LaunchedEffect(backStack) {
             if (!entryPanel) {
                 withFrameNanos { }
@@ -301,7 +302,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                 }
             },
         ) { padding ->
-            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Row(modifier = Modifier.fillMaxSize()) {
                 if (wide) {
                     NavigationRail(
                         header = {
@@ -449,9 +451,10 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                         }
                     }
                 }
+            }
                 if (wide && entryPanel) {
                     Surface(
-                        modifier = Modifier.width(ENTRY_PANEL_WIDTH).fillMaxHeight().onKeyEvent { event ->
+                        modifier = Modifier.align(Alignment.CenterEnd).width(ENTRY_PANEL_WIDTH).fillMaxHeight().onKeyEvent { event ->
                             if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                                 entryPanel = false
                                 true
