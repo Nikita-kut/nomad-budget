@@ -15,6 +15,20 @@
         html, body { margin: 0; height: 100%; overflow: hidden; background: #F3F5F2; }
         @media (prefers-color-scheme: dark) { html, body { background: #131716; } }
         #root { width: 100%; height: 100%; }
+        #boot { position: fixed; inset: 0; display: flex; flex-direction: column; --b: #E3E8E4; --h: #F4F7F5; --card: #FFFFFF; transition: opacity .12s linear; font-family: system-ui, -apple-system, sans-serif; }
+        @media (prefers-color-scheme: dark) { #boot { --b: #252B29; --h: #323A37; --card: #1B201E; } }
+        #boot.done { opacity: 0; pointer-events: none; }
+        #boot .bar { height: 64px; display: flex; align-items: center; gap: 24px; padding: 0 16px; background: var(--card); }
+        #boot .main { flex: 1; display: flex; }
+        #boot .rail { width: 92px; background: var(--card); display: none; flex-direction: column; align-items: center; gap: 22px; padding-top: 20px; }
+        #boot .content { flex: 1; max-width: 1240px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; }
+        #boot .tiles { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        #boot .card { background: var(--card); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+        #boot .tile { min-height: 104px; }
+        #boot .s { border-radius: 6px; height: 14px; background: linear-gradient(100deg, var(--b) 30%, var(--h) 50%, var(--b) 70%); background-size: 300% 100%; animation: shimmer 1.3s linear infinite; }
+        @media (min-width: 840px) { #boot .rail { display: flex; } #boot .tiles { grid-template-columns: repeat(3, 1fr); } }
+        @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+        @media (prefers-reduced-motion: reduce) { #boot .s { animation: none; } }
     </style>
     <script type="application/javascript" src="composeApp.js"></script>
     <script>
@@ -41,5 +55,37 @@
 </head>
 <body>
 <div id="root"></div>
+<div id="boot" aria-label="Загрузка">
+    <div class="bar"><div class="s" style="width:130px;height:18px"></div><div class="s" style="width:100px;height:18px"></div><div class="s" style="width:80px;height:18px"></div><div class="s" style="width:80px;height:18px"></div></div>
+    <div class="main">
+        <div class="rail"><div class="s" style="width:56px;height:56px;border-radius:16px"></div><div class="s" style="width:40px;height:32px"></div><div class="s" style="width:40px;height:32px"></div><div class="s" style="width:40px;height:32px"></div><div class="s" style="width:40px;height:32px"></div></div>
+        <div class="content">
+            <div class="s" style="width:180px;height:18px"></div>
+            <div class="tiles">
+                <div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:26px"></div><div class="s" style="height:8px"></div><div class="s" style="width:70%;height:12px"></div></div>
+                <div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:26px"></div><div class="s" style="height:8px"></div><div class="s" style="width:70%;height:12px"></div></div>
+                <div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:26px"></div><div class="s" style="height:8px"></div><div class="s" style="width:70%;height:12px"></div></div>
+            </div>
+            <div class="card"><div class="s"></div><div class="s" style="width:80%"></div><div class="s"></div><div class="s" style="width:60%"></div><div class="s"></div></div>
+        </div>
+    </div>
+</div>
+<script>
+    (function () {
+        var boot = document.getElementById('boot');
+        var root = document.getElementById('root');
+        function hasCanvas() {
+            if (root.querySelector('canvas')) return true;
+            var all = root.querySelectorAll('*');
+            for (var i = 0; i < all.length; i++) if (all[i].shadowRoot && all[i].shadowRoot.querySelector('canvas')) return true;
+            return false;
+        }
+        function hide() { boot.classList.add('done'); setTimeout(function () { boot.remove(); }, 150); }
+        var started = Date.now();
+        var timer = setInterval(function () {
+            if (hasCanvas() || Date.now() - started > 20000) { clearInterval(timer); hide(); }
+        }, 100);
+    })();
+</script>
 </body>
 </html>

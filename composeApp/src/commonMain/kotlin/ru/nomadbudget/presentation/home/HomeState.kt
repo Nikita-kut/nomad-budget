@@ -110,12 +110,17 @@ data class HomeState(
     val rateHistory: List<ExchangeRate> = emptyList(),
     val capitalGoals: List<ru.nomadbudget.domain.logic.CapitalGoal> = emptyList(),
     val capitalSettings: ru.nomadbudget.domain.logic.CapitalSettings = ru.nomadbudget.domain.logic.CapitalSettings(),
+    private val memo: Memo = Memo(),
 ) {
-    val monthlyHistory: List<MonthPoint> = HistoryCalculator.monthly(transactions, accounts, period, categories.filter { it.isSystem }.map { it.id }.toSet())
+    val systemCategoryIds: Set<String> = memo.get("system", categories) { categories.filter { it.isSystem }.map { it.id }.toSet() }
+
+    val monthlyHistory: List<MonthPoint> = memo.get("history", transactions, accounts, period, categories) {
+        HistoryCalculator.monthly(transactions, accounts, period, systemCategoryIds)
+    }
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
 
-    val debtCategoryIds: Set<String> = run {
+    val debtCategoryIds: Set<String> = memo.get("debtCategories", debts, subcategories, transactions) {
         val debtNames = openDebts.map { it.name.trim().lowercase() }.toSet()
         val bySubcategory = subcategories.filter { it.name.trim().lowercase() in debtNames }.map { it.categoryId }
         val byPayments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }.map { it.categoryId }
@@ -155,11 +160,12 @@ data class HomeState(
 
     val currenciesWithoutRate: List<Currency> = foreignCurrencies.filterNot(rates::hasRate)
 
-    val inPeriod: List<Transaction> = transactions.filter { it.date in period }
+    val inPeriod: List<Transaction> = memo.get("inPeriod", transactions, period) { transactions.filter { it.date in period } }
 
-    val balances: Map<String, Money> = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
+    val balances: Map<String, Money> = memo.get("balances", accounts, transactions) { BalanceCalculator.balances(accounts, transactions) }
 
-    val month: MonthModel = MonthModel.build(
+    val month: MonthModel = memo.get("month", period, today, categories, subcategories, budgetLines, transactions, accounts, debts, rates, savingsTarget) {
+        MonthModel.build(
         period = period,
         today = today,
         categories = categories,
@@ -171,7 +177,8 @@ data class HomeState(
         rates = rates,
         balances = balances,
         savingsTarget = savingsTarget,
-    )
+        )
+    }
 
     val budgets: List<CategoryBudget> = month.incomeBudgets + month.envelopes
 
@@ -187,7 +194,7 @@ data class HomeState(
 
     val savingsForecast: SavingsForecast? get() = HistoryCalculator.savingsForecast(monthlyHistory, today in period, savingsBalance, savingsTarget)
 
-    val capital: ru.nomadbudget.domain.logic.CapitalModel by lazy {
+    val capital: ru.nomadbudget.domain.logic.CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, capitalSettings, capitalGoals) {
         ru.nomadbudget.domain.logic.CapitalModel.build(
             today = today,
             accounts = accounts,
@@ -195,14 +202,14 @@ data class HomeState(
             transactions = transactions,
             debts = debts,
             rates = rates,
-            systemCategoryIds = categories.filter { it.isSystem }.map { it.id }.toSet(),
+            systemCategoryIds = systemCategoryIds,
             planMonthly = savingsTarget,
             settings = capitalSettings,
             goals = capitalGoals,
         )
     }
 
-    val categoryHistory: Map<String, CategoryHistory> = PlanCalculator.history(transactions, period, accounts)
+    val categoryHistory: Map<String, CategoryHistory> get() = memo.get("categoryHistory", transactions, period, accounts) { PlanCalculator.history(transactions, period, accounts) }
 
     val totalBase: Money = activeAccounts
         .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
@@ -214,13 +221,16 @@ data class HomeState(
         .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
         .sumIn(Currency.BASE)
 
-    val operationalAtPeriodStartBase: Money = operationalAccounts
-        .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
-        .sumIn(Currency.BASE)
+    val operationalAtPeriodStartBase: Money get() = memo.get("opStart", accounts, transactions, period, rates) {
+        operationalAccounts
+            .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
+            .sumIn(Currency.BASE)
+    }
 
     val hasExpensePlan: Boolean = month.envelopes.any { it.hasPlan }
 
-    val journal: List<JournalDay> = inPeriod
+    val journal: List<JournalDay> get() = memo.get("journal", transactions, period) {
+        inPeriod
         .groupBy { it.date }
         .entries
         .sortedByDescending { it.key }
@@ -231,8 +241,9 @@ data class HomeState(
                 spentBase = list.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE),
             )
         }
+    }
 
-    val exchanges: List<Transaction.Exchange> = transactions.filterIsInstance<Transaction.Exchange>()
+    val exchanges: List<Transaction.Exchange> get() = memo.get("exchanges", transactions) { transactions.filterIsInstance<Transaction.Exchange>() }
 
     val dayNumber: Int? = if (today in period) period.dayNumber(today) else null
 

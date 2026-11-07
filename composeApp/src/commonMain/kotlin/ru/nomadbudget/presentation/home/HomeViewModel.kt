@@ -47,6 +47,16 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import kotlin.time.Clock
 import ru.nomadbudget.data.local.KeyValueStore
 import ru.nomadbudget.presentation.theme.ThemeSettings
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Job
+import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.Subcategory
+import ru.nomadbudget.domain.model.RateTable
+import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
+import ru.nomadbudget.domain.logic.CapitalGoal
+import ru.nomadbudget.domain.logic.CapitalSettings
 
 class HomeViewModel(
     private val auth: AuthRepository,
@@ -96,22 +106,61 @@ class HomeViewModel(
                 _state.update { it.copy(loading = initial, refreshing = !initial, error = null) }
                 offlineCache.beginLoad()
                 val sent = runCatching { transactionRepository.flushPending() }.getOrDefault(0)
-                val currencies = currencyRepository.getAll()
-                val accounts = accountRepository.getAll()
-                val categories = categoryRepository.getCategories()
-                val subcategories = categoryRepository.getSubcategories()
-                val transactions = transactionRepository.getAll(accounts)
-                val rates = rateRepository.ratesOnOrBefore(today)
-                val checks = balanceCheckRepository.getRecent(accounts)
-                val debts = debtRepository.getAll()
-                val rateHistory = rateRepository.history()
                 val period = _state.value.period
-                val periodId = periodRepository.ensure(period)
-                val lines = budgetRepository.getLines(periodId)
-                val savingsTarget = budgetRepository.getSavingsTarget(periodId)
-                val allPlanLines = runCatching { budgetRepository.getAllLines() }.getOrDefault(_state.value.allPlanLines)
-                val capitalGoals = runCatching { capitalRepository.getGoals() }.getOrDefault(_state.value.capitalGoals)
-                val capitalSettings = runCatching { capitalRepository.getSettings() }.getOrDefault(_state.value.capitalSettings)
+                val previous = _state.value
+                val loaded = coroutineScope {
+                    val currencies = async { currencyRepository.getAll() }
+                    val accountsAsync = async { accountRepository.getAll() }
+                    val categories = async { categoryRepository.getCategories() }
+                    val subcategories = async { categoryRepository.getSubcategories() }
+                    val rates = async { rateRepository.ratesOnOrBefore(today) }
+                    val debts = async { debtRepository.getAll() }
+                    val rateHistory = async { rateRepository.history() }
+                    val allPlanLines = async { runCatching { budgetRepository.getAllLines() }.getOrDefault(previous.allPlanLines) }
+                    val capitalGoals = async { runCatching { capitalRepository.getGoals() }.getOrDefault(previous.capitalGoals) }
+                    val capitalSettings = async { runCatching { capitalRepository.getSettings() }.getOrDefault(previous.capitalSettings) }
+                    val plan = async {
+                        val id = periodRepository.ensure(period)
+                        val lines = async { budgetRepository.getLines(id) }
+                        val target = async { budgetRepository.getSavingsTarget(id) }
+                        Triple(id, lines.await(), target.await())
+                    }
+                    val accounts = accountsAsync.await()
+                    val transactions = async { transactionRepository.getAll(accounts) }
+                    val checks = async { balanceCheckRepository.getRecent(accounts) }
+                    LoadedData(
+                        currencies = currencies.await(),
+                        accounts = accounts,
+                        categories = categories.await(),
+                        subcategories = subcategories.await(),
+                        transactions = transactions.await(),
+                        rates = rates.await(),
+                        checks = checks.await(),
+                        debts = debts.await(),
+                        rateHistory = rateHistory.await(),
+                        periodId = plan.await().first,
+                        lines = plan.await().second,
+                        savingsTarget = plan.await().third,
+                        allPlanLines = allPlanLines.await(),
+                        capitalGoals = capitalGoals.await(),
+                        capitalSettings = capitalSettings.await(),
+                    )
+                }
+                val currencies = loaded.currencies
+                val accounts = loaded.accounts
+                val categories = loaded.categories
+                val subcategories = loaded.subcategories
+                val transactions = loaded.transactions
+                val rates = loaded.rates
+                val checks = loaded.checks
+                val debts = loaded.debts
+                val rateHistory = loaded.rateHistory
+                val periodId = loaded.periodId
+                val lines = loaded.lines
+                val savingsTarget = loaded.savingsTarget
+                val allPlanLines = loaded.allPlanLines
+                val capitalGoals = loaded.capitalGoals
+                val capitalSettings = loaded.capitalSettings
                 _state.update {
                     it.copy(
                         loading = false,
@@ -130,9 +179,9 @@ class HomeViewModel(
                         balanceChecks = checks,
                         debts = debts,
                         rateHistory = rateHistory,
-                        periodId = periodId,
-                        budgetLines = lines,
-                        savingsTarget = savingsTarget,
+                        periodId = if (it.period == period) periodId else it.periodId,
+                        budgetLines = if (it.period == period) lines else it.budgetLines,
+                        savingsTarget = if (it.period == period) savingsTarget else it.savingsTarget,
                         allPlanLines = allPlanLines,
                         capitalGoals = capitalGoals,
                         capitalSettings = capitalSettings,
@@ -153,14 +202,20 @@ class HomeViewModel(
 
     fun showCurrentPeriod() = switchPeriod(SalaryCycle.periodContaining(today))
 
+    private var periodJob: Job? = null
+
     private fun switchPeriod(period: Period) {
-        viewModelScope.launch {
+        periodJob?.cancel()
+        periodJob = viewModelScope.launch {
             try {
                 _state.update { it.copy(period = period, periodId = null, budgetLines = emptyList(), savingsTarget = null) }
                 val periodId = periodRepository.ensure(period)
-                val lines = budgetRepository.getLines(periodId)
-                val savingsTarget = budgetRepository.getSavingsTarget(periodId)
-                _state.update { it.copy(periodId = periodId, budgetLines = lines, savingsTarget = savingsTarget) }
+                val (lines, savingsTarget) = coroutineScope {
+                    val lines = async { budgetRepository.getLines(periodId) }
+                    val target = async { budgetRepository.getSavingsTarget(periodId) }
+                    lines.await() to target.await()
+                }
+                _state.update { if (it.period == period) it.copy(periodId = periodId, budgetLines = lines, savingsTarget = savingsTarget) else it }
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось загрузить период")
             }
@@ -236,7 +291,7 @@ class HomeViewModel(
                 _state.update {
                     it.copy(
                         saving = false,
-                        transactions = listOfNotNull(second, saved) + it.transactions,
+                        transactions = (listOfNotNull(second, saved) + it.transactions).distinctBy { tx -> tx.id },
                         pendingCount = transactionRepository.pendingCount(),
                         drafts = draftRepository.all(),
                         entryPrefill = null,
@@ -277,7 +332,7 @@ class HomeViewModel(
                     note = draft.note,
                 )
                 val saved = transactionRepository.add(transaction, current.accounts)
-                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions, pendingCount = transactionRepository.pendingCount()) }
+                _state.update { it.copy(saving = false, transactions = (listOf(saved) + it.transactions).distinctBy { tx -> tx.id }, pendingCount = transactionRepository.pendingCount()) }
                 _messages.send(if (saved.pending) "Записано без сети, отправится при обновлении" else "Обмен записан")
             } catch (e: Exception) {
                 _state.update { it.copy(saving = false) }
@@ -307,7 +362,7 @@ class HomeViewModel(
                     is Transaction.Exchange -> source.copy(id = "", date = today, amountBase = rates.toBase(source.given), pending = false)
                 }
                 val saved = transactionRepository.add(copy, current.accounts)
-                _state.update { it.copy(saving = false, transactions = listOf(saved) + it.transactions, pendingCount = transactionRepository.pendingCount()) }
+                _state.update { it.copy(saving = false, transactions = (listOf(saved) + it.transactions).distinctBy { tx -> tx.id }, pendingCount = transactionRepository.pendingCount()) }
                 _messages.send("Операция повторена на сегодня")
             } catch (e: Exception) {
                 _state.update { it.copy(saving = false) }
@@ -403,7 +458,7 @@ class HomeViewModel(
                 }
                 debtNote?.let { _messages.send("Удалено" + it) }
             } catch (e: Exception) {
-                _state.update { state -> state.copy(transactions = listOf(transaction) + state.transactions) }
+                _state.update { state -> state.copy(transactions = (listOf(transaction) + state.transactions).distinctBy { tx -> tx.id }) }
                 _messages.send(e.message ?: "Не удалось удалить")
             }
         }
@@ -724,7 +779,7 @@ class HomeViewModel(
                     state.copy(
                         saving = false,
                         balanceChecks = listOf(check) + state.balanceChecks,
-                        transactions = listOfNotNull(correction) + state.transactions,
+                        transactions = (listOfNotNull(correction) + state.transactions).distinctBy { tx -> tx.id },
                     )
                 }
                 _messages.send(
@@ -1108,3 +1163,21 @@ class HomeViewModel(
 }
 
 data class UndoRequest(val id: String, val text: String)
+
+private class LoadedData(
+    val currencies: List<Currency>,
+    val accounts: List<Account>,
+    val categories: List<Category>,
+    val subcategories: List<Subcategory>,
+    val transactions: List<Transaction>,
+    val rates: RateTable,
+    val checks: List<BalanceCheck>,
+    val debts: List<Debt>,
+    val rateHistory: List<ExchangeRate>,
+    val periodId: String,
+    val lines: List<BudgetLine>,
+    val savingsTarget: Money?,
+    val allPlanLines: List<PeriodBudgetLine>,
+    val capitalGoals: List<CapitalGoal>,
+    val capitalSettings: CapitalSettings,
+)
