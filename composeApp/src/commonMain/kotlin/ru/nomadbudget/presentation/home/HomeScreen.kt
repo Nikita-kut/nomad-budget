@@ -124,6 +124,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import ru.nomadbudget.presentation.theme.LocalThemeSettings
+import ru.nomadbudget.presentation.components.LoadingSkeleton
+import ru.nomadbudget.presentation.components.HeaderSkeleton
 
 @Serializable
 object MonthRoute
@@ -466,6 +468,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 )
                             }
                         }
+                        if (state.loading) LoadingSkeleton(wide = wide)
                     }
                 }
             }
@@ -527,7 +530,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     if (DemoMode.enabled) DemoBadge()
                     if (state.loading) {
-                        LinearProgressIndicator(modifier = Modifier.weight(1f))
+                        Box(modifier = Modifier.weight(1f)) { HeaderSkeleton() }
                     } else {
                         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
                             HeaderAmount("Всего", state.totalBase, emphasize = true)
@@ -547,7 +550,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     RefreshButton(state, viewModel)
                 }
                 if (state.loading) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                    Box(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) { HeaderSkeleton() }
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
