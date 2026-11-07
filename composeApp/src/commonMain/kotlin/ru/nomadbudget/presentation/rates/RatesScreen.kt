@@ -32,6 +32,8 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.domain.logic.ExchangeAnalyzer
 
 private const val CHART_POINTS = 90
 private const val RATE_VISIBLE_POINTS = 30
@@ -40,11 +42,7 @@ private const val TABLE_ROWS = 14
 @Composable
 fun RatesScreen(state: HomeState) {
     val byCurrency = state.rateHistory.groupBy { it.quote }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(bottom = 12.dp) {
         if (state.foreignCurrencies.isEmpty()) {
             item { EmptyHint("Кроме базовой валюты других нет") }
         }
@@ -58,9 +56,10 @@ fun RatesScreen(state: HomeState) {
                         val tail = history.takeLast(CHART_POINTS)
                         val color = currencyColor(currency, state)
                         Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            ChartLegend(listOf(LegendEntry("${unitsLabel(currency, current?.basePerUnit)} по дням", color)))
+                            val inverted = (current?.basePerUnit ?: tail.last().basePerUnit) < 1.0
+                            ChartLegend(listOf(LegendEntry(if (inverted) "Сколько ${currency.symbol} за 1 ${Currency.BASE.symbol}, по дням" else "Сколько ${Currency.BASE.symbol} за 1 ${currency.symbol}, по дням", color)))
                             LineChart(
-                                values = tail.map { it.basePerUnit * unitsFor(it.basePerUnit) },
+                                values = tail.map { if (inverted) 1.0 / it.basePerUnit else it.basePerUnit },
                                 color = color,
                                 labels = tail.map { DateFormat.dayMonth(it.date) },
                                 formatY = { MoneyFormat.formatQuote(it) },
@@ -88,7 +87,7 @@ private fun CurrencyHeader(currency: Currency, current: ExchangeRate?, state: Ho
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CurrencyChip(currency, state)
-                    Text(unitsLabel(currency, current?.basePerUnit), fontWeight = FontWeight.SemiBold)
+                    Text(currency.code, fontWeight = FontWeight.SemiBold)
                 }
                 Text(
                     when {
@@ -105,7 +104,7 @@ private fun CurrencyHeader(currency: Currency, current: ExchangeRate?, state: Ho
             }
             current?.let { rate ->
                 Text(
-                    "${MoneyFormat.formatRate(rate.basePerUnit * unitsFor(rate.basePerUnit))} ${Currency.BASE.symbol}",
+                    ExchangeAnalyzer.quoteText(ExchangeAnalyzer.baseQuote(currency, rate.basePerUnit), MoneyFormat::formatQuote),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = currencyColor(currency, state),
@@ -126,8 +125,9 @@ private fun HistoryTable(currency: Currency, history: List<ExchangeRate>) {
         Column {
             rows.forEachIndexed { index, rate ->
                 val previous = history.getOrNull(history.size - 1 - index - 1)
-                val units = unitsFor(rate.basePerUnit)
-                val delta = previous?.let { (rate.basePerUnit - it.basePerUnit) * units }
+                val inverted = rate.basePerUnit < 1.0
+                fun shown(r: ExchangeRate) = if (inverted) 1.0 / r.basePerUnit else r.basePerUnit
+                val delta = previous?.let { shown(rate) - shown(it) }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -137,16 +137,16 @@ private fun HistoryTable(currency: Currency, history: List<ExchangeRate>) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         delta?.let {
                             Text(
-                                (if (it >= 0) "+" else "−") + MoneyFormat.formatRate(kotlin.math.abs(it)),
+                                (if (it >= 0) "+" else "−") + MoneyFormat.formatQuote(kotlin.math.abs(it)),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = when {
-                                    it > 0 -> AppTheme.colors.bad
-                                    it < 0 -> AppTheme.colors.good
+                                    it > 0 -> if (inverted) AppTheme.colors.good else AppTheme.colors.bad
+                                    it < 0 -> if (inverted) AppTheme.colors.bad else AppTheme.colors.good
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                             )
                         }
-                        Text("${MoneyFormat.formatRate(rate.basePerUnit * units)} ${Currency.BASE.symbol}", fontWeight = FontWeight.Medium)
+                        Text(ExchangeAnalyzer.quoteText(ExchangeAnalyzer.baseQuote(currency, rate.basePerUnit), MoneyFormat::formatQuote), fontWeight = FontWeight.Medium)
                     }
                 }
                 if (index < rows.lastIndex) HorizontalDivider()
@@ -155,11 +155,3 @@ private fun HistoryTable(currency: Currency, history: List<ExchangeRate>) {
     }
 }
 
-private fun unitsFor(basePerUnit: Double): Int = if (basePerUnit < SMALL_RATE) 1_000 else 1
-
-private fun unitsLabel(currency: Currency, basePerUnit: Double?): String {
-    val units = basePerUnit?.let(::unitsFor) ?: 1
-    return if (units > 1) "$units ${currency.code} в рублях" else "1 ${currency.code} в рублях"
-}
-
-private const val SMALL_RATE = 0.01

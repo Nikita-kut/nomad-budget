@@ -41,6 +41,7 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import kotlin.math.roundToLong
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 
 private enum class Range(val months: Int?, val title: String) {
     YEAR(12, "12 мес."),
@@ -67,11 +68,7 @@ fun ChartsScreen(state: HomeState) {
     val savedColor = AppTheme.colors.usd
     val planColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(bottom = 12.dp) {
         item {
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 Range.entries.forEachIndexed { index, r ->
@@ -85,7 +82,7 @@ fun ChartsScreen(state: HomeState) {
         }
         if (points.isEmpty()) {
             item { EmptyHint("Пока нет данных для графиков") }
-            return@LazyColumn
+            return@CenteredLazyColumn
         }
         item { Totals(points) }
         item {

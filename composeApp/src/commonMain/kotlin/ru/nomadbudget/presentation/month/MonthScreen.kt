@@ -65,6 +65,9 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import androidx.compose.foundation.layout.BoxWithConstraints
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.centeredSide
 
 @Composable
 fun MonthScreen(
@@ -159,7 +162,7 @@ fun MonthScreen(
             onRetry = onRetry,
         )
     } else {
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CenteredLazyColumn(maxContentWidth = 760.dp) {
             overview()
             envelopes()
         }
@@ -167,10 +170,10 @@ fun MonthScreen(
 }
 
 @Composable
-private fun SpendCard(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit, onOpenPlanning: () -> Unit) {
+private fun SpendCard(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -237,10 +240,10 @@ private fun paceNote(month: MonthModel): String? {
 }
 
 @Composable
-private fun SavedCard(month: MonthModel) {
+private fun SavedCard(month: MonthModel, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     val target = month.savingsTarget
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -278,9 +281,9 @@ private fun SavedCard(month: MonthModel) {
 }
 
 @Composable
-private fun ObligationsCard(month: MonthModel, onOpenDebts: () -> Unit) {
+private fun ObligationsCard(month: MonthModel, onOpenDebts: () -> Unit, modifier: Modifier = Modifier) {
     val next = month.nextObligation
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDebts)) {
+    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onOpenDebts)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -548,8 +551,10 @@ private fun WideMonth(
     onRetry: () -> Unit,
 ) {
     val month = state.month
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val side = centeredSide(maxWidth, 1240.dp)
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = side, end = side, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         state.error?.let { message ->
@@ -562,9 +567,9 @@ private fun WideMonth(
         }
         if (state.isFirstRun) FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry)
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(modifier = Modifier.weight(1.3f).fillMaxHeight()) { SpendCard(month, state.saving, onCopyPlan, onOpenPlanning) }
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) { SavedCard(month) }
-            if (month.debts.isNotEmpty()) Box(modifier = Modifier.weight(1f).fillMaxHeight()) { ObligationsCard(month, onOpenDebts) }
+            SpendCard(month, state.saving, onCopyPlan, onOpenPlanning, Modifier.weight(1f).fillMaxHeight())
+            SavedCard(month, Modifier.weight(1f).fillMaxHeight())
+            if (month.debts.isNotEmpty()) ObligationsCard(month, onOpenDebts, Modifier.weight(1f).fillMaxHeight())
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -589,6 +594,7 @@ private fun WideMonth(
             }
         }
     }
+}
 }
 
 @Composable

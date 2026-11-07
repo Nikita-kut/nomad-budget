@@ -83,7 +83,7 @@ fun ColumnsChart(
                 ),
             ),
             modelProducer = producer,
-            zoomState = rememberVicoZoomState(zoomEnabled = true, initialZoom = Zoom.x(visibleCount.toDouble())),
+            zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.x(visibleCount.toDouble())),
             modifier = modifier.fillMaxWidth().height(CHART_HEIGHT),
         )
     }
@@ -130,7 +130,7 @@ fun LineChart(
                 ),
             ),
             modelProducer = producer,
-            zoomState = rememberVicoZoomState(zoomEnabled = true, initialZoom = Zoom.x(visibleCount.toDouble())),
+            zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.x(visibleCount.toDouble())),
             modifier = modifier.fillMaxWidth().height(CHART_HEIGHT),
         )
     }

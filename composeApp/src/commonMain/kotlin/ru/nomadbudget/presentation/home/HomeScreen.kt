@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -265,7 +266,17 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             }
         }
         val back = fun() { navController.popBackStack() }
-        val contentMaxWidth = if (twoColumns && backStack != null && (navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>() || navController.isOn<JournalRoute>() || navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>())) WIDE_CONTENT_MAX_WIDTH else if (wide) WIDE_SINGLE_MAX_WIDTH else CONTENT_MAX_WIDTH
+        val selfCentered = backStack != null && (
+            navController.isOn<ChartsRoute>() || navController.isOn<RatesRoute>() || navController.isOn<ExchangeRoute>() ||
+                navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() ||
+                navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>() || navController.isOn<MonthRoute>()
+            )
+        val contentMaxWidth = when {
+            selfCentered -> Dp.Infinity
+            twoColumns && backStack != null && (navController.isOn<PlanningRoute>() || navController.isOn<JournalRoute>()) -> WIDE_CONTENT_MAX_WIDTH
+            wide -> WIDE_SINGLE_MAX_WIDTH
+            else -> CONTENT_MAX_WIDTH
+        }
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },

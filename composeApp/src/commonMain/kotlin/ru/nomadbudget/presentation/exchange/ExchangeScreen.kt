@@ -53,18 +53,18 @@ import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.AccountsLine
 import ru.nomadbudget.presentation.components.ArrowGlyph
 import ru.nomadbudget.presentation.more.SubScreenHeader
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.charts.LineChart
+import ru.nomadbudget.presentation.components.currencyColor
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(bottom = 96.dp) {
         if (onBack != null) {
             item { SubScreenHeader("Обмен валюты", onBack) }
         }
         item { ExchangeForm(state, onSubmit) }
+        exchangeChart(state)?.let { chart -> item { ExchangeRateChart(chart, state) } }
         item { SectionTitle("Журнал обменов", hint = "спред к кросс-курсу", info = Hints.EXCHANGE_SPREAD) }
         if (state.exchanges.isEmpty()) {
             item { EmptyHint("Обменов пока нет") }
@@ -169,11 +169,13 @@ private fun RateHints(
             Text("Нет курса для одной из валют, заполни таблицу курсов", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
         else -> {
             val reference = state.rates.cross(from.currency, to.currency)
-            KeyValueRow("Кросс-курс по таблице", "1 ${from.currency.code} = ${MoneyFormat.formatRate(reference)} ${to.currency.code}")
+            val referenceQuote = ExchangeAnalyzer.pairQuote(from.currency, to.currency, reference)
+            KeyValueRow("Курс по таблице", ExchangeAnalyzer.quoteText(referenceQuote, MoneyFormat::formatQuote))
             if (given != null && received != null) {
                 val effective = received.toMajor() / given.toMajor()
                 val spread = (reference - effective) / reference * 100
-                KeyValueRow("Фактический курс", "1 ${from.currency.code} = ${MoneyFormat.formatRate(effective)} ${to.currency.code}", emphasize = true)
+                val effectiveQuote = if (referenceQuote.unit == from.currency) ru.nomadbudget.domain.logic.RateQuote(from.currency, to.currency, effective) else ru.nomadbudget.domain.logic.RateQuote(to.currency, from.currency, 1.0 / effective)
+                KeyValueRow("Твой курс", ExchangeAnalyzer.quoteText(effectiveQuote, MoneyFormat::formatQuote), emphasize = true)
                 Text(
                     "Спред ${MoneyFormat.formatPercent(-spread)} к таблице",
                     style = MaterialTheme.typography.bodySmall,
@@ -212,7 +214,7 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
             }
             Column(horizontalAlignment = Alignment.End) {
                 val quote = ExchangeAnalyzer.quote(exchange)
-                Text("1 ${quote.unit.symbol} = ${MoneyFormat.formatQuote(quote.value)} ${quote.price.symbol}", fontWeight = FontWeight.SemiBold)
+                Text(ExchangeAnalyzer.quoteText(quote, MoneyFormat::formatQuote), fontWeight = FontWeight.SemiBold)
                 if (analysis != null) {
                     Text(
                         "${MoneyFormat.formatPercent(-analysis.spreadPercent)} к таблице",
@@ -226,5 +228,49 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
             }
         }
         HorizontalDivider()
+    }
+}
+
+private data class ExchangeChartData(val unit: Currency, val price: Currency, val points: List<Pair<kotlinx.datetime.LocalDate, Double>>, val table: Double?)
+
+private fun exchangeChart(state: HomeState): ExchangeChartData? {
+    val pairs = state.exchanges.groupBy { setOf(it.given.currency, it.received.currency) }
+    val (pair, list) = pairs.maxByOrNull { it.value.size } ?: return null
+    if (list.size < 2) return null
+    val sorted = list.sortedBy { it.date }
+    val orientation = ExchangeAnalyzer.quote(sorted.last())
+    val points = sorted.map { tx ->
+        val q = ExchangeAnalyzer.quote(tx)
+        tx.date to if (q.unit == orientation.unit) q.value else 1.0 / q.value
+    }
+    val table = if (pair.all(state.rates::hasRate)) {
+        val cross = state.rates.cross(orientation.unit, orientation.price)
+        cross
+    } else {
+        null
+    }
+    return ExchangeChartData(orientation.unit, orientation.price, points, table)
+}
+
+@Composable
+private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Твой курс в обменах", fontWeight = FontWeight.SemiBold)
+            Text(
+                "Сколько ${data.price.symbol} ты получал за 1 ${data.unit.symbol}" +
+                    (data.table?.let { " · по таблице сейчас ${MoneyFormat.formatQuote(it)}" } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LineChart(
+                values = data.points.map { it.second },
+                color = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state),
+                labels = data.points.map { DateFormat.dayMonth(it.first) },
+                formatY = { MoneyFormat.formatQuote(it) },
+                visibleCount = data.points.size.coerceIn(2, 12),
+                fitToData = true,
+            )
+        }
     }
 }

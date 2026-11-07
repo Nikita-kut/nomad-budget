@@ -10,22 +10,22 @@ data class ExchangeAnalysis(
     val spreadPercent: Double,
 )
 
-data class RateQuote(val unit: Currency, val price: Currency, val value: Double)
+data class RateQuote(val unit: Currency, val price: Currency, val value: Double) {
+    val inverted: Boolean get() = unit == Currency.BASE
+}
 
 object ExchangeAnalyzer {
 
-    fun quote(exchange: Transaction.Exchange): RateQuote {
-        val given = exchange.given
-        val received = exchange.received
-        return when {
-            given.currency == Currency.BASE -> RateQuote(received.currency, given.currency, given.toMajor() / received.toMajor())
-            received.currency == Currency.BASE -> RateQuote(given.currency, received.currency, received.toMajor() / given.toMajor())
-            else -> {
-                val direct = received.toMajor() / given.toMajor()
-                if (direct >= 1.0) RateQuote(given.currency, received.currency, direct) else RateQuote(received.currency, given.currency, 1.0 / direct)
-            }
-        }
-    }
+    fun quote(exchange: Transaction.Exchange): RateQuote =
+        pairQuote(exchange.given.currency, exchange.received.currency, exchange.received.toMajor() / exchange.given.toMajor())
+
+    fun pairQuote(from: Currency, to: Currency, toPerFrom: Double): RateQuote =
+        if (toPerFrom >= 1.0) RateQuote(from, to, toPerFrom) else RateQuote(to, from, 1.0 / toPerFrom)
+
+    fun baseQuote(currency: Currency, basePerUnit: Double): RateQuote =
+        if (basePerUnit >= 1.0) RateQuote(currency, Currency.BASE, basePerUnit) else RateQuote(Currency.BASE, currency, 1.0 / basePerUnit)
+
+    fun quoteText(quote: RateQuote, format: (Double) -> String): String = "1 ${quote.unit.symbol} = ${format(quote.value)} ${quote.price.symbol}"
 
     fun analyze(exchange: Transaction.Exchange, rates: RateTable): ExchangeAnalysis {
         val reference = rates.cross(exchange.given.currency, exchange.received.currency)

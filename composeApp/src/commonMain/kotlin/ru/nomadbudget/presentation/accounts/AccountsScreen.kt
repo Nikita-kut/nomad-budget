@@ -56,6 +56,8 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.components.AccountName
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.domain.logic.ExchangeAnalyzer
 
 @Composable
 fun AccountsScreen(
@@ -81,11 +83,7 @@ fun AccountsScreen(
     var renaming by remember { mutableStateOf<Account?>(null) }
     var editMode by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 96.dp) {
         item { TotalsCard(state) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -371,29 +369,23 @@ private fun RatesCard(state: HomeState) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             state.foreignCurrencies.forEach { currency ->
                 if (state.rates.hasRate(currency)) {
-                    val perUnit = state.rates.basePerUnit(currency)
-                    val units = if (perUnit < SMALL_RATE) 1_000 else 1
-                    KeyValueRow(
-                        "${if (units > 1) "$units " else "1 "}${currency.code} в рублях",
-                        "${MoneyFormat.formatRate(perUnit * units)} ${Currency.BASE.symbol}",
-                    )
+                    KeyValueRow(currency.code, ExchangeAnalyzer.quoteText(ExchangeAnalyzer.baseQuote(currency, state.rates.basePerUnit(currency)), MoneyFormat::formatQuote))
                 } else {
-                    KeyValueRow("1 ${currency.code} в рублях", "нет курса")
+                    KeyValueRow(currency.code, "нет курса")
                 }
             }
             state.foreignCurrencies
                 .filter { it != Currency.USD && state.rates.hasRate(it) }
                 .forEach { currency ->
                     KeyValueRow(
-                        "1 ${Currency.USD.code} в ${currency.code}, кросс-курс",
-                        "${MoneyFormat.formatRate(state.rates.cross(Currency.USD, currency))} ${currency.symbol}",
+                        "${Currency.USD.code} → ${currency.code}, кросс-курс",
+                        ExchangeAnalyzer.quoteText(ExchangeAnalyzer.pairQuote(Currency.USD, currency, state.rates.cross(Currency.USD, currency)), MoneyFormat::formatQuote),
                     )
                 }
         }
     }
 }
 
-private const val SMALL_RATE = 0.01
 
 @Composable
 private fun TotalsCard(state: HomeState) {
