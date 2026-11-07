@@ -3,6 +3,7 @@ package ru.nomadbudget.presentation.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -163,17 +164,34 @@ fun CategoryPicker(
         ) {
             options.forEachIndexed { index, choice ->
                 if (choice.isNew && (index == 0 || !options[index - 1].isNew)) HorizontalDivider()
+                val isCategory = choice.subcategory == null && !choice.isNew
                 val indent = choice.subcategory != null && !choice.isNew && normalized.isEmpty()
+                val base = when {
+                    index == highlighted -> MaterialTheme.colorScheme.secondaryContainer
+                    isCategory -> MaterialTheme.colorScheme.surfaceContainerHighest
+                    else -> Color.Transparent
+                }
+                if (isCategory && index > 0) HorizontalDivider()
                 DropdownMenuItem(
                     text = {
                         Text(
-                            if (indent) "    ${choice.subcategory}" else choice.label,
-                            fontWeight = if (choice.subcategory == null && !choice.isNew) FontWeight.SemiBold else null,
-                            color = if (choice.isNew) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                            when {
+                                isCategory -> choice.label.uppercase()
+                                indent -> "›  ${choice.subcategory}"
+                                else -> choice.label
+                            },
+                            style = if (isCategory) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isCategory) FontWeight.Bold else null,
+                            color = when {
+                                choice.isNew -> MaterialTheme.colorScheme.primary
+                                isCategory -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            modifier = if (indent) Modifier.padding(start = 20.dp) else Modifier,
                         )
                     },
                     onClick = { choose(choice) },
-                    modifier = if (index == highlighted) Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer) else Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().background(base),
                 )
             }
         }

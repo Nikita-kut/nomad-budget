@@ -34,9 +34,15 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.domain.logic.ExchangeAnalyzer
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 
 private const val CHART_POINTS = 90
 private const val RATE_VISIBLE_POINTS = 30
+private const val COLLAPSED_ROWS = 5
 private const val TABLE_ROWS = 14
 
 @Composable
@@ -120,7 +126,8 @@ private fun HistoryTable(currency: Currency, history: List<ExchangeRate>) {
         EmptyHint("Снимков курса ещё нет, cron добавляет по одному в день")
         return
     }
-    val rows = history.takeLast(TABLE_ROWS).reversed()
+    var showAll by remember(currency) { mutableStateOf(false) }
+    val rows = history.takeLast(if (showAll) TABLE_ROWS else COLLAPSED_ROWS).reversed()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
             rows.forEachIndexed { index, rate ->
@@ -129,7 +136,7 @@ private fun HistoryTable(currency: Currency, history: List<ExchangeRate>) {
                 fun shown(r: ExchangeRate) = if (inverted) 1.0 / r.basePerUnit else r.basePerUnit
                 val delta = previous?.let { shown(rate) - shown(it) }
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -150,6 +157,12 @@ private fun HistoryTable(currency: Currency, history: List<ExchangeRate>) {
                     }
                 }
                 if (index < rows.lastIndex) HorizontalDivider()
+            }
+            if (history.size > COLLAPSED_ROWS) {
+                HorizontalDivider()
+                TextButton(onClick = { showAll = !showAll }, modifier = Modifier.padding(horizontal = 4.dp)) {
+                    Text(if (showAll) "Свернуть" else "Показать ещё ${minOf(history.size, TABLE_ROWS) - COLLAPSED_ROWS}")
+                }
             }
         }
     }

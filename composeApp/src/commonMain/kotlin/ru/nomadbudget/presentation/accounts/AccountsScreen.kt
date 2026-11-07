@@ -58,6 +58,8 @@ import ru.nomadbudget.presentation.components.AccountName
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.domain.logic.ExchangeAnalyzer
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 
 @Composable
 fun AccountsScreen(
@@ -93,12 +95,13 @@ fun AccountsScreen(
                 }
             }
         }
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        val lifeTitle: @Composable () -> Unit = {
+            Row(modifier = Modifier.fillMaxWidth().height(TITLE_HEIGHT), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 SectionTitle("На жизнь", hint = if (editMode) "стрелки меняют порядок" else "карты и наличные", modifier = Modifier.weight(1f), info = Hints.ACCOUNTS_TOTAL)
                 TextButton(onClick = { editMode = !editMode }) { Text(if (editMode) "Готово" else "Изменить") }
             }
         }
+        if (!twoColumns) item { lifeTitle() }
         val lifeCard: @Composable () -> Unit = {
             AccountsCard(daily, state, totalLabel = "Итого на жизнь", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
@@ -111,9 +114,14 @@ fun AccountsScreen(
         if (twoColumns) {
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { lifeCard() }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("Копилки", hint = "под крупные траты", info = Hints.FUNDS)
+                        lifeTitle()
+                        lifeCard()
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(modifier = Modifier.fillMaxWidth().height(TITLE_HEIGHT), contentAlignment = Alignment.CenterStart) {
+                            SectionTitle("Копилки", hint = "под крупные траты", info = Hints.FUNDS)
+                        }
                         fundsCard()
                         SectionTitle("Подушка", hint = "неприкосновенный запас")
                         cushionCard()
@@ -439,3 +447,5 @@ private fun RoleDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Acco
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
+
+private val TITLE_HEIGHT = 40.dp
