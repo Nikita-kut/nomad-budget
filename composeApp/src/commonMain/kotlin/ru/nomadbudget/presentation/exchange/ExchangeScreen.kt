@@ -58,6 +58,10 @@ import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.components.ChartPanel
 import ru.nomadbudget.presentation.components.ChartPeriod
+import ru.nomadbudget.domain.logic.RatePairs
+import ru.nomadbudget.presentation.charts.MultiLineChart
+import ru.nomadbudget.presentation.charts.LegendEntry
+import ru.nomadbudget.presentation.components.Ui
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
@@ -66,7 +70,11 @@ fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete
             item { SubScreenHeader("Обмен валюты", onBack) }
         }
         item { ExchangeForm(state, onSubmit) }
-        exchangeChart(state)?.let { chart -> item { ExchangeRateChart(chart, state) } }
+        val charts = exchangeCharts(state)
+        items(charts.size) { index ->
+            val chart = charts[index]
+            if (chart.points.size >= MIN_EXCHANGES) ExchangeRateChart(chart, state) else SingleExchangeCard(chart)
+        }
         item { SectionTitle("Журнал обменов", hint = "спред к кросс-курсу", info = Hints.EXCHANGE_SPREAD) }
         if (state.exchanges.isEmpty()) {
             item { EmptyHint("Обменов пока нет") }
@@ -233,45 +241,75 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
     }
 }
 
-private data class ExchangeChartData(val unit: Currency, val price: Currency, val points: List<Pair<kotlinx.datetime.LocalDate, Double>>, val table: Double?)
+private data class ExchangePoint(val date: kotlinx.datetime.LocalDate, val mine: Double, val table: Double?)
 
-private fun exchangeChart(state: HomeState): ExchangeChartData? {
-    val pairs = state.exchanges.groupBy { setOf(it.given.currency, it.received.currency) }
-    val (pair, list) = pairs.maxByOrNull { it.value.size } ?: return null
-    if (list.size < 2) return null
-    val sorted = list.sortedBy { it.date }
-    val orientation = ExchangeAnalyzer.quote(sorted.last())
-    val points = sorted.map { tx ->
-        val q = ExchangeAnalyzer.quote(tx)
-        tx.date to if (q.unit == orientation.unit) q.value else 1.0 / q.value
-    }
-    val table = if (pair.all(state.rates::hasRate)) {
-        val cross = state.rates.cross(orientation.unit, orientation.price)
-        cross
-    } else {
-        null
-    }
-    return ExchangeChartData(orientation.unit, orientation.price, points, table)
-}
+private data class ExchangeChartData(val unit: Currency, val price: Currency, val points: List<ExchangePoint>)
+
+private fun exchangeCharts(state: HomeState): List<ExchangeChartData> =
+    state.exchanges
+        .groupBy { setOf(it.given.currency, it.received.currency) }
+        .values
+        .sortedByDescending { it.size }
+        .map { list ->
+            val sorted = list.sortedBy { it.date }
+            val orientation = ExchangeAnalyzer.quote(sorted.last())
+            val market = RatePairs.series(orientation.unit, orientation.price, state.rateHistory)
+            val current = state.rates.cross(orientation.unit, orientation.price)
+            ExchangeChartData(
+                unit = orientation.unit,
+                price = orientation.price,
+                points = sorted.map { tx ->
+                    val q = ExchangeAnalyzer.quote(tx)
+                    ExchangePoint(
+                        date = tx.date,
+                        mine = if (q.unit == orientation.unit) q.value else 1.0 / q.value,
+                        table = market.lastOrNull { it.date <= tx.date }?.value ?: current,
+                    )
+                },
+            )
+        }
 
 @Composable
 private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
+    val mineColor = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state)
+    val tableColor = MaterialTheme.colorScheme.outline
+    val withTable = data.points.all { it.table != null }
     ChartPanel(
-        title = "Твой курс в обменах",
-        hint = "Сколько ${data.price.symbol} ты получал за 1 ${data.unit.symbol}" + (data.table?.let { " · по таблице сейчас ${MoneyFormat.formatQuote(it)}" } ?: ""),
-        legend = emptyList(),
+        title = "1 ${data.unit.symbol} → ${data.price.symbol}: твой курс в обменах",
+        hint = "сколько ${data.price.code} ты получал за 1 ${data.unit.code}" + if (withTable) "; выше линии таблицы — обменял выгодно" else "",
+        legend = listOfNotNull(LegendEntry("твой курс", mineColor), LegendEntry("по таблице в тот день", tableColor).takeIf { withTable }),
         totalPoints = data.points.size,
         periods = EXCHANGE_PERIODS,
+        stateKey = data.unit.code + data.price.code,
     ) { from, visible ->
         val slice = data.points.drop(from)
-        LineChart(
-            values = slice.map { it.second },
-            color = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state),
-            labels = slice.map { DateFormat.dayMonth(it.first) },
+        val series = listOfNotNull(slice.map { it.mine }, slice.map { it.table ?: it.mine }.takeIf { withTable })
+        MultiLineChart(
+            series = series,
+            colors = listOf(mineColor, tableColor).take(series.size),
+            labels = slice.map { DateFormat.dayMonth(it.date) },
             formatY = MoneyFormat::formatQuote,
             visibleCount = visible,
-            fitToData = true,
         )
+    }
+}
+
+private const val MIN_EXCHANGES = 2
+
+@Composable
+private fun SingleExchangeCard(data: ExchangeChartData) {
+    val point = data.points.single()
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("1 ${data.unit.symbol} → ${data.price.symbol}: один обмен", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${DateFormat.dayMonth(point.date)}: твой курс ${MoneyFormat.formatQuote(point.mine)}" +
+                    (point.table?.let { " · по таблице ${MoneyFormat.formatQuote(it)}" } ?: "") +
+                    ". График появится после второго обмена.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
