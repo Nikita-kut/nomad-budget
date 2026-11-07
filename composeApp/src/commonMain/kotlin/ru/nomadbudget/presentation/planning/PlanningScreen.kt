@@ -224,7 +224,7 @@ private fun UnallocatedCard(month: MonthModel) {
             Text(
                 MoneyFormat.format(if (negative) -month.unallocated else month.unallocated, false),
                 style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = if (negative) colors.bad else colors.good,
             )
             Text(

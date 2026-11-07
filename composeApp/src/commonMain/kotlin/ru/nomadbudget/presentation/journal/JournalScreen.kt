@@ -308,7 +308,7 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
             verticalAlignment = Alignment.Bottom,
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(DateFormat.dayMonth(day.date), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(DateFormat.dayMonth(day.date), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
                     "${DateFormat.weekdayFull(day.date)} · ${day.transactions.size} опер.",
                     style = MaterialTheme.typography.labelSmall,
@@ -356,7 +356,7 @@ private fun GroupHeader(group: JournalGroup) {
             group.title.uppercase(),
             style = MaterialTheme.typography.labelMedium,
             color = group.color,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f).padding(start = 8.dp, top = 5.dp, bottom = 5.dp),
         )
         Text(
@@ -394,7 +394,7 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { onEdit(tx) }
                 .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
