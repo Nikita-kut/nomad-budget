@@ -483,6 +483,7 @@ private val JOURNAL_AMOUNT = 120.dp
 private fun JournalHeaderRow() {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Text("Тип", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.padding(start = 0.dp).width(64.dp))
         Text("Что", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1.4f))
         Text("Счёт", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1f))
         Text("Заметка", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1.2f))
@@ -502,10 +503,25 @@ private fun JournalTableRow(tx: Transaction, state: HomeState, onClick: () -> Un
         is Transaction.Transfer -> listOf("Перевод", "${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", MoneyFormat.format(tx.amount), "")
         is Transaction.Exchange -> listOf("Обмен", "${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", "${MoneyFormat.format(tx.given)} → ${MoneyFormat.format(tx.received)}", "")
     }
+    val (typeLabel, typeColor) = when (tx) {
+        is Transaction.Expense -> "Расход" to colors.bad
+        is Transaction.Income -> "Доход" to colors.good
+        is Transaction.Transfer -> "Перевод" to colors.save
+        is Transaction.Exchange -> "Обмен" to colors.warning
+    }
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).clickable(onClick = onClick).background(if (tx is Transaction.Expense) Color.Transparent else typeColor.copy(alpha = 0.06f)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(typeColor))
+        Row(modifier = Modifier.weight(1f).padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            typeLabel,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = typeColor,
+            modifier = Modifier.width(64.dp),
+        )
         Text(what, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.4f))
         Text(account, style = MaterialTheme.typography.bodyMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(tx.note, style = MaterialTheme.typography.bodyMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.2f))
@@ -517,11 +533,12 @@ private fun JournalTableRow(tx: Transaction, state: HomeState, onClick: () -> Un
             color = when (sign) {
                 "−" -> colors.bad
                 "+" -> colors.good
-                else -> MaterialTheme.colorScheme.onSurface
+                else -> typeColor
             },
             modifier = Modifier.width(JOURNAL_AMOUNT),
             textAlign = TextAlign.End,
         )
+        }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    HorizontalDivider()
 }

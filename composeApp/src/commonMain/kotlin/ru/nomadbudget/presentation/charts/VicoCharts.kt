@@ -36,6 +36,19 @@ import com.patrykandpatrick.vico.multiplatform.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.multiplatform.common.Fill
 import com.patrykandpatrick.vico.multiplatform.common.component.LineComponent
 import com.patrykandpatrick.vico.multiplatform.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.multiplatform.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.multiplatform.cartesian.marker.CartesianMarkerController
+import com.patrykandpatrick.vico.multiplatform.cartesian.marker.ColumnCartesianLayerMarkerTarget
+import com.patrykandpatrick.vico.multiplatform.cartesian.marker.DefaultCartesianMarker
+import com.patrykandpatrick.vico.multiplatform.cartesian.marker.LineCartesianLayerMarkerTarget
+import com.patrykandpatrick.vico.multiplatform.cartesian.marker.rememberDefaultCartesianMarker
+import com.patrykandpatrick.vico.multiplatform.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.multiplatform.common.component.rememberTextComponent
+import com.patrykandpatrick.vico.multiplatform.common.Insets
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
+import com.patrykandpatrick.vico.multiplatform.cartesian.axis.Axis
+import kotlin.math.pow
 
 private val CHART_HEIGHT = 220.dp
 private val COLUMN_THICKNESS = 10.dp
@@ -61,6 +74,7 @@ fun ColumnsChart(
     labels: List<String>,
     formatY: (Double) -> String,
     visibleCount: Int,
+    formatValue: (Double) -> String = formatY,
     modifier: Modifier = Modifier,
 ) {
     val producer = remember { CartesianChartModelProducer() }
@@ -69,6 +83,7 @@ fun ColumnsChart(
             producer.runTransaction { columnSeries { series.forEach { series(it) } } }
         }
     }
+    val (range, axis) = rememberNiceAxis(series.flatten(), includeZero = true, formatY = formatY)
     key(visibleCount) {
         CartesianChartHost(
             chart = rememberCartesianChart(
@@ -76,11 +91,14 @@ fun ColumnsChart(
                     columnProvider = ColumnCartesianLayer.ColumnProvider.series(
                         colors.map { LineComponent(fill = Fill(it), thickness = COLUMN_THICKNESS) },
                     ),
+                    rangeProvider = range,
                 ),
-                startAxis = VerticalAxis.rememberStart(valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) }),
+                startAxis = axis,
                 bottomAxis = HorizontalAxis.rememberBottom(
                     valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
                 ),
+                marker = rememberHoverMarker(labels, formatValue),
+                markerController = CartesianMarkerController.rememberShowOnHover(),
             ),
             modelProducer = producer,
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.x(visibleCount.toDouble())),
@@ -96,6 +114,7 @@ fun LineChart(
     labels: List<String>,
     formatY: (Double) -> String,
     visibleCount: Int,
+    formatValue: (Double) -> String = formatY,
     modifier: Modifier = Modifier,
     fitToData: Boolean = false,
 ) {
@@ -105,16 +124,7 @@ fun LineChart(
             producer.runTransaction { lineSeries { series(values) } }
         }
     }
-    val rangeProvider = remember(values, fitToData) {
-        val min = values.minOrNull()
-        val max = values.maxOrNull()
-        if (!fitToData || min == null || max == null) {
-            CartesianLayerRangeProvider.auto()
-        } else {
-            val padding = ((max - min) * FIT_PADDING).coerceAtLeast(max * MIN_FIT_PADDING)
-            CartesianLayerRangeProvider.fixed(minY = min - padding, maxY = max + padding)
-        }
-    }
+    val (rangeProvider, axis) = rememberNiceAxis(values, includeZero = !fitToData, formatY = formatY)
     key(visibleCount) {
         CartesianChartHost(
             chart = rememberCartesianChart(
@@ -124,10 +134,12 @@ fun LineChart(
                     ),
                     rangeProvider = rangeProvider,
                 ),
-                startAxis = VerticalAxis.rememberStart(valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) }),
+                startAxis = axis,
                 bottomAxis = HorizontalAxis.rememberBottom(
                     valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
                 ),
+                marker = rememberHoverMarker(labels, formatValue),
+                markerController = CartesianMarkerController.rememberShowOnHover(),
             ),
             modelProducer = producer,
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.x(visibleCount.toDouble())),
@@ -143,6 +155,7 @@ fun MultiLineChart(
     labels: List<String>,
     formatY: (Double) -> String,
     visibleCount: Int,
+    formatValue: (Double) -> String = formatY,
     modifier: Modifier = Modifier,
 ) {
     val producer = remember { CartesianChartModelProducer() }
@@ -151,17 +164,7 @@ fun MultiLineChart(
             producer.runTransaction { lineSeries { series.forEach { series(it) } } }
         }
     }
-    val rangeProvider = remember(series) {
-        val all = series.flatten()
-        val min = all.minOrNull()
-        val max = all.maxOrNull()
-        if (min == null || max == null) {
-            CartesianLayerRangeProvider.auto()
-        } else {
-            val padding = ((max - min) * FIT_PADDING).coerceAtLeast(kotlin.math.abs(max) * MIN_FIT_PADDING)
-            CartesianLayerRangeProvider.fixed(minY = min - padding, maxY = max + padding)
-        }
-    }
+    val (rangeProvider, axis) = rememberNiceAxis(series.flatten(), includeZero = false, formatY = formatY)
     key(visibleCount, colors.size) {
         CartesianChartHost(
             chart = rememberCartesianChart(
@@ -171,10 +174,12 @@ fun MultiLineChart(
                     ),
                     rangeProvider = rangeProvider,
                 ),
-                startAxis = VerticalAxis.rememberStart(valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) }),
+                startAxis = axis,
                 bottomAxis = HorizontalAxis.rememberBottom(
                     valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
                 ),
+                marker = rememberHoverMarker(labels, formatValue),
+                markerController = CartesianMarkerController.rememberShowOnHover(),
             ),
             modelProducer = producer,
             zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.x(visibleCount.toDouble())),
@@ -183,5 +188,73 @@ fun MultiLineChart(
     }
 }
 
-private const val FIT_PADDING = 0.15
-private const val MIN_FIT_PADDING = 0.001
+
+data class NiceScale(val min: Double, val max: Double, val step: Double)
+
+fun niceScale(values: List<Double>, includeZero: Boolean): NiceScale? {
+    if (values.isEmpty()) return null
+    var lo = values.min()
+    var hi = values.max()
+    if (includeZero) {
+        lo = minOf(lo, 0.0)
+        hi = maxOf(hi, 0.0)
+    }
+    if (hi == lo) {
+        val pad = if (hi == 0.0) 1.0 else kotlin.math.abs(hi) * FLAT_PADDING
+        lo -= pad
+        hi += pad
+    }
+    val step = niceStep((hi - lo) / TARGET_TICKS)
+    return NiceScale(kotlin.math.floor(lo / step) * step, kotlin.math.ceil(hi / step) * step, step)
+}
+
+private fun niceStep(raw: Double): Double {
+    val exponent = kotlin.math.floor(kotlin.math.log10(raw))
+    val magnitude = 10.0.pow(exponent)
+    val fraction = raw / magnitude
+    val nice = when {
+        fraction < 1.5 -> 1.0
+        fraction < 2.25 -> 2.0
+        fraction < 3.5 -> 2.5
+        fraction < 7.5 -> 5.0
+        else -> 10.0
+    }
+    return nice * magnitude
+}
+
+@Composable
+private fun rememberNiceAxis(values: List<Double>, includeZero: Boolean, formatY: (Double) -> String): Pair<CartesianLayerRangeProvider, VerticalAxis<Axis.Position.Vertical.Start>> {
+    val scale = remember(values, includeZero) { niceScale(values, includeZero) }
+    val range = remember(scale) { scale?.let { CartesianLayerRangeProvider.fixed(minY = it.min, maxY = it.max) } ?: CartesianLayerRangeProvider.auto() }
+    val axis = VerticalAxis.rememberStart(
+        valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) },
+        itemPlacer = remember(scale) { VerticalAxis.ItemPlacer.step(step = { scale?.step }) },
+    )
+    return range to axis
+}
+
+private const val TARGET_TICKS = 4.0
+private const val FLAT_PADDING = 0.05
+
+@Composable
+private fun rememberHoverMarker(labels: List<String>, formatY: (Double) -> String): CartesianMarker {
+    val label = rememberTextComponent(
+        style = TextStyle(color = MaterialTheme.colorScheme.inverseOnSurface, fontSize = 12.sp),
+        padding = Insets(8.dp, 4.dp),
+        background = rememberShapeComponent(fill = Fill(MaterialTheme.colorScheme.inverseSurface), shape = RoundedCornerShape(6.dp)),
+    )
+    return rememberDefaultCartesianMarker(
+        label = label,
+        valueFormatter = DefaultCartesianMarker.ValueFormatter { _, targets ->
+            val x = targets.firstOrNull()?.x?.toInt()
+            val values = targets.flatMap { target ->
+                when (target) {
+                    is LineCartesianLayerMarkerTarget -> target.points.map { formatY(it.entry.y) }
+                    is ColumnCartesianLayerMarkerTarget -> target.columns.map { formatY(it.entry.y) }
+                    else -> emptyList()
+                }
+            }
+            listOfNotNull(x?.let { labels.getOrNull(it) }, values.joinToString(" · ")).joinToString(": ")
+        },
+    )
+}

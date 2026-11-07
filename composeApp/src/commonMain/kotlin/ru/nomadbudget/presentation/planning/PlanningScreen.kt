@@ -314,7 +314,9 @@ private fun SavingsCard(month: MonthModel, capital: ru.nomadbudget.domain.logic.
                 val byPlan = c.cushionPath(ru.nomadbudget.domain.logic.Scenario.PLAN, 12).last()
                 val byFact = c.cushionPath(ru.nomadbudget.domain.logic.Scenario.FACT, 12).last()
                 PlanLine("В подушке сейчас", MoneyFormat.format(c.cushion, false))
+                HorizontalDivider()
                 PlanLine("Через 12 мес., если откладывать по плану", MoneyFormat.format(byPlan, false), bold = true)
+                HorizontalDivider()
                 c.paceMedian?.let { median ->
                     PlanLine("Через 12 мес., если как последние ${c.paceMonths} мес. (${MoneyFormat.formatSigned(median, false)}/мес)", MoneyFormat.format(byFact, false))
                 }
@@ -332,8 +334,9 @@ private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit) {
             if (month.debts.isEmpty()) {
                 Text("Кредитов нет. Добавь их в «Кредитах», платежи попадут в план сами.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 6.dp))
             }
-            month.debts.sortedWith(compareBy(nullsLast()) { it.due }).forEach { d ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            month.debts.sortedWith(compareBy(nullsLast()) { it.due }).forEachIndexed { index, d ->
+                if (index > 0) HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(d.debt.name, modifier = Modifier.weight(1f))
                     Text(d.due?.let { "к ${it.day}-му" }.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 12.dp))
                     Text(MoneyFormat.format(d.planned, false), fontWeight = FontWeight.Medium)
@@ -404,8 +407,9 @@ private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, 
                 )
             }
             val items = budget.items.filter { it.planned != null && it.subcategory != null }
+            if (items.isNotEmpty()) HorizontalDivider()
             items.forEach { item ->
-                Row(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                     Text(item.subcategory?.name.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text(item.planned?.let { MoneyFormat.format(it, false) }.orEmpty(), style = MaterialTheme.typography.bodySmall)
                 }

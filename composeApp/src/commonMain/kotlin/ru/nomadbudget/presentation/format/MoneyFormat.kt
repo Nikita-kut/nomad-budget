@@ -16,6 +16,8 @@ object MoneyFormat {
     private const val SMALL_SHARE = 0.005
 
     private const val MINUS = "−"
+    private const val MILLION = 1_000_000.0
+    private const val THOUSAND = 1_000.0
     private const val THIN_SPACE = "\u00A0"
 
     fun format(money: Money, showFraction: Boolean = true): String {
@@ -64,6 +66,27 @@ object MoneyFormat {
             val scaled = (rate * 10_000).roundToLong()
             "${scaled / 10_000},${(scaled % 10_000).toString().padStart(4, '0')}"
         }
+    }
+
+    fun formatAxis(value: Double): String {
+        val sign = if (value < 0) MINUS else ""
+        val absolute = abs(value)
+        return sign + when {
+            absolute >= MILLION -> trimTenths(absolute / MILLION) + " млн"
+            absolute >= THOUSAND -> trimTenths(absolute / THOUSAND) + " тыс"
+            else -> absolute.roundToLong().toString()
+        }
+    }
+
+    fun formatWhole(value: Double): String {
+        val rounded = value.roundToLong()
+        val sign = if (rounded < 0) MINUS else ""
+        return "$sign${groupThousands(abs(rounded))}$THIN_SPACE${Currency.BASE.symbol}"
+    }
+
+    private fun trimTenths(value: Double): String {
+        val tenths = (value * 10).roundToLong()
+        return if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10},${tenths % 10}"
     }
 
     fun formatShare(value: Double): String = when {

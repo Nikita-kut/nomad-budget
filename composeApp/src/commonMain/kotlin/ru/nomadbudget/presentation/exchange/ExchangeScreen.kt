@@ -56,6 +56,8 @@ import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.currencyColor
+import ru.nomadbudget.presentation.components.ChartPanel
+import ru.nomadbudget.presentation.components.ChartPeriod
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
@@ -254,23 +256,23 @@ private fun exchangeChart(state: HomeState): ExchangeChartData? {
 
 @Composable
 private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Твой курс в обменах", fontWeight = FontWeight.SemiBold)
-            Text(
-                "Сколько ${data.price.symbol} ты получал за 1 ${data.unit.symbol}" +
-                    (data.table?.let { " · по таблице сейчас ${MoneyFormat.formatQuote(it)}" } ?: ""),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LineChart(
-                values = data.points.map { it.second },
-                color = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state),
-                labels = data.points.map { DateFormat.dayMonth(it.first) },
-                formatY = { MoneyFormat.formatQuote(it) },
-                visibleCount = data.points.size.coerceIn(2, 12),
-                fitToData = true,
-            )
-        }
+    ChartPanel(
+        title = "Твой курс в обменах",
+        hint = "Сколько ${data.price.symbol} ты получал за 1 ${data.unit.symbol}" + (data.table?.let { " · по таблице сейчас ${MoneyFormat.formatQuote(it)}" } ?: ""),
+        legend = emptyList(),
+        totalPoints = data.points.size,
+        periods = EXCHANGE_PERIODS,
+    ) { from, visible ->
+        val slice = data.points.drop(from)
+        LineChart(
+            values = slice.map { it.second },
+            color = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state),
+            labels = slice.map { DateFormat.dayMonth(it.first) },
+            formatY = MoneyFormat::formatQuote,
+            visibleCount = visible,
+            fitToData = true,
+        )
     }
 }
+
+private val EXCHANGE_PERIODS = listOf(ChartPeriod("10 обменов", 10), ChartPeriod("все", null))
