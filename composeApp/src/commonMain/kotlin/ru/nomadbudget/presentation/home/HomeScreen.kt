@@ -100,6 +100,7 @@ import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FloatingActionButton
@@ -141,6 +142,9 @@ object RatesRoute
 
 @Serializable
 object ChartsRoute
+
+@Serializable
+object CapitalRoute
 
 @Serializable
 object MoreRoute
@@ -213,10 +217,11 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Tab(ExchangeRoute, "Обмен", Icons.Filled.CurrencyExchange, primary = false) { it.isOn<ExchangeRoute>() },
             Tab(DebtsRoute, "Кредиты", Icons.Filled.CreditCard, primary = false) { it.isOn<DebtsRoute>() },
             Tab(RatesRoute, "Курсы", Icons.AutoMirrored.Filled.ShowChart, primary = false) { it.isOn<RatesRoute>() },
+            Tab(CapitalRoute, "Капитал", Icons.Filled.Savings, primary = false) { it.isOn<CapitalRoute>() },
             Tab(ChartsRoute, "Графики", Icons.Filled.BarChart, primary = false) { it.isOn<ChartsRoute>() },
             Tab(MoreRoute, "Ещё", Icons.Filled.MoreHoriz, primary = true) {
                 it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() ||
-                    it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
+                    it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<CapitalRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
             },
         )
     }
@@ -240,6 +245,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                         Key.M -> navController.switchTo(MonthRoute)
                         Key.A -> navController.switchTo(AccountsRoute)
                         Key.D -> navController.switchTo(DebtsRoute)
+                        Key.K -> navController.switchTo(CapitalRoute)
                         Key.Escape -> if (entryPanel) entryPanel = false else navController.popBackStack()
                         else -> return@onKeyEvent false
                     }
@@ -268,7 +274,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         }
         val back = fun() { navController.popBackStack() }
         val selfCentered = backStack != null && (
-            navController.isOn<ChartsRoute>() || navController.isOn<RatesRoute>() || navController.isOn<ExchangeRoute>() ||
+            navController.isOn<ChartsRoute>() || navController.isOn<CapitalRoute>() || navController.isOn<RatesRoute>() || navController.isOn<ExchangeRoute>() ||
                 navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() ||
                 navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>() || navController.isOn<MonthRoute>()
             )
@@ -357,6 +363,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onOpenDebts = { navController.navigate(DebtsRoute) },
                                     onOpenAccounts = { navController.switchTo(AccountsRoute) },
                                     twoColumns = twoColumns,
+                                    onOpenCapital = { navController.switchTo(CapitalRoute) },
                                 )
                             }
                             composable<EntryRoute> {
@@ -400,6 +407,15 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             }
                             composable<RatesRoute> { RatesScreen(state = state) }
                             composable<ChartsRoute> { ChartsScreen(state = state) }
+                            composable<CapitalRoute> {
+                                ru.nomadbudget.presentation.capital.CapitalScreen(
+                                    state = state,
+                                    onAddGoal = viewModel::addCapitalGoal,
+                                    onDeleteGoal = viewModel::deleteCapitalGoal,
+                                    onSaveSettings = viewModel::saveCapitalSettings,
+                                    wide = wide,
+                                )
+                            }
                             composable<MoreRoute> {
                                 MoreScreen(
                                     state = state,
@@ -407,6 +423,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onBalanceCheck = { navController.navigate(BalanceCheckRoute) },
                                     onRates = { navController.navigate(RatesRoute) },
                                     onCharts = { navController.navigate(ChartsRoute) },
+                                    onCapital = { navController.navigate(CapitalRoute) },
                                     onExchange = { navController.navigate(ExchangeRoute) },
                                     onDebts = { navController.navigate(DebtsRoute) },
                                     showSecondary = !wide,

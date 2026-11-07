@@ -51,6 +51,7 @@ val appModule = module {
     single<ExchangeRateRepository> { ExchangeRateRepositoryImpl(get(), get(), get()) }
     single<BalanceCheckRepository> { BalanceCheckRepositoryImpl(get(), get()) }
     single<DebtRepository> { DebtRepositoryImpl(get(), get(), get()) }
+    single<ru.nomadbudget.domain.repository.CapitalRepository> { ru.nomadbudget.data.repository.CapitalRepositoryImpl(get(), get()) }
 
     viewModelOf(::HomeViewModel)
 }

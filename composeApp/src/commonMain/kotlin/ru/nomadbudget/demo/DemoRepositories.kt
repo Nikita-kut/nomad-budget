@@ -60,6 +60,7 @@ val demoModule = module {
     single<ExchangeRateRepository> { DemoExchangeRateRepository(get()) }
     single<BalanceCheckRepository> { DemoBalanceCheckRepository(get()) }
     single<DebtRepository> { DemoDebtRepository(get()) }
+    single<ru.nomadbudget.domain.repository.CapitalRepository> { DemoCapitalRepository(get()) }
     viewModelOf(::HomeViewModel)
 }
 
@@ -245,4 +246,21 @@ private class DemoBalanceCheckRepository(private val db: DemoDatabase) : Balance
     override suspend fun getRecent(accounts: List<Account>): List<BalanceCheck> = db.balanceChecks.sortedByDescending { it.date }
 
     override suspend fun add(check: BalanceCheck): BalanceCheck = check.copy(id = db.newId("check")).also { db.balanceChecks += it }
+}
+
+private class DemoCapitalRepository(private val db: DemoDatabase) : ru.nomadbudget.domain.repository.CapitalRepository {
+    override suspend fun getGoals(): List<ru.nomadbudget.domain.logic.CapitalGoal> = db.capitalGoals.toList()
+
+    override suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): ru.nomadbudget.domain.logic.CapitalGoal =
+        ru.nomadbudget.domain.logic.CapitalGoal(db.newId("goal"), name, amount, targetDate).also { db.capitalGoals += it }
+
+    override suspend fun deleteGoal(id: String) {
+        db.capitalGoals.removeAll { it.id == id }
+    }
+
+    override suspend fun getSettings(): ru.nomadbudget.domain.logic.CapitalSettings = db.capitalSettings
+
+    override suspend fun saveSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings) {
+        db.capitalSettings = settings
+    }
 }

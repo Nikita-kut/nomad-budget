@@ -47,6 +47,7 @@ fun MoreScreen(
     onBalanceCheck: () -> Unit,
     onRates: () -> Unit,
     onCharts: () -> Unit,
+    onCapital: () -> Unit,
     onExchange: () -> Unit,
     onDebts: () -> Unit,
     showSecondary: Boolean,
@@ -71,6 +72,8 @@ fun MoreScreen(
             item { SectionTitle("Аналитика") }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
+                    MenuRow("Капитал", "капитал чистыми, прогноз, цели", onCapital)
+                    HorizontalDivider()
                     MenuRow("Графики", "доходы, расходы, накопления по месяцам", onCharts)
                     HorizontalDivider()
                     MenuRow(
