@@ -31,7 +31,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,34 +64,39 @@ fun StatTile(
     badge: (@Composable () -> Unit)? = null,
     subColor: Color? = null,
 ) {
+    val hero = AppTheme.colors
+    val shape = MaterialTheme.shapes.large
+    val cardModifier = if (accent) modifier.clip(shape).background(Brush.linearGradient(hero.hero)) else modifier
     Card(
-        modifier = modifier,
-        colors = if (accent) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
+        modifier = cardModifier,
+        shape = shape,
+        colors = if (accent) CardDefaults.cardColors(containerColor = Color.Transparent, contentColor = hero.onHero) else CardDefaults.cardColors(),
     ) {
-        Column(modifier = Modifier.padding(Ui.CardPadding).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val labelColor = if (accent) hero.heroMuted else MaterialTheme.colorScheme.onSurfaceVariant
+        Column(modifier = Modifier.padding(Ui.CardPadding + 2.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(label, style = MaterialTheme.typography.labelLarge, color = labelColor, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 info?.let { InfoHint(label, it) }
                 Spacer(modifier = Modifier.weight(1f))
                 badge?.invoke()
             }
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = valueColor ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)
-            TileTrack(progress, progressColor, marker)
-            Text(sub, style = MaterialTheme.typography.bodySmall, color = subColor ?: MaterialTheme.colorScheme.onSurfaceVariant, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(value, style = MaterialTheme.typography.headlineSmall, color = if (accent) hero.onHero else valueColor ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)
+            TileTrack(progress, if (accent) hero.onHero else progressColor, marker, onHero = accent)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = if (accent) hero.heroMuted else subColor ?: MaterialTheme.colorScheme.onSurfaceVariant, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-private fun TileTrack(progress: Float?, color: Color, marker: Float?) {
+private fun TileTrack(progress: Float?, color: Color, marker: Float?, onHero: Boolean = false) {
     Box(modifier = Modifier.fillMaxWidth().height(10.dp), contentAlignment = Alignment.CenterStart) {
         if (progress != null) {
-            Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+            Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(if (onHero) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant)) {
                 Box(modifier = Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(color))
             }
             marker?.let { share ->
                 Box(modifier = Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).height(10.dp), contentAlignment = Alignment.CenterEnd) {
-                    Box(modifier = Modifier.width(2.dp).height(10.dp).background(MaterialTheme.colorScheme.onSurfaceVariant))
+                    Box(modifier = Modifier.width(2.dp).height(10.dp).background(if (onHero) Color.White else MaterialTheme.colorScheme.onSurfaceVariant))
                 }
             }
         }

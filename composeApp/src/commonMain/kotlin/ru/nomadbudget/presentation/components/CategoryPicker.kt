@@ -168,7 +168,7 @@ fun CategoryPicker(
                 val indent = choice.subcategory != null && !choice.isNew && normalized.isEmpty()
                 val base = when {
                     index == highlighted -> MaterialTheme.colorScheme.secondaryContainer
-                    isCategory -> MaterialTheme.colorScheme.surfaceContainerHighest
+                    isCategory -> MaterialTheme.colorScheme.surfaceVariant
                     else -> Color.Transparent
                 }
                 if (isCategory && index > 0) HorizontalDivider()
@@ -181,7 +181,7 @@ fun CategoryPicker(
                                 else -> choice.label
                             },
                             style = if (isCategory) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (isCategory) FontWeight.Bold else null,
+                            fontWeight = if (isCategory) FontWeight.SemiBold else null,
                             color = when {
                                 choice.isNew -> MaterialTheme.colorScheme.primary
                                 isCategory -> MaterialTheme.colorScheme.primary

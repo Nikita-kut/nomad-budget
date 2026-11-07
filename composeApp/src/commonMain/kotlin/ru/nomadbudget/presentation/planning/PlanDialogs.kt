@@ -116,7 +116,7 @@ fun PlanEditorDialog(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text("План на месяц", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(MoneyFormat.format(total, false), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(MoneyFormat.format(total, false), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                     history?.let { h ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(

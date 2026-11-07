@@ -39,7 +39,7 @@ private val LocalShimmer = staticCompositionLocalOf<Brush?> { null }
 
 @Composable
 fun Shimmer(content: @Composable () -> Unit) {
-    val base = MaterialTheme.colorScheme.surfaceContainerHighest
+    val base = MaterialTheme.colorScheme.surfaceVariant
     val highlight = MaterialTheme.colorScheme.surfaceBright
     val transition = rememberInfiniteTransition(label = "shimmer")
     val offset by transition.animateFloat(
@@ -60,7 +60,7 @@ fun Shimmer(content: @Composable () -> Unit) {
 fun SkeletonBlock(modifier: Modifier = Modifier, height: Dp = 14.dp, shape: Shape = RoundedCornerShape(6.dp)) {
     val brush = LocalShimmer.current
     val box = modifier.height(height).clip(shape)
-    Box(modifier = if (brush != null) box.background(brush) else box.background(MaterialTheme.colorScheme.surfaceContainerHighest))
+    Box(modifier = if (brush != null) box.background(brush) else box.background(MaterialTheme.colorScheme.surfaceVariant))
 }
 
 @Composable

@@ -196,7 +196,7 @@ private fun SpendCard(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit
             Text(
                 MoneyFormat.format(if (over) -month.canSpend else month.canSpend, false),
                 style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = if (over) colors.bad else MaterialTheme.colorScheme.onSurface,
             )
             when {
@@ -525,7 +525,7 @@ private fun FirstRunCard(state: HomeState, onOpenAccounts: () -> Unit, onOpenPla
 @Composable
 private fun FirstRunStep(number: String, title: String, hint: String, action: String, onClick: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(number, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(number, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.Medium)
             Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

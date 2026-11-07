@@ -292,7 +292,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             topBar = { if (!onEntry || wide) HeaderBar(state, viewModel, wide) },
             floatingActionButton = {
                 if (!wide && !onEntry) {
-                    FloatingActionButton(onClick = openEntry) { Icon(Icons.Filled.Add, contentDescription = "Новая запись") }
+                    FloatingActionButton(onClick = openEntry, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Icon(Icons.Filled.Add, contentDescription = "Новая запись") }
                 }
             },
             bottomBar = {
@@ -315,7 +315,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                 if (wide) {
                     NavigationRail(
                         header = {
-                            FloatingActionButton(onClick = openEntry, modifier = Modifier.padding(vertical = 8.dp)) {
+                            FloatingActionButton(onClick = openEntry, modifier = Modifier.padding(vertical = 8.dp), containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
                                 Icon(Icons.Filled.Add, contentDescription = "Новая запись")
                             }
                         },
@@ -519,7 +519,7 @@ private fun NavHostController.switchTo(route: Any) {
 
 @Composable
 private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean) {
-    Surface(tonalElevation = 1.dp) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
             if (wide) {
                 Row(
@@ -527,7 +527,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Nomad Budget", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     if (DemoMode.enabled) DemoBadge()
                     if (state.loading) {
                         Box(modifier = Modifier.weight(1f)) { HeaderSkeleton() }
@@ -697,7 +697,7 @@ private fun DemoBadge() {
         Text(
             "ДЕМО",
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onTertiary,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )
