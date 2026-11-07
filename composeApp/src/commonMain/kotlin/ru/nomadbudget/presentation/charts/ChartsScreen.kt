@@ -67,8 +67,10 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         HistoryCalculator.netWorth(all.map { it.period }, state.accounts, state.transactions) { currency, date ->
             state.rateHistory.filter { it.quote == currency && it.date <= date }.maxByOrNull { it.date }?.basePerUnit
                 ?: state.rates.rateFor(currency)?.basePerUnit
-        }.map { it.toRubles() }
+        }
     }
+    val closed = if (all.isNotEmpty() && state.today in all.last().period) all.dropLast(1) else all
+    val rated = all.filter { it.income.minor > 0L }
     val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories)
     var categoryPeriod by remember { mutableIntStateOf(0) }
 
@@ -77,11 +79,11 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             item { EmptyHint("Пока нет данных для графиков") }
             return@CenteredLazyColumn
         }
-        item { Totals(all.takeLast(12), wide) }
+        item { Totals(closed.takeLast(12), wide) }
         item {
             ChartPanel(
                 title = "Доходы и расходы по месяцам",
-                hint = "в рублях по курсу на конец месяца",
+                hint = "в рублях по курсу на день операции, без корректировок остатков",
                 info = Hints.CHART_INCOME_EXPENSE,
                 legend = listOf(LegendEntry("Доход", incomeColor), LegendEntry("Расход", expenseColor)),
                 totalPoints = all.size,
@@ -101,41 +103,43 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         item {
             ChartPanel(
                 title = "Норма сбережений",
-                hint = "% дохода, отложенный в подушку",
+                hint = "% дохода, отложенный в подушку; месяцы без дохода не показаны, шкала ограничена ±100%",
                 info = Hints.CHART_SAVINGS_RATE,
                 legend = listOf(LegendEntry("Отложено / доход месяца", savedColor)),
-                totalPoints = all.size,
+                totalPoints = rated.size,
                 periods = MONTH_PERIODS,
             ) { from, visible ->
+                val slice = rated.drop(from)
                 LineChart(
-                    values = all.drop(from).map { (it.savingsRate ?: 0.0) * PERCENT },
+                    values = slice.map { ((it.savingsRate ?: 0.0) * PERCENT).coerceIn(-PERCENT, PERCENT) },
                     color = savedColor,
-                    labels = labels.drop(from),
+                    labels = slice.map(::monthLabel),
                     formatY = { "${it.roundToLong()}%" },
                     visibleCount = visible,
                 )
             }
         }
-        if (planned.isNotEmpty()) {
+        val withPlan = all.filter { it.period.start in planned }
+        if (withPlan.isNotEmpty()) {
             item {
                 ChartPanel(
                     title = "План и факт расходов",
-                    hint = "в рублях по курсу на конец месяца",
+                    hint = "только месяцы, где был план; факт без корректировок остатков",
                     info = Hints.CHART_PLAN_FACT,
                     legend = listOf(LegendEntry("План", planColor), LegendEntry("Факт", expenseColor)),
-                    totalPoints = all.size,
+                    totalPoints = withPlan.size,
                     periods = MONTH_PERIODS,
                 ) { from, visible ->
-                    val slice = all.drop(from)
+                    val slice = withPlan.drop(from)
                     ColumnsChart(
                         series = listOf(
                             slice.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toRubles() },
                             slice.map { it.expense.toRubles() },
                         ),
                         colors = listOf(planColor, expenseColor),
-                        labels = labels.drop(from),
+                        labels = slice.map(::monthLabel),
                         formatY = MoneyFormat::formatAxis,
-                    formatValue = MoneyFormat::formatWhole,
+                        formatValue = MoneyFormat::formatWhole,
                         visibleCount = visible,
                     )
                 }
@@ -144,16 +148,17 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         item {
             ChartPanel(
                 title = "Все счета на конец месяца",
-                hint = "без учёта долгов; капитал за вычетом долгов — в разделе «Капитал»",
+                hint = "активные счета с начала учёта, по курсу на конец месяца, без долгов; капитал за вычетом долгов — в разделе «Капитал»",
                 info = Hints.CHART_NET_WORTH,
                 legend = listOf(LegendEntry("Сумма всех счетов", incomeColor)),
-                totalPoints = all.size,
+                totalPoints = netWorth.size.coerceAtLeast(1),
                 periods = MONTH_PERIODS,
             ) { from, visible ->
+                val slice = netWorth.drop(from)
                 LineChart(
-                    values = netWorth.drop(from),
+                    values = slice.map { it.second.toRubles() },
                     color = incomeColor,
-                    labels = labels.drop(from),
+                    labels = slice.map { periodLabel(it.first.start) },
                     formatY = MoneyFormat::formatAxis,
                     formatValue = MoneyFormat::formatWhole,
                     visibleCount = visible,
@@ -246,8 +251,9 @@ private fun Totals(points: List<MonthPoint>, wide: Boolean) {
     )
 }
 
-private fun monthLabel(point: MonthPoint): String {
-    val start = point.period.start
+private fun monthLabel(point: MonthPoint): String = periodLabel(point.period.start)
+
+private fun periodLabel(start: kotlinx.datetime.LocalDate): String {
     return "${start.month.number.toString().padStart(2, '0')}.${start.year % 100}"
 }
 

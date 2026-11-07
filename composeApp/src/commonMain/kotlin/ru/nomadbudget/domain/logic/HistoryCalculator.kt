@@ -1,6 +1,7 @@
 package ru.nomadbudget.domain.logic
 
 import kotlinx.datetime.LocalDate
+import kotlin.math.roundToLong
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
@@ -34,8 +35,8 @@ object HistoryCalculator {
         var period = first
         while (period.start <= upTo.start) {
             val inPeriod = transactions.filter { it.date in period }
-            val income = inPeriod.filterIsInstance<Transaction.Income>().map { it.amountBase }.sumIn(Currency.BASE)
-            val expense = inPeriod.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE)
+            val income = inPeriod.filterIsInstance<Transaction.Income>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(Currency.BASE)
+            val expense = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(Currency.BASE)
             val saved = BudgetCalculator.cushionInflow(inPeriod, savingsIds, systemIds)
             val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds)
             val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds)
@@ -51,7 +52,7 @@ object HistoryCalculator {
         from: LocalDate,
         toExclusive: LocalDate,
     ): List<CategoryTotal> {
-        val byId = categories.filter { it.kind == CategoryKind.EXPENSE }.associateBy { it.id }
+        val byId = categories.filter { it.kind == CategoryKind.EXPENSE && !it.isSystem }.associateBy { it.id }
         val totals = transactions
             .filterIsInstance<Transaction.Expense>()
             .filter { it.date >= from && it.date < toExclusive }
@@ -65,21 +66,37 @@ object HistoryCalculator {
             .sortedByDescending { it.total.minor }
     }
 
+    fun trackingStart(accounts: List<Account>, transactions: List<Transaction>): LocalDate? {
+        val active = accounts.filterNot { it.isArchived }.map { it.id }.toSet()
+        return transactions.filter { tx -> tx.touches(active) }.minOfOrNull { it.date }
+    }
+
     fun netWorth(
         periods: List<Period>,
         accounts: List<Account>,
         transactions: List<Transaction>,
         rateOn: (Currency, LocalDate) -> Double?,
-    ): List<Money> = periods.map { period ->
-        accounts.mapNotNull { account ->
-            val balance = BalanceCalculator.balanceBefore(account, transactions, period.endExclusive)
-            when (account.currency) {
-                Currency.BASE -> balance
-                else -> rateOn(account.currency, period.lastDay)?.let { rate ->
-                    Money((balance.minor.toDouble() / account.currency.minorFactor * rate * Currency.BASE.minorFactor).toLong(), Currency.BASE)
+    ): List<Pair<Period, Money>> {
+        val active = accounts.filterNot { it.isArchived }
+        val start = trackingStart(accounts, transactions) ?: return emptyList()
+        return periods.filter { it.endExclusive > start }.map { period ->
+            period to active.mapNotNull { account ->
+                val balance = BalanceCalculator.balanceBefore(account, transactions, period.endExclusive)
+                when (account.currency) {
+                    Currency.BASE -> balance
+                    else -> rateOn(account.currency, period.lastDay)?.let { rate ->
+                        Money((balance.minor.toDouble() / account.currency.minorFactor * rate * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
+                    }
                 }
-            }
-        }.sumIn(Currency.BASE)
+            }.sumIn(Currency.BASE)
+        }
+    }
+
+    private fun Transaction.touches(ids: Set<String>): Boolean = when (this) {
+        is Transaction.Expense -> accountId in ids
+        is Transaction.Income -> accountId in ids
+        is Transaction.Transfer -> fromAccountId in ids || toAccountId in ids
+        is Transaction.Exchange -> fromAccountId in ids || toAccountId in ids
     }
 
     fun plannedExpenseByPeriod(lines: List<PeriodBudgetLine>, categories: List<Category>): Map<LocalDate, Money> {

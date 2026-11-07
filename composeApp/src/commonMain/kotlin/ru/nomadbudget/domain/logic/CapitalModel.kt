@@ -52,6 +52,7 @@ data class GoalProgress(
     val monthsLeft: Int,
     val requiredMonthly: Money,
     val reachableByPace: Boolean,
+    val overdue: Boolean = false,
 )
 
 data class CapitalModel(
@@ -79,15 +80,13 @@ data class CapitalModel(
     val paceAverage: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(list.sumOf { it.saved.minor } / list.size, Currency.BASE) }
 
     val paceMedian: Money? = recent.takeIf { it.isNotEmpty() }?.let { list ->
-        val sorted = list.map { it.saved.minor }.sorted()
-        val mid = sorted.size / 2
-        Money(if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2 else sorted[mid], Currency.BASE)
+        Money(median(list.map { it.saved.minor }), Currency.BASE)
     }
 
-    val principalPace: Money = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(list.sumOf { it.principalPaid.minor } / list.size, Currency.BASE) }
+    val principalPace: Money = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(median(list.map { it.principalPaid.minor }), Currency.BASE) }
         ?: Money.zero(Currency.BASE)
 
-    val averageExpense: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(list.sumOf { it.expenses.minor } / list.size, Currency.BASE) }
+    val averageExpense: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(median(list.map { it.expenses.minor }), Currency.BASE) }
 
     val cushionTarget: Money? = averageExpense?.let { Money(it.minor * settings.cushionMonths, Currency.BASE) }
 
@@ -128,11 +127,12 @@ data class CapitalModel(
     }
 
     fun goalProgress(goal: CapitalGoal): GoalProgress {
+        val overdue = goal.targetDate < today
         val monthsLeft = monthsBetween(today, goal.targetDate).coerceAtLeast(1)
         val missing = goal.amount - cushion
         val required = if (missing.isNegative || missing.isZero) Money.zero(Currency.BASE) else Money(missing.minor / monthsLeft, Currency.BASE)
         val pace = paceMedian ?: Money.zero(Currency.BASE)
-        return GoalProgress(goal, monthsLeft, required, reachableByPace = pace >= required)
+        return GoalProgress(goal, monthsLeft, required, reachableByPace = !overdue && pace >= required, overdue = overdue)
     }
 
     fun dateAfterMonths(months: Int): LocalDate = today.plus(months, DateTimeUnit.MONTH)
@@ -208,6 +208,12 @@ data class CapitalModel(
                 result += total()
             }
             return result
+        }
+
+        fun median(values: List<Long>): Long {
+            val sorted = values.sorted()
+            val mid = sorted.size / 2
+            return if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2 else sorted[mid]
         }
 
         fun monthsBetween(from: LocalDate, to: LocalDate): Int =
