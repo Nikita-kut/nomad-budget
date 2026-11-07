@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 
 @Composable
 fun MoreScreen(
@@ -53,11 +54,7 @@ fun MoreScreen(
     onSignOut: () -> Unit,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(bottom = 96.dp) {
         if (showSecondary) {
             item { SectionTitle("Деньги") }
             item {

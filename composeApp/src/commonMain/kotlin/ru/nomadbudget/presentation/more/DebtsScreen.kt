@@ -72,6 +72,7 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 
 @Composable
 fun DebtsScreen(
@@ -88,11 +89,7 @@ fun DebtsScreen(
     val month = state.month
     val obligations = month.debts.sortedWith(compareBy<DebtObligation> { it.status == ObligationStatus.PAID }.thenBy(nullsLast()) { it.due })
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 96.dp) {
         if (onBack != null) {
             item { SubScreenHeader("Кредиты", onBack) }
         }

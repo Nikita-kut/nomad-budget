@@ -49,6 +49,7 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 
 private sealed interface Dialog {
     data class RenameCategory(val category: Category) : Dialog
@@ -85,11 +86,7 @@ fun CategoriesScreen(
             .mapValues { (_, list) -> list.size to list.maxOf { it.date } }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(bottom = 12.dp) {
         item { SubScreenHeader("Категории", onBack) }
         listOf(CategoryKind.EXPENSE to "Расходы", CategoryKind.INCOME to "Доходы").forEach { (kind, title) ->
             item { SectionTitle(title, hint = "порядок здесь = порядок в форме записи") }

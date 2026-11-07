@@ -47,6 +47,7 @@ import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.AccountsLine
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 
 @Composable
 fun BalanceCheckScreen(
@@ -88,11 +89,7 @@ fun BalanceCheckScreen(
         form.note = ""
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CenteredLazyColumn(bottom = 12.dp) {
         item { SubScreenHeader("Сверка остатков", onBack) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
