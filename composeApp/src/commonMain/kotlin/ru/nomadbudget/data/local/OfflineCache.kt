@@ -1,7 +1,9 @@
 package ru.nomadbudget.data.local
 
 import io.github.jan.supabase.exceptions.RestException
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -48,12 +50,13 @@ class OfflineCache(private val store: KeyValueStore) {
     private fun markServedFromCache(key: String) {
         servedFromCache = true
         val time = store.get(timeKey(key))?.toLongOrNull()?.let(Instant::fromEpochMilliseconds)
-        if (time != null && (oldestCachedAt == null || time < oldestCachedAt!!)) oldestCachedAt = time
+        val oldest = oldestCachedAt
+        if (time != null && (oldest == null || time < oldest)) oldestCachedAt = time
     }
 
     private fun timeKey(key: String) = "$key:t"
 
     companion object {
-        fun isOffline(e: Throwable): Boolean = e !is RestException
+        fun isOffline(e: Throwable): Boolean = e !is RestException && e !is CancellationException && e !is SerializationException && e !is IllegalArgumentException
     }
 }
