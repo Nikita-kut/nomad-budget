@@ -102,3 +102,11 @@ interface BalanceCheckRepository {
     suspend fun getRecent(accounts: List<Account>): List<BalanceCheck>
     suspend fun add(check: BalanceCheck): BalanceCheck
 }
+
+interface CapitalRepository {
+    suspend fun getGoals(): List<ru.nomadbudget.domain.logic.CapitalGoal>
+    suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): ru.nomadbudget.domain.logic.CapitalGoal
+    suspend fun deleteGoal(id: String)
+    suspend fun getSettings(): ru.nomadbudget.domain.logic.CapitalSettings
+    suspend fun saveSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings)
+}

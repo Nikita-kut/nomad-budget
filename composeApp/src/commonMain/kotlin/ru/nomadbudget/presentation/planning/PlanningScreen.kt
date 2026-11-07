@@ -74,6 +74,7 @@ fun PlanningScreen(
     onOpenDebts: () -> Unit = {},
     onOpenAccounts: () -> Unit = {},
     twoColumns: Boolean = false,
+    onOpenCapital: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
@@ -121,7 +122,7 @@ fun PlanningScreen(
         }
 
         item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
-        item { SavingsCard(month, state.savingsForecast, onClick = { editingSavings = true }) }
+        item { SavingsCard(month, state.capital, onClick = { editingSavings = true }, onOpenCapital = onOpenCapital) }
 
         item { SectionTitle("Кредиты", hint = "платежи берутся из экрана «Кредиты»", info = Hints.OBLIGATIONS) }
         item { DebtsPlanCard(state, onOpenDebts) }
@@ -287,7 +288,7 @@ private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: Str
 }
 
 @Composable
-private fun SavingsCard(month: MonthModel, forecast: SavingsForecast?, onClick: () -> Unit) {
+private fun SavingsCard(month: MonthModel, capital: ru.nomadbudget.domain.logic.CapitalModel?, onClick: () -> Unit, onOpenCapital: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val target = month.savingsTarget
@@ -308,24 +309,16 @@ private fun SavingsCard(month: MonthModel, forecast: SavingsForecast?, onClick: 
                     }
                 }
             }
-            forecast?.let { f ->
+            capital?.let { c ->
                 HorizontalDivider()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Прогноз подушки", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    InfoHint("Прогноз накоплений", Hints.FORECAST)
+                val byPlan = c.cushionPath(ru.nomadbudget.domain.logic.Scenario.PLAN, 12).last()
+                val byFact = c.cushionPath(ru.nomadbudget.domain.logic.Scenario.FACT, 12).last()
+                PlanLine("В подушке сейчас", MoneyFormat.format(c.cushion, false))
+                PlanLine("Через 12 мес., если откладывать по плану", MoneyFormat.format(byPlan, false), bold = true)
+                c.paceMedian?.let { median ->
+                    PlanLine("Через 12 мес., если как последние ${c.paceMonths} мес. (${MoneyFormat.formatSigned(median, false)}/мес)", MoneyFormat.format(byFact, false))
                 }
-                PlanLine("В подушке сейчас", MoneyFormat.format(f.balance, false))
-                f.byTargetInYear?.let { PlanLine("Через год по плану", MoneyFormat.format(it, false), bold = true) }
-                f.byActualInYear?.let { total ->
-                    PlanLine(
-                        "Через год при твоём темпе",
-                        MoneyFormat.format(total, false),
-                        highlight = f.actualPerMonth?.takeIf { it.isNegative }?.let { AppTheme.colors.bad },
-                    )
-                }
-                f.actualPerMonth?.let {
-                    Text("темп за ${f.monthsUsed} мес.: ${MoneyFormat.formatSigned(it, false)} в месяц", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                TextButton(onClick = onOpenCapital, modifier = Modifier.padding(start = 0.dp)) { Text("Разбивка по месяцам, цели и прогноз — в «Капитале» →") }
             }
         }
     }

@@ -136,5 +136,52 @@ fun LineChart(
     }
 }
 
+@Composable
+fun MultiLineChart(
+    series: List<List<Double>>,
+    colors: List<Color>,
+    labels: List<String>,
+    formatY: (Double) -> String,
+    visibleCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    val producer = remember { CartesianChartModelProducer() }
+    LaunchedEffect(series) {
+        if (series.isNotEmpty() && series.all { it.isNotEmpty() }) {
+            producer.runTransaction { lineSeries { series.forEach { series(it) } } }
+        }
+    }
+    val rangeProvider = remember(series) {
+        val all = series.flatten()
+        val min = all.minOrNull()
+        val max = all.maxOrNull()
+        if (min == null || max == null) {
+            CartesianLayerRangeProvider.auto()
+        } else {
+            val padding = ((max - min) * FIT_PADDING).coerceAtLeast(kotlin.math.abs(max) * MIN_FIT_PADDING)
+            CartesianLayerRangeProvider.fixed(minY = min - padding, maxY = max + padding)
+        }
+    }
+    key(visibleCount, colors.size) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(
+                    lineProvider = LineCartesianLayer.LineProvider.series(
+                        colors.map { LineCartesianLayer.Line(fill = LineCartesianLayer.LineFill.single(Fill(it))) },
+                    ),
+                    rangeProvider = rangeProvider,
+                ),
+                startAxis = VerticalAxis.rememberStart(valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) }),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
+                ),
+            ),
+            modelProducer = producer,
+            zoomState = rememberVicoZoomState(zoomEnabled = false, initialZoom = Zoom.x(visibleCount.toDouble())),
+            modifier = modifier.fillMaxWidth().height(CHART_HEIGHT),
+        )
+    }
+}
+
 private const val FIT_PADDING = 0.15
 private const val MIN_FIT_PADDING = 0.001

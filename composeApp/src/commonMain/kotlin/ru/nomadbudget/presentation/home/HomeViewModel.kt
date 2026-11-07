@@ -63,6 +63,7 @@ class HomeViewModel(
     private val draftRepository: DraftRepository,
     todayProvider: TodayProvider,
     private val localStore: KeyValueStore,
+    private val capitalRepository: ru.nomadbudget.domain.repository.CapitalRepository,
 ) : ViewModel() {
 
     private val _undoRequests = Channel<UndoRequest>(Channel.BUFFERED)
@@ -109,6 +110,8 @@ class HomeViewModel(
                 val lines = budgetRepository.getLines(periodId)
                 val savingsTarget = budgetRepository.getSavingsTarget(periodId)
                 val allPlanLines = runCatching { budgetRepository.getAllLines() }.getOrDefault(_state.value.allPlanLines)
+                val capitalGoals = runCatching { capitalRepository.getGoals() }.getOrDefault(_state.value.capitalGoals)
+                val capitalSettings = runCatching { capitalRepository.getSettings() }.getOrDefault(_state.value.capitalSettings)
                 _state.update {
                     it.copy(
                         loading = false,
@@ -131,6 +134,8 @@ class HomeViewModel(
                         budgetLines = lines,
                         savingsTarget = savingsTarget,
                         allPlanLines = allPlanLines,
+                        capitalGoals = capitalGoals,
+                        capitalSettings = capitalSettings,
                     )
                 }
                 if (sent > 0) _messages.send("Отправлено операций: $sent")
@@ -936,6 +941,47 @@ class HomeViewModel(
             delta.isNegative -> ", в погашение тела ${MoneyFormat.format(-delta, false)}, остаток $remaining"
             delta.isZero -> ", остаток кредита $remaining"
             else -> ", остаток кредита $remaining"
+        }
+    }
+
+    fun addCapitalGoal(name: String, amount: Money, targetDate: LocalDate) {
+        viewModelScope.launch {
+            try {
+                require(name.isNotBlank()) { "Введи название цели" }
+                require(amount.minor > 0L) { "Сумма цели должна быть больше нуля" }
+                require(targetDate > today) { "Дата цели должна быть в будущем" }
+                val goal = capitalRepository.addGoal(name.trim(), amount, targetDate)
+                _state.update { it.copy(capitalGoals = (it.capitalGoals + goal).sortedBy { g -> g.targetDate }) }
+                _messages.send("Цель добавлена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить цель")
+            }
+        }
+    }
+
+    fun deleteCapitalGoal(id: String) {
+        viewModelScope.launch {
+            try {
+                capitalRepository.deleteGoal(id)
+                _state.update { state -> state.copy(capitalGoals = state.capitalGoals.filterNot { it.id == id }) }
+                _messages.send("Цель удалена")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось удалить цель")
+            }
+        }
+    }
+
+    fun saveCapitalSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings) {
+        viewModelScope.launch {
+            try {
+                require(settings.cushionMonths in 1..36) { "Месяцев подушки от 1 до 36" }
+                require(settings.annualReturn in 0.0..100.0) { "Доходность от 0 до 100 %" }
+                capitalRepository.saveSettings(settings)
+                _state.update { it.copy(capitalSettings = settings) }
+                _messages.send("Настройки капитала сохранены")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить настройки")
+            }
         }
     }
 

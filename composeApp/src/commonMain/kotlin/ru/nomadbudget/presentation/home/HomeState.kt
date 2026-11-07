@@ -108,6 +108,8 @@ data class HomeState(
     val balanceChecks: List<BalanceCheck> = emptyList(),
     val debts: List<Debt> = emptyList(),
     val rateHistory: List<ExchangeRate> = emptyList(),
+    val capitalGoals: List<ru.nomadbudget.domain.logic.CapitalGoal> = emptyList(),
+    val capitalSettings: ru.nomadbudget.domain.logic.CapitalSettings = ru.nomadbudget.domain.logic.CapitalSettings(),
 ) {
     val monthlyHistory: List<MonthPoint> = HistoryCalculator.monthly(transactions, accounts, period, categories.filter { it.isSystem }.map { it.id }.toSet())
 
@@ -184,6 +186,21 @@ data class HomeState(
         get() = fundAccounts.mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }.sumIn(Currency.BASE)
 
     val savingsForecast: SavingsForecast? get() = HistoryCalculator.savingsForecast(monthlyHistory, today in period, savingsBalance, savingsTarget)
+
+    val capital: ru.nomadbudget.domain.logic.CapitalModel by lazy {
+        ru.nomadbudget.domain.logic.CapitalModel.build(
+            today = today,
+            accounts = accounts,
+            balances = balances,
+            transactions = transactions,
+            debts = debts,
+            rates = rates,
+            systemCategoryIds = categories.filter { it.isSystem }.map { it.id }.toSet(),
+            planMonthly = savingsTarget,
+            settings = capitalSettings,
+            goals = capitalGoals,
+        )
+    }
 
     val categoryHistory: Map<String, CategoryHistory> = PlanCalculator.history(transactions, period, accounts)
 

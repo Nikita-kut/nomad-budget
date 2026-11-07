@@ -40,6 +40,8 @@ class DemoDatabase(val today: LocalDate) {
     val debts = mutableListOf<Debt>()
     val balanceChecks = mutableListOf<BalanceCheck>()
     val rateHistory = mutableListOf<ExchangeRate>()
+    val capitalGoals = mutableListOf<ru.nomadbudget.domain.logic.CapitalGoal>()
+    var capitalSettings = ru.nomadbudget.domain.logic.CapitalSettings(cushionMonths = 6, annualReturn = 12.0)
 
     private var sequence = 0
 
@@ -142,6 +144,7 @@ private class DemoSeed(private val db: DemoDatabase) {
         periods.forEachIndexed { index, period -> seedPeriod(period, index, isCurrent = period == current) }
         db.debts += listOf(loanA, loanB)
         seedBalanceCheck(periods[periods.lastIndex - 1])
+        db.capitalGoals += ru.nomadbudget.domain.logic.CapitalGoal("goal_trip", "Поездка", Money.rub(100_000_000L), db.today.plus(10, DateTimeUnit.MONTH))
     }
 
     private fun seedRates(from: LocalDate) {
