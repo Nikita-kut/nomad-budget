@@ -405,8 +405,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onOpenExchange = { navController.navigate(ExchangeRoute) },
                                 )
                             }
-                            composable<RatesRoute> { RatesScreen(state = state) }
-                            composable<ChartsRoute> { ChartsScreen(state = state) }
+                            composable<RatesRoute> { RatesScreen(state = state, wide = wide) }
+                            composable<ChartsRoute> { ChartsScreen(state = state, wide = wide) }
                             composable<CapitalRoute> {
                                 ru.nomadbudget.presentation.capital.CapitalScreen(
                                     state = state,

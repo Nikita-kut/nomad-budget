@@ -73,6 +73,8 @@ import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.StatTile
+import ru.nomadbudget.presentation.components.TileRow
 
 @Composable
 fun DebtsScreen(
@@ -94,7 +96,7 @@ fun DebtsScreen(
             item { SubScreenHeader("Кредиты", onBack) }
         }
         if (obligations.isNotEmpty()) {
-            item { DebtsSummary(state) }
+            item { DebtsSummary(state, twoColumns) }
             item { SectionTitle("Платежи месяца", hint = DateFormat.periodRange(state.period), info = Hints.DEBTS) }
             item { PaymentsTimeline(obligations, state.period, state.today) }
             item { SectionTitle("Открытые", hint = "сначала ближайшие") }
@@ -159,24 +161,35 @@ fun DebtsScreen(
 }
 
 @Composable
-private fun DebtsSummary(state: HomeState) {
+private fun DebtsSummary(state: HomeState, wide: Boolean) {
     val month = state.month
     val owed = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE)
     val lastClose = state.openDebts.mapNotNull { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }.maxOrNull()
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Должен всего", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(MoneyFormat.format(owed, false), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-            Text(
-                "в месяц ${MoneyFormat.format(month.debtsPlanned, false)} · оплачено ${month.debts.count { it.status == ObligationStatus.PAID }} из ${month.debts.size}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            lastClose?.let { months ->
-                val date = state.today.plus(months, DateTimeUnit.MONTH)
-                Text("последний закроется ${monthYear(date)}, через $months мес.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
+    val paid = month.debts.count { it.status == ObligationStatus.PAID }
+    TileRow(
+        wide,
+        listOf(
+            { m -> StatTile("Должен всего", MoneyFormat.format(owed, false), "остаток тела по ${state.openDebts.size} кредитам", modifier = m, accent = true) },
+            { m ->
+                StatTile(
+                    "Платежи в этом месяце",
+                    MoneyFormat.format(month.debtsPlanned, false),
+                    "оплачено $paid из ${month.debts.size}",
+                    modifier = m,
+                    progress = if (month.debts.isEmpty()) null else paid.toFloat() / month.debts.size,
+                    progressColor = AppTheme.colors.good,
+                )
+            },
+            { m ->
+                StatTile(
+                    "Последний закроется",
+                    lastClose?.let { monthYear(state.today.plus(it, DateTimeUnit.MONTH)) } ?: "—",
+                    lastClose?.let { "через $it мес. при текущих платежах" } ?: "платежи не покрывают проценты",
+                    modifier = m,
+                )
+            },
+        ),
+    )
 }
 
 @Composable

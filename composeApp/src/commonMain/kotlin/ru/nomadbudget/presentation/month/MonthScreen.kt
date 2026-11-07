@@ -68,6 +68,9 @@ import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.foundation.layout.BoxWithConstraints
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.centeredSide
+import ru.nomadbudget.presentation.components.StatTile
+import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.EqualRow
 
 @Composable
 fun MonthScreen(
@@ -98,13 +101,7 @@ fun MonthScreen(
         if (state.isFirstRun) {
             item { FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry) }
         }
-        item { SpendCard(month, state.saving, onCopyPlan, onOpenPlanning) }
-        if (month.savingsTarget != null || !month.saved.isZero || !month.takenFromCushion.isZero) {
-            item { SavedCard(month) }
-        }
-        if (month.debts.isNotEmpty()) {
-            item { ObligationsCard(month, onOpenDebts) }
-        }
+        item { MonthTiles(month, state.saving, onCopyPlan, onOpenPlanning, onOpenDebts, wide = false) }
         item { SectionTitle("Доходы", hint = "факт из плана", info = Hints.INCOME) }
         item { IncomeCard(month) }
         if (!month.corrections.isZero) {
@@ -313,15 +310,16 @@ private fun ObligationsCard(month: MonthModel, onOpenDebts: () -> Unit, modifier
 }
 
 @Composable
-private fun IncomeCard(month: MonthModel) {
+private fun IncomeCard(month: MonthModel, modifier: Modifier = Modifier) {
     val incomes = month.incomeBudgets.filterNot { it.isIdle }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             if (incomes.isEmpty()) {
                 Text("Доходов и плана дохода нет", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
             }
-            incomes.forEach { budget ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            incomes.forEachIndexed { index, budget ->
+                if (index > 0) HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(budget.category.name)
                     Text(
                         if (budget.hasPlan) "${MoneyFormat.format(budget.fact, false)} / ${MoneyFormat.format(budget.planned, false)}" else "${MoneyFormat.format(budget.fact, false)} · без плана",
@@ -445,9 +443,9 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
 }
 
 @Composable
-private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit) {
+private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenPlanning)) {
+    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onOpenPlanning)) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             funds.forEachIndexed { index, fund ->
                 if (index > 0) HorizontalDivider()
@@ -566,32 +564,35 @@ private fun WideMonth(
             }
         }
         if (state.isFirstRun) FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry)
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SpendCard(month, state.saving, onCopyPlan, onOpenPlanning, Modifier.weight(1f).fillMaxHeight())
-            SavedCard(month, Modifier.weight(1f).fillMaxHeight())
-            if (month.debts.isNotEmpty()) ObligationsCard(month, onOpenDebts, Modifier.weight(1f).fillMaxHeight())
+        MonthTiles(month, state.saving, onCopyPlan, onOpenPlanning, onOpenDebts, wide = true)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle("Конверты", hint = "потрачено с карт и наличных из плана", info = Hints.ENVELOPES)
+            EnvelopeTable(active, state, expandedCategoryId, onToggle)
+            if (idle.isNotEmpty()) IdleLine(idle.map { it.category.name }, onOpenPlanning)
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle("Конверты", hint = "потрачено с карт и наличных из плана", info = Hints.ENVELOPES)
-                EnvelopeTable(active, state, expandedCategoryId, onToggle)
-                if (idle.isNotEmpty()) IdleLine(idle.map { it.category.name }, onOpenPlanning)
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle("Доходы", hint = "факт из плана", info = Hints.INCOME)
-                IncomeCard(month)
+        EqualRow(
+            wide = true,
+            cells = listOfNotNull(
+                {
+                    SectionTitle("Доходы", hint = "факт из плана", info = Hints.INCOME)
+                    IncomeCard(month, Modifier.weight(1f))
+                },
                 if (month.funds.isNotEmpty()) {
-                    SectionTitle("Копилки", hint = "откладываешь на крупное", info = Hints.FUNDS)
-                    FundsCard(month.funds, onOpenPlanning)
-                }
-                if (!month.corrections.isZero) {
-                    Text(
-                        "Расхождения со счетами: ${MoneyFormat.formatSigned(month.corrections, false)}. Это корректировки при сверке, в бюджете не участвуют.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+                    {
+                        SectionTitle("Копилки", hint = "откладываешь на крупное", info = Hints.FUNDS)
+                        FundsCard(month.funds, onOpenPlanning, Modifier.weight(1f))
+                    }
+                } else {
+                    null
+                },
+            ),
+        )
+        if (!month.corrections.isZero) {
+            Text(
+                "Расхождения со счетами: ${MoneyFormat.formatSigned(month.corrections, false)}. Это корректировки при сверке, в бюджете не участвуют.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -707,3 +708,68 @@ private fun AmountCell(
 }
 
 private val AMOUNT_COL = 112.dp
+
+@Composable
+private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit, onOpenPlanning: () -> Unit, onOpenDebts: () -> Unit, wide: Boolean) {
+    val colors = AppTheme.colors
+    val tiles = mutableListOf<@Composable (Modifier) -> Unit>()
+    if (month.flexiblePlanned.isZero) {
+        tiles += { m -> SpendCard(month, saving, onCopyPlan, onOpenPlanning, m) }
+    } else {
+        val over = month.canSpend.isNegative
+        tiles += { m ->
+            StatTile(
+                label = if (over) "Перерасход по конвертам" else "Можно ещё потратить",
+                value = MoneyFormat.format(if (over) -month.canSpend else month.canSpend, false),
+                sub = listOfNotNull(
+                    month.perDay?.let { "≈ ${MoneyFormat.format(it, false)} в день · ${month.daysLeft} дн." },
+                    "потрачено ${MoneyFormat.format(month.flexibleFactWhole, false)} из ${MoneyFormat.format(month.flexiblePlannedWhole, false)}",
+                ).joinToString(" · "),
+                modifier = m.clickable(onClick = onOpenPlanning),
+                progress = share(month.flexibleFactWhole, month.flexiblePlannedWhole),
+                progressColor = if (over) colors.bad else MaterialTheme.colorScheme.primary,
+                marker = if (month.isCurrent) month.elapsedShare.toFloat() else null,
+                accent = true,
+                valueColor = if (over) colors.bad else null,
+                info = Hints.CAN_SPEND,
+            )
+        }
+    }
+    val target = month.savingsTarget
+    tiles += { m ->
+        StatTile(
+            label = "Отложено «Себе»",
+            value = MoneyFormat.format(month.saved, false),
+            sub = listOfNotNull(
+                target?.let { "из ${MoneyFormat.format(it, false)}" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "цель «Себе» не задана",
+                month.takenFromCushion.takeUnless { it.isZero }?.let { "взято из подушки ${MoneyFormat.format(it, false)}" },
+            ).joinToString(" · "),
+            modifier = m,
+            progress = target?.let { share(month.saved, it) } ?: 0f,
+            progressColor = colors.save,
+            valueColor = if (month.saved.isNegative) colors.bad else null,
+            info = Hints.SAVED,
+            subColor = if (month.savingsProgress == SavingsProgress.MISSED) colors.bad else null,
+        )
+    }
+    if (month.debts.isNotEmpty()) {
+        val left = month.debts.map { it.left }.fold(Money.zero(Currency.BASE)) { a, b -> a + b }
+        val paid = month.debts.count { it.status == ObligationStatus.PAID }
+        val next = month.nextObligation
+        val overdue = month.debts.any { it.status == ObligationStatus.OVERDUE }
+        tiles += { m ->
+            StatTile(
+                label = "Осталось по кредитам",
+                value = MoneyFormat.format(left, false),
+                sub = "оплачено $paid из ${month.debts.size}" + (next?.let { " · ближайший: ${it.debt.name}${it.due?.let { d -> " к ${d.day}-му" }.orEmpty()}" } ?: ""),
+                modifier = m.clickable(onClick = onOpenDebts),
+                progress = share(month.debtsPlanned - left, month.debtsPlanned),
+                progressColor = if (overdue) colors.bad else colors.good,
+                valueColor = if (overdue) colors.bad else null,
+                info = Hints.OBLIGATIONS,
+                subColor = if (overdue) colors.bad else null,
+            )
+        }
+    }
+    TileRow(wide, tiles)
+}

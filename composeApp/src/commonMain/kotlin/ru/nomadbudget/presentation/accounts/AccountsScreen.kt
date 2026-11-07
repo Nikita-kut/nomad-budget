@@ -85,7 +85,7 @@ fun AccountsScreen(
     var renaming by remember { mutableStateOf<Account?>(null) }
     var editMode by remember { mutableStateOf(false) }
 
-    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 96.dp) {
+    CenteredLazyColumn(bottom = 96.dp) {
         item { TotalsCard(state) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -101,7 +101,6 @@ fun AccountsScreen(
                 TextButton(onClick = { editMode = !editMode }) { Text(if (editMode) "Готово" else "Изменить") }
             }
         }
-        if (!twoColumns) item { lifeTitle() }
         val lifeCard: @Composable () -> Unit = {
             AccountsCard(daily, state, totalLabel = "Итого на жизнь", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
@@ -111,24 +110,8 @@ fun AccountsScreen(
         val cushionCard: @Composable () -> Unit = {
             AccountsCard(savings, state, totalLabel = "Итого в подушке", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
-        if (twoColumns) {
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        lifeTitle()
-                        lifeCard()
-                    }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(modifier = Modifier.fillMaxWidth().height(TITLE_HEIGHT), contentAlignment = Alignment.CenterStart) {
-                            SectionTitle("Копилки", hint = "под крупные траты", info = Hints.FUNDS)
-                        }
-                        fundsCard()
-                        SectionTitle("Подушка", hint = "неприкосновенный запас")
-                        cushionCard()
-                    }
-                }
-            }
-        } else {
+        item { lifeTitle() }
+        run {
             item { lifeCard() }
             item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
             item { fundsCard() }

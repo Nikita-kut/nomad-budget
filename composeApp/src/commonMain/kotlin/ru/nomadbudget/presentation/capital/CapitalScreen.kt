@@ -64,6 +64,8 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.StatTile
+import ru.nomadbudget.presentation.components.TileRow
 
 private val HORIZONS = listOf(12 to "1 год", 24 to "2 года", 60 to "5 лет")
 
@@ -128,61 +130,41 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
     val colors = AppTheme.colors
     val tiles: List<@Composable (Modifier) -> Unit> = listOf(
         { m ->
-            Tile(
+            StatTile(
                 "Капитал чистыми",
                 MoneyFormat.format(capital.netWorth, false),
                 "счета ${MoneyFormat.format(capital.assets, false)} − долги ${MoneyFormat.format(capital.debt, false)}",
-                m,
-                highlight = true,
+                modifier = m,
+                accent = true,
                 valueColor = if (capital.netWorth.isNegative) colors.bad else null,
             )
         },
         { m ->
-            Tile(
+            StatTile(
                 "Подушка",
                 MoneyFormat.format(capital.cushion, false),
                 capital.cushionMonthsCovered?.let { "хватит на ${formatMonths(it)} обычных расходов" } ?: "нет истории расходов",
-                m,
+                modifier = m,
             )
         },
         { m ->
-            Tile(
+            StatTile(
                 "Рост капитала в месяц",
                 capital.paceMedian?.let { MoneyFormat.formatSigned(it + capital.principalPace, false) } ?: "—",
                 "«Себе» ${capital.paceMedian?.let { MoneyFormat.formatSigned(it, false) } ?: "—"} + тело кредитов ${MoneyFormat.format(capital.principalPace, false)}",
-                m,
+                modifier = m,
             )
         },
         { m ->
-            Tile(
+            StatTile(
                 "Долги",
                 MoneyFormat.format(capital.debt, false),
                 capital.debtFreeInMonths?.let { "закроются к ${monthYear(capital.dateAfterMonths(it))}, через $it мес." } ?: if (capital.debt.isZero) "долгов нет" else "платежи не покрывают проценты",
-                m,
+                modifier = m,
             )
         },
     )
-    if (wide) {
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            tiles.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
-        }
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { tiles.forEach { it(Modifier.fillMaxWidth()) } }
-    }
-}
-
-@Composable
-private fun Tile(label: String, value: String, sub: String, modifier: Modifier, highlight: Boolean = false, valueColor: Color? = null) {
-    Card(
-        modifier = modifier,
-        colors = if (highlight) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = valueColor ?: MaterialTheme.colorScheme.onSurface)
-            Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+    TileRow(wide, tiles)
 }
 
 @Composable
@@ -215,7 +197,8 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
                 series = scenarios.map { s -> indices.map { paths.getValue(s)[it].wholeUnits.toDouble() } },
                 colors = scenarios.map { scenarioColors.getValue(it) },
                 labels = indices.map { shortMonth(capital.dateAfterMonths(it)) },
-                formatY = { thousands(it) },
+                formatY = MoneyFormat::formatAxis,
+                formatValue = MoneyFormat::formatWhole,
                 visibleCount = indices.size,
             )
             HorizontalDivider()
@@ -225,8 +208,9 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
                 HeaderCell("Подушка к ${monthYear(capital.dateAfterMonths(horizon))}")
                 HeaderCell("Капитал к ${monthYear(capital.dateAfterMonths(horizon))}")
             }
-            scenarios.forEach { scenario ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            scenarios.forEachIndexed { index, scenario ->
+                if (index > 0) HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
                     Row(modifier = Modifier.weight(2.2f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(modifier = Modifier.padding(top = 6.dp).size(10.dp).clip(CircleShape).background(scenarioColors.getValue(scenario)))
                         Column {
@@ -301,8 +285,9 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
                 }
             }
             HorizontalDivider()
-            visible.forEach { month ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            visible.forEachIndexed { index, month ->
+                if (index > 0) HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         DateFormat.monthName(month.period.start) + if (month.isCurrent) " · идёт" else "",
                         modifier = Modifier.weight(1.2f),
@@ -434,7 +419,8 @@ private fun DebtCard(capital: CapitalModel, horizon: Int) {
                 values = indices.map { capital.debtSchedule.getOrElse(it) { capital.debtSchedule.last() }.wholeUnits.toDouble() },
                 color = AppTheme.colors.bad,
                 labels = indices.map { shortMonth(capital.dateAfterMonths(it)) },
-                formatY = { thousands(it) },
+                formatY = MoneyFormat::formatAxis,
+                formatValue = MoneyFormat::formatWhole,
                 visibleCount = indices.size,
             )
         }
@@ -522,11 +508,6 @@ private const val COLLAPSED_MONTHS = 6
 private fun monthYear(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${date.year}"
 
 private fun shortMonth(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${(date.year % 100).toString().padStart(2, '0')}"
-
-private fun thousands(value: Double): String {
-    val k = value / 1000
-    return if (kotlin.math.abs(k) >= 1000) "${(k / 1000 * 10).toLong() / 10.0} млн" else "${k.toLong()}к"
-}
 
 private fun formatMonths(value: Double): String {
     val tenth = (value * 10).toLong()

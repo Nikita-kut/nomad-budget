@@ -42,173 +42,178 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import kotlin.math.roundToLong
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.ChartPanel
+import ru.nomadbudget.presentation.components.ChartPeriod
+import ru.nomadbudget.presentation.components.StatTile
+import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.components.AmountCell
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 
-private enum class Range(val months: Int?, val title: String) {
-    YEAR(12, "12 мес."),
-    TWO_YEARS(24, "24 мес."),
-    ALL(null, "всё время"),
-}
-
-private const val MIN_VISIBLE = 3
-private const val DEFAULT_VISIBLE = 12
-private const val ZOOM_STEP = 3
+private val MONTH_PERIODS = listOf(ChartPeriod("12 мес.", 12), ChartPeriod("24 мес.", 24), ChartPeriod("всё", null))
 
 @Composable
-fun ChartsScreen(state: HomeState) {
-    var range by remember { mutableStateOf(Range.YEAR) }
-    var visible by remember { mutableIntStateOf(DEFAULT_VISIBLE) }
+fun ChartsScreen(state: HomeState, wide: Boolean = false) {
     val all = state.monthlyHistory
-    val points = range.months?.let { all.takeLast(it) } ?: all
-    val labels = points.map { monthLabel(it) }
-    val maxVisible = points.size.coerceAtLeast(MIN_VISIBLE)
-    val visibleCount = visible.coerceIn(MIN_VISIBLE, maxVisible)
-
+    val labels = all.map { monthLabel(it) }
     val incomeColor = AppTheme.colors.good
     val expenseColor = AppTheme.colors.bad
-    val savedColor = AppTheme.colors.usd
-    val planColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val savedColor = AppTheme.colors.save
+    val planColor = MaterialTheme.colorScheme.outline
+    val netWorth = remember(all, state.accounts, state.transactions, state.rateHistory) {
+        HistoryCalculator.netWorth(all.map { it.period }, state.accounts, state.transactions) { currency, date ->
+            state.rateHistory.filter { it.quote == currency && it.date <= date }.maxByOrNull { it.date }?.basePerUnit
+                ?: state.rates.rateFor(currency)?.basePerUnit
+        }.map { it.toRubles() }
+    }
+    val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories)
+    var categoryPeriod by remember { mutableIntStateOf(0) }
 
-    CenteredLazyColumn(bottom = 12.dp) {
-        item {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                Range.entries.forEachIndexed { index, r ->
-                    SegmentedButton(
-                        selected = range == r,
-                        onClick = { range = r },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = Range.entries.size),
-                    ) { Text(r.title) }
-                }
-            }
-        }
-        if (points.isEmpty()) {
+    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 24.dp) {
+        if (all.isEmpty()) {
             item { EmptyHint("Пока нет данных для графиков") }
             return@CenteredLazyColumn
         }
-        item { Totals(points) }
+        item { Totals(all.takeLast(12), wide) }
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Масштаб: $visibleCount мес. на экране",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            ChartPanel(
+                title = "Доходы и расходы по месяцам",
+                hint = "в рублях по курсу на конец месяца",
+                info = Hints.CHART_INCOME_EXPENSE,
+                legend = listOf(LegendEntry("Доход", incomeColor), LegendEntry("Расход", expenseColor)),
+                totalPoints = all.size,
+                periods = MONTH_PERIODS,
+            ) { from, visible ->
+                val slice = all.drop(from)
+                ColumnsChart(
+                    series = listOf(slice.map { it.income.toRubles() }, slice.map { it.expense.toRubles() }),
+                    colors = listOf(incomeColor, expenseColor),
+                    labels = labels.drop(from),
+                    formatY = MoneyFormat::formatAxis,
+                    formatValue = MoneyFormat::formatWhole,
+                    visibleCount = visible,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = { visible = (visibleCount + ZOOM_STEP).coerceAtMost(maxVisible) }, enabled = visibleCount < maxVisible) { Text("−") }
-                    OutlinedButton(onClick = { visible = (visibleCount - ZOOM_STEP).coerceAtLeast(MIN_VISIBLE) }, enabled = visibleCount > MIN_VISIBLE) { Text("+") }
-                }
             }
         }
-        item { SectionTitle("Доходы и расходы по месяцам", hint = "тыс. ₽ · прокрутка по горизонтали", info = Hints.CHART_INCOME_EXPENSE) }
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ChartLegend(listOf(LegendEntry("Доход за месяц", incomeColor), LegendEntry("Расход за месяц", expenseColor)))
-                    ColumnsChart(
-                        series = listOf(points.map { it.income.toThousands() }, points.map { it.expense.toThousands() }),
-                        colors = listOf(incomeColor, expenseColor),
-                        labels = labels,
-                        formatY = ::thousandsLabel,
-                        visibleCount = visibleCount,
-                    )
-                }
+            ChartPanel(
+                title = "Норма сбережений",
+                hint = "% дохода, отложенный в подушку",
+                info = Hints.CHART_SAVINGS_RATE,
+                legend = listOf(LegendEntry("Отложено / доход месяца", savedColor)),
+                totalPoints = all.size,
+                periods = MONTH_PERIODS,
+            ) { from, visible ->
+                LineChart(
+                    values = all.drop(from).map { (it.savingsRate ?: 0.0) * PERCENT },
+                    color = savedColor,
+                    labels = labels.drop(from),
+                    formatY = { "${it.roundToLong()}%" },
+                    visibleCount = visible,
+                )
             }
         }
-        item { SectionTitle("Норма сбережений", hint = "% дохода, отложенный в накопления", info = Hints.CHART_SAVINGS_RATE) }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ChartLegend(listOf(LegendEntry("Отложено чистыми / доход месяца", savedColor)))
-                    LineChart(
-                        values = points.map { (it.savingsRate ?: 0.0) * PERCENT },
-                        color = savedColor,
-                        labels = labels,
-                        formatY = { "${it.roundToLong()}%" },
-                        visibleCount = visibleCount,
-                    )
-                }
-            }
-        }
-        val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories)
         if (planned.isNotEmpty()) {
-            item { SectionTitle("План и факт расходов", hint = "тыс. ₽", info = Hints.CHART_PLAN_FACT) }
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ChartLegend(listOf(LegendEntry("План расходов", planColor), LegendEntry("Факт расходов", expenseColor)))
-                        ColumnsChart(
-                            series = listOf(
-                                points.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toThousands() },
-                                points.map { it.expense.toThousands() },
-                            ),
-                            colors = listOf(planColor, expenseColor),
-                            labels = labels,
-                            formatY = ::thousandsLabel,
-                            visibleCount = visibleCount,
-                        )
-                    }
-                }
-            }
-        }
-        item { SectionTitle("Капитал", hint = "все счета на конец месяца, тыс. ₽", info = Hints.CHART_NET_WORTH) }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ChartLegend(listOf(LegendEntry("Сумма всех счетов по курсу на конец месяца", incomeColor)))
-                    LineChart(
-                        values = HistoryCalculator.netWorth(points.map { it.period }, state.accounts, state.transactions) { currency, date ->
-                            state.rateHistory.filter { it.quote == currency && it.date <= date }.maxByOrNull { it.date }?.basePerUnit
-                                ?: state.rates.rateFor(currency)?.basePerUnit
-                        }.map { it.toThousands() },
-                        color = incomeColor,
-                        labels = labels,
-                        formatY = ::thousandsLabel,
-                        visibleCount = visibleCount,
-                        fitToData = true,
+                ChartPanel(
+                    title = "План и факт расходов",
+                    hint = "в рублях по курсу на конец месяца",
+                    info = Hints.CHART_PLAN_FACT,
+                    legend = listOf(LegendEntry("План", planColor), LegendEntry("Факт", expenseColor)),
+                    totalPoints = all.size,
+                    periods = MONTH_PERIODS,
+                ) { from, visible ->
+                    val slice = all.drop(from)
+                    ColumnsChart(
+                        series = listOf(
+                            slice.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toRubles() },
+                            slice.map { it.expense.toRubles() },
+                        ),
+                        colors = listOf(planColor, expenseColor),
+                        labels = labels.drop(from),
+                        formatY = MoneyFormat::formatAxis,
+                    formatValue = MoneyFormat::formatWhole,
+                        visibleCount = visible,
                     )
                 }
             }
         }
-        item { SectionTitle("Отложено накопительно", hint = "тыс. ₽", info = Hints.CHART_SAVED) }
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ChartLegend(listOf(LegendEntry("Сумма отложенного с начала диапазона: переводы в накопления минус взятое из них", savedColor)))
-                    LineChart(
-                        values = HistoryCalculator.cumulative(points) { it.netSaved }.map { it.toThousands() },
-                        color = savedColor,
-                        labels = labels,
-                        formatY = ::thousandsLabel,
-                        visibleCount = visibleCount,
-                    )
+            ChartPanel(
+                title = "Все счета на конец месяца",
+                hint = "без учёта долгов; капитал за вычетом долгов — в разделе «Капитал»",
+                info = Hints.CHART_NET_WORTH,
+                legend = listOf(LegendEntry("Сумма всех счетов", incomeColor)),
+                totalPoints = all.size,
+                periods = MONTH_PERIODS,
+            ) { from, visible ->
+                LineChart(
+                    values = netWorth.drop(from),
+                    color = incomeColor,
+                    labels = labels.drop(from),
+                    formatY = MoneyFormat::formatAxis,
+                    formatValue = MoneyFormat::formatWhole,
+                    visibleCount = visible,
+                    fitToData = true,
+                )
+            }
+        }
+        item {
+            ChartPanel(
+                title = "Отложено накопительно",
+                hint = "накопленный итог с начала выбранного периода",
+                info = Hints.CHART_SAVED,
+                legend = listOf(LegendEntry("Пришло в подушку минус ушло из неё", savedColor)),
+                totalPoints = all.size,
+                periods = MONTH_PERIODS,
+            ) { from, visible ->
+                LineChart(
+                    values = HistoryCalculator.cumulative(all.drop(from)) { it.netSaved }.map { it.toRubles() },
+                    color = savedColor,
+                    labels = labels.drop(from),
+                    formatY = MoneyFormat::formatAxis,
+                    formatValue = MoneyFormat::formatWhole,
+                    visibleCount = visible,
+                )
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SectionTitle("Расходы по категориям", hint = "доля от всех расходов", info = Hints.CHART_CATEGORIES, modifier = Modifier.weight(1f))
+                MONTH_PERIODS.forEachIndexed { index, period ->
+                    FilterChip(selected = categoryPeriod == index, onClick = { categoryPeriod = index }, label = { Text(period.label) })
                 }
             }
         }
-        item { SectionTitle("Расходы по категориям", hint = "за выбранный диапазон, доля от всех расходов", info = Hints.CHART_CATEGORIES) }
+        val points = MONTH_PERIODS[categoryPeriod].points?.let { all.takeLast(it) } ?: all
         val totals = HistoryCalculator.expensesByCategory(
             state.transactions,
             state.categories,
             from = points.first().period.start,
             toExclusive = points.last().period.endExclusive,
         )
-        if (totals.isEmpty()) {
-            item { EmptyHint("Расходов нет") }
-        }
-        items(totals, key = { it.category.id }) { total ->
+        item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(total.category.name, fontWeight = FontWeight.Medium)
-                        Text(
-                            "${MoneyFormat.format(total.total, false)} · ${(total.share * 100).roundToLong()}%",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (totals.isEmpty()) Text("Расходов нет", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    totals.forEachIndexed { index, total ->
+                        if (index > 0) HorizontalDivider()
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(total.category.name, modifier = Modifier.width(200.dp), maxLines = 1)
+                            LinearProgressIndicator(
+                                progress = { total.share.toFloat() },
+                                color = expenseColor,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                drawStopIndicator = {},
+                                modifier = Modifier.weight(1f).height(8.dp),
+                            )
+                            AmountCell(MoneyFormat.format(total.total, false))
+                            AmountCell("${(total.share * 100).roundToLong()}%", muted = true, width = 56.dp)
+                        }
                     }
-                    LinearProgressIndicator(
-                        progress = { total.share.toFloat() },
-                        color = expenseColor,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    )
                 }
             }
         }
@@ -216,20 +221,29 @@ fun ChartsScreen(state: HomeState) {
 }
 
 @Composable
-private fun Totals(points: List<MonthPoint>) {
+private fun Totals(points: List<MonthPoint>, wide: Boolean) {
     val income = points.map { it.income }.sumIn(Currency.BASE)
     val expense = points.map { it.expense }.sumIn(Currency.BASE)
     val saved = points.map { it.netSaved }.sumIn(Currency.BASE)
     val months = points.size
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            KeyValueRow("Доход за $months мес.", MoneyFormat.format(income, false), emphasize = true)
-            KeyValueRow("Расход", MoneyFormat.format(expense, false))
-            KeyValueRow("Отложено чистыми", MoneyFormat.format(saved, false))
-            KeyValueRow("Средний расход в месяц", MoneyFormat.format(Money.rub(if (months > 0) expense.minor / months else 0L), false))
-            if (income.minor > 0L) KeyValueRow("Норма сбережений", MoneyFormat.formatShare(saved.minor.toDouble() / income.minor))
-        }
-    }
+    TileRow(
+        wide,
+        listOf(
+            { m -> StatTile("Доход за $months мес.", MoneyFormat.format(income, false), "в среднем ${MoneyFormat.format(Money.rub(if (months > 0) income.minor / months else 0L), false)} в месяц", m) },
+            { m -> StatTile("Расход за $months мес.", MoneyFormat.format(expense, false), "в среднем ${MoneyFormat.format(Money.rub(if (months > 0) expense.minor / months else 0L), false)} в месяц", m) },
+            { m -> StatTile("Отложено чистыми", MoneyFormat.format(saved, false), "пришло в подушку минус ушло из неё", m) },
+            { m ->
+                StatTile(
+                    "Норма сбережений",
+                    if (income.minor > 0L) MoneyFormat.formatShare(saved.minor.toDouble() / income.minor) else "—",
+                    "доля дохода, которая осталась в подушке",
+                    m,
+                    progress = if (income.minor > 0L) (saved.minor.toDouble() / income.minor).toFloat() else null,
+                    progressColor = AppTheme.colors.save,
+                )
+            },
+        ),
+    )
 }
 
 private fun monthLabel(point: MonthPoint): String {
@@ -237,8 +251,7 @@ private fun monthLabel(point: MonthPoint): String {
     return "${start.month.number.toString().padStart(2, '0')}.${start.year % 100}"
 }
 
-private fun Money.toThousands(): Double = minor / 100.0 / 1_000.0
+private fun Money.toRubles(): Double = minor / 100.0
 
 private const val PERCENT = 100.0
 
-private fun thousandsLabel(value: Double): String = "${value.roundToLong()}к"
