@@ -12,71 +12,45 @@ declare
     v_cat uuid;
 begin
     insert into public.accounts (user_id, name, currency, kind, is_savings, sort_order) values
-        (p_user, 'RU карта',      'RUB', 'card',       false, 10),
-        (p_user, 'RU счёт',       'RUB', 'account',    false, 20),
-        (p_user, 'RU наличка',    'RUB', 'cash',       false, 30),
-        (p_user, 'USD карта',     'USD', 'card',       false, 40),
-        (p_user, 'USD наличка',   'USD', 'cash',       false, 50),
-        (p_user, 'Инвесткопилка', 'RUB', 'investment', true,  70);
+        (p_user, 'Карта',    'RUB', 'card', false, 10),
+        (p_user, 'Наличные', 'RUB', 'cash', false, 20),
+        (p_user, 'Подушка',  'RUB', 'savings', true, 30);
 
     insert into public.categories (user_id, name, kind, sort_order) values
-        (p_user, 'Зарплата', 'income', 10),
-        (p_user, 'Возврат',  'income', 30),
-        (p_user, 'Кешбек',   'income', 40);
+        (p_user, 'Зарплата',     'income', 10),
+        (p_user, 'Прочий доход', 'income', 20);
 
     insert into public.categories (user_id, name, kind, sort_order) values
-        (p_user, 'Еда',                     'expense', 10),
-        (p_user, 'Транспорт',               'expense', 20),
-        (p_user, 'Жильё',                   'expense', 30),
-        (p_user, 'Здоровье',                'expense', 40),
-        (p_user, 'Документы',               'expense', 50),
-        (p_user, 'Связь',                   'expense', 60),
-        (p_user, 'Комиссии',                'expense', 70),
-        (p_user, 'Путешествия',             'expense', 80),
-        (p_user, 'Подарки и родным',        'expense', 90),
-        (p_user, 'Разное',                  'expense', 100),
-        (p_user, 'Развлечения',             'expense', 110),
-        (p_user, 'Долг',                    'expense', 120);
+        (p_user, 'Еда',         'expense', 10),
+        (p_user, 'Транспорт',   'expense', 20),
+        (p_user, 'Жильё',       'expense', 30),
+        (p_user, 'Здоровье',    'expense', 40),
+        (p_user, 'Связь',       'expense', 50),
+        (p_user, 'Развлечения', 'expense', 60),
+        (p_user, 'Путешествия', 'expense', 70),
+        (p_user, 'Подарки',     'expense', 80),
+        (p_user, 'Разное',      'expense', 90),
+        (p_user, 'Кредиты',     'expense', 100);
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Еда';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'продукты'), (p_user, v_cat, 'кафе и рестораны'), (p_user, v_cat, 'доставка');
+        (p_user, v_cat, 'продукты'), (p_user, v_cat, 'кафе'), (p_user, v_cat, 'доставка');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Транспорт';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'такси'), (p_user, v_cat, 'аренда транспорта'), (p_user, v_cat, 'бензин'), (p_user, v_cat, 'авиабилеты');
+        (p_user, v_cat, 'такси'), (p_user, v_cat, 'общественный транспорт'), (p_user, v_cat, 'топливо');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Жильё';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'кв плата РФ'), (p_user, v_cat, 'кв плата за границей'), (p_user, v_cat, 'аренда');
+        (p_user, v_cat, 'аренда'), (p_user, v_cat, 'коммунальные услуги');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Здоровье';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'аптека'), (p_user, v_cat, 'врач'), (p_user, v_cat, 'страховка'), (p_user, v_cat, 'спорт');
-
-    select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Документы';
-    insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'виза'), (p_user, v_cat, 'продление визы'), (p_user, v_cat, 'нотариус и переводы'), (p_user, v_cat, 'ВНЖ');
+        (p_user, v_cat, 'аптека'), (p_user, v_cat, 'врач'), (p_user, v_cat, 'спорт');
 
     select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Связь';
     insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'SIM местная'), (p_user, v_cat, 'SIM RU'), (p_user, v_cat, 'VPN'), (p_user, v_cat, 'подписки');
-
-    select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Комиссии';
-    insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'банк'), (p_user, v_cat, 'обменник'), (p_user, v_cat, 'конвертация');
-
-    select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Путешествия';
-    insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'отели'), (p_user, v_cat, 'туры'), (p_user, v_cat, 'билеты');
-
-    select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Подарки и родным';
-    insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'подарок'), (p_user, v_cat, 'перевод родным');
-
-    select id into v_cat from public.categories where user_id = p_user and kind = 'expense' and name = 'Долг';
-    insert into public.subcategories (user_id, category_id, name) values
-        (p_user, v_cat, 'дом рф'), (p_user, v_cat, 'альфа'), (p_user, v_cat, 'втб'), (p_user, v_cat, 'озон'), (p_user, v_cat, 'кредитка');
+        (p_user, v_cat, 'мобильная связь'), (p_user, v_cat, 'интернет'), (p_user, v_cat, 'подписки');
 end $$;
 
 create or replace function public.handle_new_user()
