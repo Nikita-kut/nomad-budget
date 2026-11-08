@@ -22,7 +22,8 @@ One rule, one component. A fix to a visual problem goes into the shared componen
 - Values are passed in rubles (or the rate itself), never pre-scaled to thousands.
 - The Y axis uses `niceScale`: round steps 1 / 2 / 2.5 / 5 × 10ⁿ, about 4–5 gridlines. Columns and cumulative lines include zero; trend lines (capital, rates) fit the data.
 - Axis labels: `MoneyFormat.formatAxis` (`4,5 млн`, `250 тыс`) or `formatQuote` for rates. Hover tooltip: exact value via `formatValue` (`MoneyFormat.formatWhole`).
-- Wheel scroll never zooms a chart (`zoomEnabled = false`).
+- Charts are our own Canvas components (`presentation/charts/Charts.kt`): geometry and labels are cached with `drawWithCache`, hover redraws only the marker. No third-party chart library: it re-laid out every frame and made scrolling janky.
+- Zoom (− / +) shows the last N points; there is no horizontal scrolling inside a chart.
 
 ## Tables and lists
 
