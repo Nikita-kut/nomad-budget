@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.home
 
+import ru.nomadbudget.data.local.LocalStore
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -154,6 +155,7 @@ private data class Tab(
     val isSelected: (NavHostController) -> Boolean,
 )
 
+private const val LAST_ROUTE_KEY = "last_route"
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
 private val CONTENT_MAX_WIDTH = 760.dp
 private val WIDE_SINGLE_MAX_WIDTH = 960.dp
@@ -171,6 +173,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     var entryPanel by remember { mutableStateOf(false) }
     var isWide by remember { mutableStateOf(false) }
     var sidebarCollapsed by remember { mutableStateOf<Boolean?>(null) }
+    val uiStore = remember { LocalStore() }
+    val savedRoute = remember { uiStore.get(LAST_ROUTE_KEY) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -249,7 +253,18 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         val backStack by navController.currentBackStackEntryAsState()
         val onEntry = backStack != null && navController.isOn<EntryRoute>()
         val openEntry = { if (wide) entryPanel = true else navController.navigate(EntryRoute) { launchSingleTop = true } }
-        LaunchedEffect(backStack?.destination?.route) { entryPanel = false }
+        LaunchedEffect(backStack?.destination?.route) {
+            entryPanel = false
+            val current = backStack?.destination?.route ?: return@LaunchedEffect
+            tabs.firstOrNull { tab -> tab.route::class.simpleName?.let(current::endsWith) == true }?.let { tab ->
+                tab.route::class.simpleName?.let { uiStore.put(LAST_ROUTE_KEY, it) }
+            }
+        }
+        LaunchedEffect(Unit) {
+            val saved = savedRoute ?: return@LaunchedEffect
+            val tab = tabs.firstOrNull { it.route::class.simpleName == saved } ?: return@LaunchedEffect
+            if (tab.route != MonthRoute) navController.switchTo(tab.route)
+        }
         LaunchedEffect(backStack) {
             if (!entryPanel) {
                 withFrameNanos { }
