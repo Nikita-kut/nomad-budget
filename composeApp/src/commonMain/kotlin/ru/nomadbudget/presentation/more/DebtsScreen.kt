@@ -90,7 +90,7 @@ fun DebtsScreen(
     val month = state.month
     val obligations = month.debts.sortedWith(compareBy<DebtObligation> { it.status == ObligationStatus.PAID }.thenBy(nullsLast()) { it.due })
 
-    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 96.dp) {
+    CenteredLazyColumn(bottom = 96.dp) {
         if (onBack != null) {
             item { SubScreenHeader("Кредиты", onBack) }
         }

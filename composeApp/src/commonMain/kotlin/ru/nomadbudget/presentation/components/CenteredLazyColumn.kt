@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun CenteredLazyColumn(
-    maxContentWidth: Dp = 960.dp,
+    maxContentWidth: Dp = Ui.ContentMaxWidth,
     top: Dp = 12.dp,
     bottom: Dp = 96.dp,
     content: LazyListScope.() -> Unit,
@@ -23,7 +23,7 @@ fun CenteredLazyColumn(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = side, end = side, top = top, bottom = bottom),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(Ui.Gap),
             content = content,
         )
     }

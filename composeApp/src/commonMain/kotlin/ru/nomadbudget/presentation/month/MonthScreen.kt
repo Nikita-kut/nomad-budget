@@ -443,7 +443,7 @@ private fun WideMonth(
 ) {
     val month = state.month
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-    val side = centeredSide(maxWidth, 1240.dp)
+    val side = centeredSide(maxWidth, Ui.ContentMaxWidth)
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = side, end = side, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),

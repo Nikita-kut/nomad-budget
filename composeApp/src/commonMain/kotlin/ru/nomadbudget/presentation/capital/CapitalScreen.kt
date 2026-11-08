@@ -82,7 +82,7 @@ fun CapitalScreen(
     var editingSettings by remember { mutableStateOf(false) }
     val horizon = HORIZONS[horizonIndex].first
 
-    CenteredLazyColumn(maxContentWidth = 1240.dp) {
+    CenteredLazyColumn() {
         item { SummaryTiles(capital, wide) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -47,6 +47,7 @@ object Ui {
     val CardPadding: Dp = 14.dp
     val AmountColumn: Dp = 116.dp
     val TileMinHeight: Dp = 132.dp
+    val ContentMaxWidth: Dp = 1240.dp
 }
 
 @Composable
