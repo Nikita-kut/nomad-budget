@@ -369,11 +369,8 @@ private fun GroupHeader(group: JournalGroup) {
 @Composable
 private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String) -> Unit, onEdit: (Transaction) -> Unit) {
     val row = describe(tx, state)
-    val primaryColor = when (tx) {
-        is Transaction.Income -> AppTheme.colors.good
-        is Transaction.Transfer -> MaterialTheme.colorScheme.onSurfaceVariant
-        is Transaction.Expense, is Transaction.Exchange -> MaterialTheme.colorScheme.onSurface
-    }
+    val typeColor = txType(tx).second
+    val primaryColor = if (tx is Transaction.Expense) MaterialTheme.colorScheme.onSurface else typeColor
     val dismissState = rememberSwipeToDismissBoxState()
     SwipeToDismissBox(
         state = dismissState,
@@ -391,11 +388,14 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .clickable { onEdit(tx) }
-                .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                .height(IntrinsicSize.Min)
+                .background(MaterialTheme.colorScheme.surface)
+                .background(if (tx is Transaction.Expense) Color.Transparent else typeColor.copy(alpha = 0.06f))
+                .clickable { onEdit(tx) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(typeColor))
+            Row(modifier = Modifier.weight(1f).padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(row.title, fontWeight = FontWeight.Medium, maxLines = 1)
                 AccountsLine(state, fromId = row.fromAccountId, toId = row.toAccountId, note = row.note)
@@ -413,7 +413,20 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
                     Text("ждёт отправки", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.warning, fontWeight = FontWeight.Medium)
                 }
             }
+            }
         }
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun txType(tx: Transaction): Pair<String, Color> {
+    val colors = AppTheme.colors
+    return when (tx) {
+        is Transaction.Expense -> "Расход" to colors.bad
+        is Transaction.Income -> "Доход" to colors.good
+        is Transaction.Transfer -> "Перевод" to colors.save
+        is Transaction.Exchange -> "Обмен" to colors.warning
     }
 }
 
@@ -500,12 +513,7 @@ private fun JournalTableRow(tx: Transaction, state: HomeState, onClick: () -> Un
         is Transaction.Transfer -> listOf("Перевод", "${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", MoneyFormat.format(tx.amount), "")
         is Transaction.Exchange -> listOf("Обмен", "${state.accountName(tx.fromAccountId)} → ${state.accountName(tx.toAccountId)}", "${MoneyFormat.format(tx.given)} → ${MoneyFormat.format(tx.received)}", "")
     }
-    val (typeLabel, typeColor) = when (tx) {
-        is Transaction.Expense -> "Расход" to colors.bad
-        is Transaction.Income -> "Доход" to colors.good
-        is Transaction.Transfer -> "Перевод" to colors.save
-        is Transaction.Exchange -> "Обмен" to colors.warning
-    }
+    val (typeLabel, typeColor) = txType(tx)
     Row(
         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).clickable(onClick = onClick).background(if (tx is Transaction.Expense) Color.Transparent else typeColor.copy(alpha = 0.06f)),
         verticalAlignment = Alignment.CenterVertically,
