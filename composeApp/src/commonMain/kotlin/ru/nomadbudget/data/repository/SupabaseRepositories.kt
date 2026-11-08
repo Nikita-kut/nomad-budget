@@ -1,5 +1,6 @@
 package ru.nomadbudget.data.repository
 
+import ru.nomadbudget.domain.repository.FlushResult
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
@@ -229,8 +230,17 @@ class DebtRepositoryImpl(
         return requireNotNull(DebtMapper.toDomain(saved, byCode)) { "Неизвестная валюта кредита" }
     }
 
-    override suspend fun update(debt: Debt) {
-        client.from(Tables.DEBTS).update(DebtMapper.toInsert(debt)) { filter { eq("id", debt.id) } }
+    override suspend fun update(debt: Debt, principalChanged: Boolean) {
+        val row = DebtMapper.toInsert(debt)
+        client.from(Tables.DEBTS).update({
+            set("name", row.name)
+            set("currency", row.currency)
+            set("monthly_payment", row.monthlyPayment)
+            set("rate_percent", row.ratePercent)
+            set("pay_day", row.payDay)
+            set("extra_payment", row.extraPayment)
+            if (principalChanged) set("principal_remaining", row.principalRemaining)
+        }) { filter { eq("id", debt.id) } }
     }
 
     override suspend fun close(id: String) {
@@ -339,8 +349,9 @@ class TransactionRepositoryImpl(
         }
     }
 
-    override suspend fun flushPending(): Int {
+    override suspend fun flushPending(): FlushResult {
         var sent = 0
+        var rejected = 0
         for (item in queue.all()) {
             try {
                 client.from(Tables.TRANSACTIONS).insert(item.dto)
@@ -351,13 +362,15 @@ class TransactionRepositoryImpl(
                     queue.remove(item.id)
                     sent++
                 } else {
-                    throw e
+                    rejected++
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 break
             }
         }
-        return sent
+        return FlushResult(sent, rejected)
     }
 
     override fun pendingCount(): Int = queue.size

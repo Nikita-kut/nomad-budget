@@ -180,8 +180,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.undoRequests.collect { request ->
             launch {
-                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Long)
-                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id) else viewModel.commitDelete(request.id)
+                snackbar.currentSnackbarData?.dismiss()
+                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Short)
+                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id)
             }
         }
     }
@@ -555,13 +556,6 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
     }
 }
 
-@Composable
-private fun TotalsInline(state: HomeState, cardModifier: Modifier = Modifier) {
-    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), state, cardModifier)
-    state.foreignCurrencies.filter(state.rates::hasRate).forEach { currency ->
-        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), state, cardModifier)
-    }
-}
 
 @Composable
 private fun RatesWarning(state: HomeState) {
@@ -655,20 +649,6 @@ private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier
     }
 }
 
-@Composable
-private fun TotalCard(currency: Currency, value: String, state: HomeState, modifier: Modifier = Modifier) {
-    val color = currencyColor(currency, state)
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (currency == Currency.BASE) "Всего" else "в ${currency.code}",
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-            )
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
-    }
-}
 
 @Composable
 private fun DemoBadge() {
