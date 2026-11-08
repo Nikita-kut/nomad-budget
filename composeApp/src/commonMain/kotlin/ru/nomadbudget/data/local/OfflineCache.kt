@@ -1,6 +1,7 @@
 package ru.nomadbudget.data.local
 
 import io.github.jan.supabase.exceptions.RestException
+import io.github.jan.supabase.exceptions.UnauthorizedRestException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -23,11 +24,18 @@ class OfflineCache(private val store: KeyValueStore) {
         oldestCachedAt = null
     }
 
+    fun <T> peek(key: String, serializer: KSerializer<T>): T? =
+        store.get(key)?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }
+
+    fun <T> put(key: String, serializer: KSerializer<T>, value: T) {
+        store.put(key, json.encodeToString(serializer, value))
+        store.put(timeKey(key), Clock.System.now().toEpochMilliseconds().toString())
+    }
+
     suspend fun <T> through(key: String, serializer: KSerializer<T>, fetch: suspend () -> T): T {
         return try {
             val value = fetch()
-            store.put(key, json.encodeToString(serializer, value))
-            store.put(timeKey(key), Clock.System.now().toEpochMilliseconds().toString())
+            put(key, serializer, value)
             value
         } catch (e: Exception) {
             if (!isOffline(e)) throw e
@@ -57,6 +65,10 @@ class OfflineCache(private val store: KeyValueStore) {
     private fun timeKey(key: String) = "$key:t"
 
     companion object {
-        fun isOffline(e: Throwable): Boolean = e !is RestException && e !is CancellationException && e !is SerializationException && e !is IllegalArgumentException
+        fun isOffline(e: Throwable): Boolean = when (e) {
+            is UnauthorizedRestException -> true
+            is RestException, is CancellationException, is SerializationException, is IllegalArgumentException -> false
+            else -> true
+        }
     }
 }

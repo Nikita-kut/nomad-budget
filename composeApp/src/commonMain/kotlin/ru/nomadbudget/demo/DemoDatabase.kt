@@ -21,6 +21,8 @@ import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.SalaryCycle
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.domain.model.UserSettings
+import kotlin.time.Instant
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -30,7 +32,7 @@ object DemoMode {
 
 class DemoDatabase(val today: LocalDate) {
 
-    val currencies: List<Currency> = listOf(Currency.RUB, Currency.USD, TEST_CURRENCY)
+    val currencies: MutableList<Currency> = mutableListOf(Currency.RUB, Currency.USD, TEST_CURRENCY)
     val accounts = mutableListOf<Account>()
     val categories = mutableListOf<Category>()
     val subcategories = mutableListOf<Subcategory>()
@@ -41,7 +43,13 @@ class DemoDatabase(val today: LocalDate) {
     val balanceChecks = mutableListOf<BalanceCheck>()
     val rateHistory = mutableListOf<ExchangeRate>()
     val capitalGoals = mutableListOf<ru.nomadbudget.domain.logic.CapitalGoal>()
-    var capitalSettings = ru.nomadbudget.domain.logic.CapitalSettings(cushionMonths = 6, annualReturn = 12.0)
+    var settings = UserSettings(
+        periodStartDay = START_DAY,
+        incomeDays = listOf(5, 20),
+        cushionMonths = 6,
+        annualReturn = 12.0,
+        onboardedAt = Instant.fromEpochMilliseconds(0L),
+    )
 
     private var sequence = 0
 
@@ -68,9 +76,10 @@ class DemoDatabase(val today: LocalDate) {
 
     companion object {
         val TEST_CURRENCY: Currency = Currency("XTS", 0, "¤")
+        const val START_DAY = 5
         private const val DEMO_DAY_IN_PERIOD = 17
 
-        fun anchorToday(): LocalDate = SalaryCycle.periodContaining(SystemToday.today()).start.plus(DEMO_DAY_IN_PERIOD, DateTimeUnit.DAY)
+        fun anchorToday(): LocalDate = SalaryCycle.periodContaining(SystemToday.today(), START_DAY).start.plus(DEMO_DAY_IN_PERIOD, DateTimeUnit.DAY)
     }
 }
 
@@ -135,8 +144,8 @@ private class DemoSeed(private val db: DemoDatabase) {
     )
 
     fun fill() {
-        val current = SalaryCycle.periodContaining(db.today)
-        val periods = generateSequence(current) { SalaryCycle.previous(it) }.take(PERIODS).toList().reversed()
+        val current = SalaryCycle.periodContaining(db.today, DemoDatabase.START_DAY)
+        val periods = generateSequence(current) { SalaryCycle.previous(it, DemoDatabase.START_DAY) }.take(PERIODS).toList().reversed()
         db.accounts += listOf(card, rubAccount, rubCash, usdCard, usdCash, localCash, rentFund, giftsFund, cushion, invest, oldCard)
         db.categories += listOf(salary, side, food, transport, housing, comm, health, travel, gifts, docs, fees, loans, correction)
         db.subcategories += listOf(grocery, cafe, delivery, taxi, metro, rent, utilities, internet, mobile, pharmacy, loanSubA, loanSubB)

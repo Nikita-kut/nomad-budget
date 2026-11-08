@@ -11,6 +11,11 @@ import ru.nomadbudget.data.local.DraftsStore
 import ru.nomadbudget.data.local.InMemoryStore
 import ru.nomadbudget.data.local.KeyValueStore
 import ru.nomadbudget.data.local.OfflineCache
+import ru.nomadbudget.data.local.UserScopedStore
+import ru.nomadbudget.domain.model.IsoCurrencies
+import ru.nomadbudget.domain.model.UserSettings
+import ru.nomadbudget.domain.repository.SessionCheck
+import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
@@ -42,9 +47,10 @@ import ru.nomadbudget.domain.logic.PeriodBudgetLine
 
 val demoModule = module {
     single { DemoDatabase(DemoDatabase.anchorToday()) }
-    single<KeyValueStore> { InMemoryStore() }
+    single<KeyValueStore> { UserScopedStore(InMemoryStore()) { DemoAuthRepository.USER_ID } }
     single<TodayProvider> { TodayProvider { get<DemoDatabase>().today } }
     single { OfflineCache(get()) }
+    single<UserSettingsRepository> { DemoUserSettingsRepository(get()) }
     single<DraftRepository> {
         DraftsStore(get()).apply {
             add("кофе 300")
@@ -66,27 +72,64 @@ val demoModule = module {
 }
 
 private class DemoAuthRepository : AuthRepository {
-    private val flow = MutableStateFlow(AuthState.SIGNED_IN)
+    private val flow = MutableStateFlow<AuthState>(AuthState.SignedIn(USER_ID))
     override val state: Flow<AuthState> = flow
 
+    override val currentUserId: String? get() = (flow.value as? AuthState.SignedIn)?.userId
+
     override suspend fun signIn(email: String, password: String) {
-        flow.value = AuthState.SIGNED_IN
+        flow.value = AuthState.SignedIn(USER_ID)
     }
 
     override suspend fun signOut() {
-        flow.value = AuthState.SIGNED_OUT
+        flow.value = AuthState.SignedOut()
+    }
+
+    override suspend fun ensureSession(): SessionCheck = SessionCheck.FRESH
+
+    override suspend fun changePassword(newPassword: String) = Unit
+
+    override suspend fun deleteAccount() = signOut()
+
+    companion object {
+        const val USER_ID = "demo"
+    }
+}
+
+private class DemoUserSettingsRepository(private val db: DemoDatabase) : UserSettingsRepository {
+    override fun cached(): UserSettings = db.settings
+
+    override suspend fun get(): UserSettings = db.settings
+
+    override suspend fun save(settings: UserSettings): UserSettings {
+        db.settings = settings
+        return settings
     }
 }
 
 private class DemoCurrencyRepository(private val db: DemoDatabase) : CurrencyRepository {
-    override suspend fun getAll(): List<Currency> = db.currencies
+    override suspend fun getAll(): List<Currency> = db.currencies.toList()
+
+    override suspend fun ensure(code: String): Currency {
+        val existing = db.currencies.firstOrNull { it.code == code.trim().uppercase() }
+        if (existing != null) return existing
+        val iso = requireNotNull(IsoCurrencies.find(code)) { "Неизвестный код валюты $code" }
+        return iso.toCurrency().also { db.currencies += it }
+    }
 }
 
 private class DemoAccountRepository(private val db: DemoDatabase) : AccountRepository {
     override suspend fun getAll(): List<Account> = db.accounts.toList()
 
-    override suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, isFund: Boolean, sortOrder: Int): Account =
-        Account(db.newId("account"), name, currency, kind, isSavings, Money.zero(currency), sortOrder, isFund = isFund).also { db.accounts += it }
+    override suspend fun add(
+        name: String,
+        currency: Currency,
+        kind: AccountKind,
+        isSavings: Boolean,
+        isFund: Boolean,
+        sortOrder: Int,
+        openingBalance: Money,
+    ): Account = Account(db.newId("account"), name, currency, kind, isSavings, openingBalance, sortOrder, isFund = isFund).also { db.accounts += it }
 
     override suspend fun setRole(id: String, isSavings: Boolean, isFund: Boolean) = replace(id) { it.copy(isSavings = isSavings, isFund = isFund) }
 
@@ -257,11 +300,5 @@ private class DemoCapitalRepository(private val db: DemoDatabase) : ru.nomadbudg
 
     override suspend fun deleteGoal(id: String) {
         db.capitalGoals.removeAll { it.id == id }
-    }
-
-    override suspend fun getSettings(): ru.nomadbudget.domain.logic.CapitalSettings = db.capitalSettings
-
-    override suspend fun saveSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings) {
-        db.capitalSettings = settings
     }
 }

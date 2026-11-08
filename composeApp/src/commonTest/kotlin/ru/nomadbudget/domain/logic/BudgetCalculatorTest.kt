@@ -12,10 +12,11 @@ import ru.nomadbudget.domain.model.SalaryCycle
 import ru.nomadbudget.domain.model.Transaction
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class BudgetCalculatorTest {
 
-    private val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 5))
+    private val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 5), TEST_START_DAY)
 
     private val food = Category("food", "Еда", CategoryKind.EXPENSE, 10)
     private val debt = Category("debt", "Долг", CategoryKind.EXPENSE, 120)

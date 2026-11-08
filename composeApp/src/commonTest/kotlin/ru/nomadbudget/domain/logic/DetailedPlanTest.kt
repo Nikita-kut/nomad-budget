@@ -13,10 +13,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class DetailedPlanTest {
 
-    private val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 5))
+    private val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 5), TEST_START_DAY)
     private val debt = Category("debt", "Долг", CategoryKind.EXPENSE, 120)
     private val bankA = Subcategory("sub_a", "debt", "банк А")
     private val bankB = Subcategory("sub_b", "debt", "банк Б")

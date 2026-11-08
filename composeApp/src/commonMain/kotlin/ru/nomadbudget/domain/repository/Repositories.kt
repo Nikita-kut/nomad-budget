@@ -18,22 +18,48 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
+import ru.nomadbudget.domain.model.UserSettings
 
-enum class AuthState { LOADING, SIGNED_IN, SIGNED_OUT }
+sealed interface AuthState {
+    data object Loading : AuthState
+    data class SignedIn(val userId: String) : AuthState
+    data class SignedOut(val sessionExpired: Boolean = false) : AuthState
+}
+
+enum class SessionCheck { FRESH, OFFLINE, EXPIRED }
 
 interface AuthRepository {
     val state: Flow<AuthState>
+    val currentUserId: String?
     suspend fun signIn(email: String, password: String)
     suspend fun signOut()
+    suspend fun ensureSession(): SessionCheck
+    suspend fun changePassword(newPassword: String)
+    suspend fun deleteAccount()
+}
+
+interface UserSettingsRepository {
+    fun cached(): UserSettings?
+    suspend fun get(): UserSettings
+    suspend fun save(settings: UserSettings): UserSettings
 }
 
 interface CurrencyRepository {
     suspend fun getAll(): List<Currency>
+    suspend fun ensure(code: String): Currency
 }
 
 interface AccountRepository {
     suspend fun getAll(): List<Account>
-    suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, isFund: Boolean, sortOrder: Int): Account
+    suspend fun add(
+        name: String,
+        currency: Currency,
+        kind: AccountKind,
+        isSavings: Boolean,
+        isFund: Boolean,
+        sortOrder: Int,
+        openingBalance: Money = Money.zero(currency),
+    ): Account
     suspend fun setRole(id: String, isSavings: Boolean, isFund: Boolean)
     suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?)
     suspend fun rename(id: String, name: String)
@@ -107,8 +133,6 @@ interface CapitalRepository {
     suspend fun getGoals(): List<ru.nomadbudget.domain.logic.CapitalGoal>
     suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): ru.nomadbudget.domain.logic.CapitalGoal
     suspend fun deleteGoal(id: String)
-    suspend fun getSettings(): ru.nomadbudget.domain.logic.CapitalSettings
-    suspend fun saveSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings)
 }
 
 data class FlushResult(val sent: Int, val rejected: Int)

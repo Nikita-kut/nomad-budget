@@ -3,26 +3,21 @@ package ru.nomadbudget.presentation.more
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.RateSource
-import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -31,12 +26,6 @@ import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.sumIn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.AppIcons
 
@@ -52,9 +41,8 @@ fun MoreScreen(
     onDebts: () -> Unit,
     showSecondary: Boolean,
     onExport: () -> Unit,
-    onSignOut: () -> Unit,
+    onSettings: () -> Unit,
 ) {
-    var confirmSignOut by remember { mutableStateOf(false) }
     CenteredLazyColumn(bottom = 96.dp) {
         if (showSecondary) {
             item { SectionTitle("Деньги") }
@@ -96,6 +84,8 @@ fun MoreScreen(
                 )
                 HorizontalDivider()
                 MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
+                HorizontalDivider()
+                MenuRow("Настройки", "начало месяца, валюты, тема, пароль, выход", onSettings)
             }
         }
         item { SectionTitle("Горячие клавиши", hint = "в вебе") }
@@ -107,41 +97,6 @@ fun MoreScreen(
                 }
             }
         }
-        item { SectionTitle("Аккаунт") }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(platformName(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = { confirmSignOut = true }) { Text("Выйти из аккаунта") }
-                }
-            }
-        }
-    }
-
-    if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text("Выйти из аккаунта?") },
-            text = {
-                Text(
-                    buildString {
-                        append("С этого устройства удалятся сохранённые копии данных и заметки из «Входящих». В облаке всё останется.")
-                        if (state.pendingCount > 0) append("\n\nЕщё не отправлено и пропадёт: ${operations(state.pendingCount)}. Сначала нажми «Обновить» при сети.")
-                    },
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmSignOut = false
-                    onSignOut()
-                }) { Text("Выйти", color = AppTheme.colors.bad) }
-            },
-            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Отмена") } },
-        )
     }
 }
 

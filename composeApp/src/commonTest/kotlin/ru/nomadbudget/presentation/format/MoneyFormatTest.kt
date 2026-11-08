@@ -6,6 +6,7 @@ import ru.nomadbudget.domain.model.TestCurrencies.JPY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class MoneyFormatTest {
 
@@ -72,7 +73,7 @@ class MoneyFormatTest {
 
     @Test
     fun periodRange_showsLastDayInclusive_andMonthName() {
-        val period = ru.nomadbudget.domain.model.SalaryCycle.periodContaining(kotlinx.datetime.LocalDate(2026, 10, 22))
+        val period = ru.nomadbudget.domain.model.SalaryCycle.periodContaining(kotlinx.datetime.LocalDate(2026, 10, 22), TEST_START_DAY)
         assertEquals("05.10 – 04.11", DateFormat.periodRange(period))
         assertEquals("Октябрь", DateFormat.monthName(period.start))
     }

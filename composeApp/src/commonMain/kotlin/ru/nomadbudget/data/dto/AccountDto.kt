@@ -27,6 +27,7 @@ data class AccountInsertDto(
     @SerialName("is_savings") val isSavings: Boolean,
     @SerialName("sort_order") val sortOrder: Int,
     @SerialName("is_fund") val isFund: Boolean = false,
+    @SerialName("opening_balance") val openingBalance: Long = 0L,
 )
 
 @Serializable

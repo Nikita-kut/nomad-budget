@@ -10,10 +10,11 @@ import ru.nomadbudget.domain.model.Transaction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class PlanHistoryTest {
 
-    private val current = SalaryCycle.periodContaining(LocalDate(2026, 10, 10))
+    private val current = SalaryCycle.periodContaining(LocalDate(2026, 10, 10), TEST_START_DAY)
     private val salary = Category("salary", "Зарплата", CategoryKind.INCOME, 10)
     private val food = Category("food", "Еда", CategoryKind.EXPENSE, 20)
 
@@ -29,7 +30,7 @@ class PlanHistoryTest {
             expense("b", LocalDate(2026, 8, 10), 5_000_000L),
             expense("c", LocalDate(2026, 10, 10), 9_000_000L),
         )
-        val history = PlanCalculator.history(tx, current).getValue("food")
+        val history = PlanCalculator.history(tx, current, TEST_START_DAY).getValue("food")
         assertEquals(2, history.months)
         assertEquals(Money.rub(4_000_000L), history.average)
         assertEquals(Money.rub(3_000_000L), history.previous)
@@ -37,6 +38,6 @@ class PlanHistoryTest {
 
     @Test
     fun history_emptyWithoutPastData() {
-        assertTrue(PlanCalculator.history(listOf(expense("c", LocalDate(2026, 10, 10), 100L)), current).isEmpty())
+        assertTrue(PlanCalculator.history(listOf(expense("c", LocalDate(2026, 10, 10), 100L)), current, TEST_START_DAY).isEmpty())
     }
 }

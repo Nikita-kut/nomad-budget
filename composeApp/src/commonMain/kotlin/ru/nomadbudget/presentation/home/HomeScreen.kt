@@ -106,6 +106,8 @@ import ru.nomadbudget.presentation.components.Sidebar
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.SidebarEntry
 import ru.nomadbudget.presentation.components.SidebarGroup
+import ru.nomadbudget.presentation.onboarding.OnboardingScreen
+import ru.nomadbudget.presentation.settings.SettingsScreen
 
 @Serializable
 object MonthRoute
@@ -146,6 +148,9 @@ object PlanningRoute
 @Serializable
 object JournalRoute
 
+@Serializable
+object SettingsRoute
+
 private data class Tab(
     val route: Any,
     val title: String,
@@ -166,6 +171,10 @@ private val TWO_COLUMN_MIN_WIDTH = 1100.dp
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
+    if (state.needsOnboarding && !DemoMode.enabled) {
+        OnboardingScreen(state = state, messages = viewModel.messages, onFinish = viewModel::completeOnboarding)
+        return
+    }
     val snackbar = remember { SnackbarHostState() }
     val navController = rememberNavController()
     val entryForm = remember { EntryFormState(state.today) }
@@ -208,9 +217,10 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Tab(ChartsRoute, "Графики", AppIcons.ChartColumn, primary = false, group = "Анализ") { it.isOn<ChartsRoute>() },
             Tab(RatesRoute, "Курсы", AppIcons.ChartLine, primary = false, group = "Анализ") { it.isOn<RatesRoute>() },
             Tab(MoreRoute, "Ещё", AppIcons.More, primary = true) {
-                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() ||
+                it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() || it.isOn<SettingsRoute>() ||
                     it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<CapitalRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
             },
+            Tab(SettingsRoute, "Настройки", AppIcons.Settings, primary = false) { it.isOn<SettingsRoute>() },
         )
     }
 
@@ -275,7 +285,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         val selfCentered = backStack != null && (
             navController.isOn<ChartsRoute>() || navController.isOn<CapitalRoute>() || navController.isOn<RatesRoute>() || navController.isOn<ExchangeRoute>() ||
                 navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() ||
-                navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>() || navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>()
+                navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>() || navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>() ||
+                navController.isOn<SettingsRoute>()
             )
         val contentMaxWidth = when {
             selfCentered -> Dp.Infinity
@@ -431,7 +442,20 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                             CsvExporter.export(state.transactions, state.accounts, state.categories, state.subcategories),
                                         )
                                     },
+                                    onSettings = { navController.navigate(SettingsRoute) },
+                                )
+                            }
+                            composable<SettingsRoute> {
+                                SettingsScreen(
+                                    state = state,
+                                    onBack = if (wide) null else back,
+                                    onSetPeriodStartDay = viewModel::setPeriodStartDay,
+                                    onSetIncomeDays = viewModel::setIncomeDays,
+                                    onSaveCapital = viewModel::saveCapitalSettings,
+                                    onAddCurrency = viewModel::addCurrency,
+                                    onChangePassword = viewModel::changePassword,
                                     onSignOut = viewModel::signOut,
+                                    onDeleteAccount = viewModel::deleteAccount,
                                 )
                             }
                             composable<CategoriesRoute> {

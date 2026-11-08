@@ -28,6 +28,8 @@ actual class LocalStore actual constructor() : KeyValueStore {
         prefs.edit().remove(key).apply()
     }
 
+    actual override fun keys(prefix: String): List<String> = prefs.all.keys.filter { it.startsWith(prefix) }
+
     actual override fun clear() {
         prefs.edit().clear().apply()
     }

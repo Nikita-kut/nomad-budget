@@ -28,6 +28,8 @@ import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.logic.SavingsForecast
 import ru.nomadbudget.domain.logic.MonthModel
 import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.model.UserSettings
+import ru.nomadbudget.domain.logic.CapitalSettings
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -109,13 +111,25 @@ data class HomeState(
     val debts: List<Debt> = emptyList(),
     val rateHistory: List<ExchangeRate> = emptyList(),
     val capitalGoals: List<ru.nomadbudget.domain.logic.CapitalGoal> = emptyList(),
-    val capitalSettings: ru.nomadbudget.domain.logic.CapitalSettings = ru.nomadbudget.domain.logic.CapitalSettings(),
+    val settings: UserSettings = UserSettings(),
     private val memo: Memo = Memo(),
 ) {
+    val periodStartDay: Int = settings.periodStartDay
+
+    val capitalSettings: CapitalSettings = settings.capital
+
+    val needsOnboarding: Boolean = !loading && error == null && !offline && !settings.isOnboarded
+
+    val incomeDaysHint: String? = settings.incomeDays.takeIf { it.isNotEmpty() }?.let { days ->
+        val sorted = days.sorted()
+        val listed = if (sorted.size == 1) sorted.first().toString() else sorted.dropLast(1).joinToString(", ") + " и " + sorted.last()
+        "Доход обычно приходит $listed числа"
+    }
+
     val systemCategoryIds: Set<String> = memo.get("system", categories) { categories.filter { it.isSystem }.map { it.id }.toSet() }
 
-    val monthlyHistory: List<MonthPoint> = memo.get("history", transactions, accounts, period, categories) {
-        HistoryCalculator.monthly(transactions, accounts, period, systemCategoryIds)
+    val monthlyHistory: List<MonthPoint> = memo.get("history", transactions, accounts, period, categories, settings) {
+        HistoryCalculator.monthly(transactions, accounts, period, periodStartDay, systemCategoryIds)
     }
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
@@ -194,7 +208,7 @@ data class HomeState(
 
     val savingsForecast: SavingsForecast? get() = HistoryCalculator.savingsForecast(monthlyHistory, today in period, savingsBalance, savingsTarget)
 
-    val capital: ru.nomadbudget.domain.logic.CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, capitalSettings, capitalGoals) {
+    val capital: ru.nomadbudget.domain.logic.CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, settings, capitalGoals) {
         ru.nomadbudget.domain.logic.CapitalModel.build(
             today = today,
             accounts = accounts,
@@ -206,10 +220,11 @@ data class HomeState(
             planMonthly = savingsTarget,
             settings = capitalSettings,
             goals = capitalGoals,
+            startDay = periodStartDay,
         )
     }
 
-    val categoryHistory: Map<String, CategoryHistory> get() = memo.get("categoryHistory", transactions, period, accounts) { PlanCalculator.history(transactions, period, accounts) }
+    val categoryHistory: Map<String, CategoryHistory> get() = memo.get("categoryHistory", transactions, period, accounts, settings) { PlanCalculator.history(transactions, period, periodStartDay, accounts) }
 
     val totalBase: Money = activeAccounts
         .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }

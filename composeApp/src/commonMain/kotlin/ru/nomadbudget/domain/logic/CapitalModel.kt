@@ -28,6 +28,8 @@ data class CapitalSettings(
 ) {
     companion object {
         const val DEFAULT_CUSHION_MONTHS = 6
+        val CUSHION_MONTHS_RANGE: IntRange = 1..36
+        const val MAX_ANNUAL_RETURN = 100.0
     }
 }
 
@@ -155,13 +157,14 @@ data class CapitalModel(
             planMonthly: Money?,
             settings: CapitalSettings,
             goals: List<CapitalGoal>,
+            startDay: Int,
         ): CapitalModel {
             fun sumRole(role: AccountRole) = accounts.filter { !it.isArchived && it.role == role }
                 .mapNotNull { rates.toBaseOrNull(balances[it.id] ?: Money.zero(it.currency)) }
                 .sumIn(Currency.BASE)
             val openDebts = debts.filterNot { it.isClosed }
-            val current = SalaryCycle.periodContaining(today)
-            val periods = generateSequence(current) { SalaryCycle.previous(it) }.take(HISTORY_MONTHS + 1).toList().reversed()
+            val current = SalaryCycle.periodContaining(today, startDay)
+            val periods = generateSequence(current) { SalaryCycle.previous(it, startDay) }.take(HISTORY_MONTHS + 1).toList().reversed()
             val cushionIds = accounts.filter { it.role == AccountRole.CUSHION }.map { it.id }.toSet()
             val months = periods.map { period ->
                 val inPeriod = transactions.filter { it.date in period }

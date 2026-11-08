@@ -21,11 +21,12 @@ object PlanCalculator {
     fun history(
         transactions: List<Transaction>,
         period: Period,
+        startDay: Int,
         accounts: List<Account> = emptyList(),
         months: Int = HISTORY_MONTHS,
     ): Map<String, CategoryHistory> {
         val accountsById = accounts.associateBy { it.id }
-        val previous = generateSequence(SalaryCycle.previous(period)) { SalaryCycle.previous(it) }.take(months).toList()
+        val previous = generateSequence(SalaryCycle.previous(period, startDay)) { SalaryCycle.previous(it, startDay) }.take(months).toList()
         val active = previous.filter { p -> transactions.any { it.date in p } }
         if (active.isEmpty()) return emptyMap()
         val byPeriod = active.map { p ->

@@ -28,37 +28,39 @@ data class Period(val start: LocalDate, val endExclusive: LocalDate) {
 
 object SalaryCycle {
 
-    const val DEFAULT_PAY_DAY: Int = 5
+    const val DEFAULT_START_DAY: Int = 1
+    const val MAX_START_DAY: Int = 28
+    val startDays: IntRange = DEFAULT_START_DAY..MAX_START_DAY
 
-    fun periodContaining(date: LocalDate, payDay: Int = DEFAULT_PAY_DAY): Period {
-        val startThisMonth = payDayIn(date.year, date.month.number, payDay)
+    fun periodContaining(date: LocalDate, startDay: Int): Period {
+        val startThisMonth = startDayIn(date.year, date.month.number, startDay)
         val start = when {
             date >= startThisMonth -> startThisMonth
-            else -> payDayInPreviousMonth(date, payDay)
+            else -> startDayInPreviousMonth(date, startDay)
         }
-        return Period(start, nextPayDay(start, payDay))
+        return Period(start, nextStart(start, startDay))
     }
 
-    fun next(period: Period, payDay: Int = DEFAULT_PAY_DAY): Period =
-        Period(period.endExclusive, nextPayDay(period.endExclusive, payDay))
+    fun next(period: Period, startDay: Int): Period =
+        Period(period.endExclusive, nextStart(period.endExclusive, startDay))
 
-    fun previous(period: Period, payDay: Int = DEFAULT_PAY_DAY): Period =
-        Period(payDayInPreviousMonth(period.start, payDay), period.start)
+    fun previous(period: Period, startDay: Int): Period =
+        Period(startDayInPreviousMonth(period.start, startDay), period.start)
 
-    private fun nextPayDay(from: LocalDate, payDay: Int): LocalDate {
+    private fun nextStart(from: LocalDate, startDay: Int): LocalDate {
         val nextMonth = from.plus(1, DateTimeUnit.MONTH)
-        return payDayIn(nextMonth.year, nextMonth.month.number, payDay)
+        return startDayIn(nextMonth.year, nextMonth.month.number, startDay)
     }
 
-    private fun payDayInPreviousMonth(from: LocalDate, payDay: Int): LocalDate {
+    private fun startDayInPreviousMonth(from: LocalDate, startDay: Int): LocalDate {
         val previousMonth = from.plus(-1, DateTimeUnit.MONTH)
-        return payDayIn(previousMonth.year, previousMonth.month.number, payDay)
+        return startDayIn(previousMonth.year, previousMonth.month.number, startDay)
     }
 
-    private fun payDayIn(year: Int, month: Int, payDay: Int): LocalDate {
+    private fun startDayIn(year: Int, month: Int, startDay: Int): LocalDate {
         val firstOfMonth = LocalDate(year, month, 1)
         val daysInMonth = firstOfMonth.daysUntil(firstOfMonth.plus(1, DateTimeUnit.MONTH))
-        return LocalDate(year, month, payDay.coerceAtMost(daysInMonth))
+        return LocalDate(year, month, startDay.coerceIn(1, daysInMonth))
     }
 }
 

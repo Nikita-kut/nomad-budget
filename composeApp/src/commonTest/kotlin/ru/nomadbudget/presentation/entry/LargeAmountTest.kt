@@ -9,6 +9,7 @@ import ru.nomadbudget.presentation.home.EntryType
 import ru.nomadbudget.presentation.home.HomeState
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class LargeAmountTest {
 
@@ -19,7 +20,7 @@ class LargeAmountTest {
         subcategoryId = null, amountBase = Money.rub(rub), rateSource = RateSource.API,
     )
 
-    private fun state(vararg tx: Transaction) = HomeState(today = today, period = SalaryCycle.periodContaining(today), transactions = tx.toList())
+    private fun state(vararg tx: Transaction) = HomeState(today = today, period = SalaryCycle.periodContaining(today, TEST_START_DAY), transactions = tx.toList())
 
     @Test
     fun threshold_isFiveTimesLargestRecentOperation() {

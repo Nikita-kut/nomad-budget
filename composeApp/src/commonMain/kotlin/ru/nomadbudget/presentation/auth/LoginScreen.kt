@@ -26,9 +26,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.platformName
+import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
-fun LoginScreen(auth: AuthRepository) {
+fun LoginScreen(auth: AuthRepository, notice: String? = null) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -56,6 +57,7 @@ fun LoginScreen(auth: AuthRepository) {
         ) {
             Text("Nomad Budget", style = MaterialTheme.typography.headlineMedium)
             Text(platformName(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            notice?.let { Text(it, color = AppTheme.colors.warning, style = MaterialTheme.typography.bodyMedium) }
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
