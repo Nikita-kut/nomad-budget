@@ -202,15 +202,33 @@ object AppTheme {
         @Composable get() = LocalAppColors.current
 }
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 class ThemeSettings(private val store: KeyValueStore?) {
-    private var override by mutableStateOf(store?.get(KEY)?.let { it == DARK })
+    var mode: ThemeMode by mutableStateOf(
+        when (store?.get(KEY)) {
+            DARK -> ThemeMode.DARK
+            LIGHT -> ThemeMode.LIGHT
+            else -> ThemeMode.SYSTEM
+        },
+    )
+        private set
 
-    fun isDark(system: Boolean): Boolean = override ?: system
+    fun isDark(system: Boolean): Boolean = when (mode) {
+        ThemeMode.SYSTEM -> system
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
 
-    fun toggle(system: Boolean) {
-        val next = !isDark(system)
-        override = next
-        store?.put(KEY, if (next) DARK else LIGHT)
+    fun toggle(system: Boolean) = set(if (isDark(system)) ThemeMode.LIGHT else ThemeMode.DARK)
+
+    fun set(next: ThemeMode) {
+        mode = next
+        when (next) {
+            ThemeMode.SYSTEM -> store?.remove(KEY)
+            ThemeMode.LIGHT -> store?.put(KEY, LIGHT)
+            ThemeMode.DARK -> store?.put(KEY, DARK)
+        }
     }
 
     companion object {

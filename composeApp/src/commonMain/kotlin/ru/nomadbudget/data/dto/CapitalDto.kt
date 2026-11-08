@@ -17,9 +17,3 @@ data class CapitalGoalInsertDto(
     @SerialName("amount_base") val amountBase: Long,
     @SerialName("target_date") val targetDate: String,
 )
-
-@Serializable
-data class CapitalSettingsDto(
-    @SerialName("cushion_months") val cushionMonths: Int = 6,
-    @SerialName("annual_return") val annualReturn: Double = 0.0,
-)

@@ -90,7 +90,10 @@ fun PlanningScreen(
         }
         item {
             Text(
-                "План на ${DateFormat.monthName(state.period.start).lowercase()}: ${DateFormat.periodRange(state.period)}. Другой месяц выбирается стрелками в шапке.",
+                listOfNotNull(
+                    "План на ${DateFormat.monthName(state.period.start).lowercase()}: ${DateFormat.periodRange(state.period)}. Другой месяц выбирается стрелками в шапке.",
+                    state.incomeDaysHint?.let { "$it." },
+                ).joinToString(" "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

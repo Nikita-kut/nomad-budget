@@ -12,6 +12,7 @@ import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.PendingQueue
 import ru.nomadbudget.data.local.PendingTransaction
 import io.github.jan.supabase.exceptions.RestException
+import io.github.jan.supabase.exceptions.UnauthorizedRestException
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import kotlinx.datetime.LocalDate
@@ -67,6 +68,9 @@ import ru.nomadbudget.domain.repository.TransactionRepository
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.data.dto.BudgetLineWithPeriodDto
 import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
+import ru.nomadbudget.data.dto.EnsureCurrencyParams
 
 private object Tables {
     const val CURRENCIES = "currencies"
@@ -90,12 +94,22 @@ class CurrencyRepositoryImpl(private val client: SupabaseClient, private val cac
         cached ?: loadFromRemote().also { cached = it }
     }
 
+    override suspend fun ensure(code: String): Currency {
+        val row = client.postgrest.rpc(ENSURE_CURRENCY, EnsureCurrencyParams(code.trim().uppercase())).decodeAs<CurrencyDto>()
+        mutex.withLock { cached = null }
+        return CurrencyMapper.toDomain(row)
+    }
+
     private suspend fun loadFromRemote(): List<Currency> {
         val remote = cache.throughOrDefault("currencies", ListSerializer(CurrencyDto.serializer()), emptyList()) {
             client.from(Tables.CURRENCIES).select { order("code", Order.ASCENDING) }.decodeList<CurrencyDto>()
         }.map(CurrencyMapper::toDomain)
         val codes = remote.map { it.code }.toSet()
         return remote + Currency.builtIn.filter { it.code !in codes }
+    }
+
+    private companion object {
+        const val ENSURE_CURRENCY = "ensure_currency"
     }
 }
 
@@ -114,10 +128,19 @@ class AccountRepositoryImpl(
         }.map { AccountMapper.toDomain(it, byCode) }
     }
 
-    override suspend fun add(name: String, currency: Currency, kind: AccountKind, isSavings: Boolean, isFund: Boolean, sortOrder: Int): Account {
+    override suspend fun add(
+        name: String,
+        currency: Currency,
+        kind: AccountKind,
+        isSavings: Boolean,
+        isFund: Boolean,
+        sortOrder: Int,
+        openingBalance: Money,
+    ): Account {
+        require(openingBalance.currency == currency) { "Валюта начального остатка не совпадает со счётом" }
         val byCode = currencies.byCode()
         return client.from(Tables.ACCOUNTS)
-            .insert(AccountInsertDto(name, currency.code, kind.name.lowercase(), isSavings, sortOrder, isFund)) { select() }
+            .insert(AccountInsertDto(name, currency.code, kind.name.lowercase(), isSavings, sortOrder, isFund, openingBalance.minor)) { select() }
             .decodeSingle<AccountDto>()
             .let { AccountMapper.toDomain(it, byCode) }
     }
@@ -357,6 +380,8 @@ class TransactionRepositoryImpl(
                 client.from(Tables.TRANSACTIONS).insert(item.dto)
                 queue.remove(item.id)
                 sent++
+            } catch (e: UnauthorizedRestException) {
+                break
             } catch (e: RestException) {
                 if (e.message.orEmpty().contains(DUPLICATE_KEY) || e.message.orEmpty().contains("duplicate", ignoreCase = true)) {
                     queue.remove(item.id)

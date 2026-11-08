@@ -65,6 +65,7 @@ import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.CapitalSettingsFields
 
 private val HORIZONS = listOf(12 to "1 год", 24 to "2 года", 60 to "5 лет")
 
@@ -95,7 +96,7 @@ fun CapitalScreen(
         item {
             ForecastCard(capital, horizon, horizonIndex, onHorizon = { horizonIndex = it })
         }
-        item { SectionTitle("Подушка по месяцам", hint = "по зарплатным месяцам", info = Hints.CAPITAL_MONTHS) }
+        item { SectionTitle("Подушка по месяцам", hint = "по месяцам бюджета", info = Hints.CAPITAL_MONTHS) }
         item { MonthsTable(capital, wide) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -460,44 +461,18 @@ private fun GoalDialog(today: LocalDate, onDismiss: () -> Unit, onConfirm: (Stri
 
 @Composable
 private fun SettingsDialog(settings: CapitalSettings, onDismiss: () -> Unit, onConfirm: (CapitalSettings) -> Unit) {
-    var months by remember { mutableStateOf(settings.cushionMonths.toString()) }
-    var rate by remember { mutableStateOf(if (settings.annualReturn == 0.0) "" else settings.annualReturn.toString().removeSuffix(".0")) }
-    val monthsValue = months.toIntOrNull()
-    val rateValue = if (rate.isBlank()) 0.0 else rate.replace(',', '.').toDoubleOrNull()
+    var draft by remember { mutableStateOf<CapitalSettings?>(settings) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Настройки капитала") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = months,
-                    onValueChange = { months = it.filter(Char::isDigit).take(2) },
-                    label = { Text("Размер подушки, месяцев расходов") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = rate,
-                    onValueChange = { rate = it },
-                    label = { Text("Доходность подушки, % годовых") },
-                    placeholder = { Text("0") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    "Доходность — сколько в среднем приносят накопительные счета и вклады. Используется только в сценарии «как сейчас + доходность».",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                CapitalSettingsFields(settings = settings, onChange = { draft = it })
+                Text("Эти же значения — в «Ещё → Настройки».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
-            Button(
-                onClick = { if (monthsValue != null && rateValue != null) onConfirm(CapitalSettings(monthsValue, rateValue)) },
-                enabled = monthsValue != null && monthsValue in 1..36 && rateValue != null && rateValue in 0.0..100.0,
-            ) { Text("Сохранить") }
+            Button(onClick = { draft?.let(onConfirm) }, enabled = draft != null) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )

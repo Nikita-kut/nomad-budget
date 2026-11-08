@@ -48,7 +48,6 @@ import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.format.plural
 import kotlin.time.Clock
 import ru.nomadbudget.data.local.KeyValueStore
-import ru.nomadbudget.presentation.theme.ThemeSettings
 import kotlinx.coroutines.async
 import ru.nomadbudget.domain.repository.FlushResult
 import kotlinx.coroutines.delay
@@ -61,6 +60,14 @@ import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.CapitalSettings
+import ru.nomadbudget.domain.model.IsoCurrencies
+import ru.nomadbudget.domain.model.UserSettings
+import ru.nomadbudget.domain.repository.AuthState
+import ru.nomadbudget.domain.repository.CapitalRepository
+import ru.nomadbudget.domain.repository.SessionCheck
+import ru.nomadbudget.domain.repository.UserSettingsRepository
+import ru.nomadbudget.presentation.onboarding.OnboardingDefaults
+import ru.nomadbudget.presentation.onboarding.OnboardingResult
 
 class HomeViewModel(
     private val auth: AuthRepository,
@@ -77,7 +84,8 @@ class HomeViewModel(
     private val draftRepository: DraftRepository,
     todayProvider: TodayProvider,
     private val localStore: KeyValueStore,
-    private val capitalRepository: ru.nomadbudget.domain.repository.CapitalRepository,
+    private val capitalRepository: CapitalRepository,
+    private val userSettingsRepository: UserSettingsRepository,
 ) : ViewModel() {
 
     private val _undoRequests = Channel<UndoRequest>(Channel.BUFFERED)
@@ -90,31 +98,72 @@ class HomeViewModel(
 
     private val today: LocalDate = todayProvider.today()
 
-    private val _state = MutableStateFlow(HomeState(today = today, period = SalaryCycle.periodContaining(today)))
+    private val _state = MutableStateFlow(initialState())
     val state: StateFlow<HomeState> = _state
 
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages: Flow<String> = _messages.receiveAsFlow()
 
+    private var activeUserId: String? = null
+    private var loadJob: Job? = null
+
+    private val startDay: Int get() = _state.value.periodStartDay
+
     init {
-        load()
+        viewModelScope.launch {
+            auth.state.collect { authState ->
+                when (authState) {
+                    is AuthState.SignedIn -> if (authState.userId != activeUserId) {
+                        activeUserId = authState.userId
+                        resetState()
+                        load()
+                    }
+                    is AuthState.SignedOut -> if (activeUserId != null) {
+                        activeUserId = null
+                        resetState()
+                    }
+                    AuthState.Loading -> Unit
+                }
+            }
+        }
+    }
+
+    private fun initialState(): HomeState {
+        val settings = runCatching { userSettingsRepository.cached() }.getOrNull() ?: UserSettings()
+        return HomeState(today = today, period = SalaryCycle.periodContaining(today, settings.periodStartDay), settings = settings)
+    }
+
+    private fun resetState() {
+        deleteTimers.values.forEach(Job::cancel)
+        deleteTimers.clear()
+        pendingDeletes.clear()
+        periodJob?.cancel()
+        loadJob?.cancel()
+        _state.value = initialState()
     }
 
     fun load() = reload(initial = true)
 
     fun refresh() = reload(initial = false)
 
+    private fun periodFor(previous: HomeState, settings: UserSettings): Period =
+        if (settings.periodStartDay == previous.periodStartDay) previous.period else SalaryCycle.periodContaining(today, settings.periodStartDay)
+
     private fun reload(initial: Boolean) {
         if (_state.value.refreshing) return
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             try {
                 _state.update { it.copy(loading = initial, refreshing = !initial, error = null) }
                 offlineCache.beginLoad()
+                if (auth.ensureSession() == SessionCheck.EXPIRED) {
+                    _state.update { it.copy(loading = false, refreshing = false) }
+                    return@launch
+                }
                 val flush = runCatching { transactionRepository.flushPending() }.getOrDefault(FlushResult(0, 0))
                 val sent = flush.sent
-                val period = _state.value.period
                 val previous = _state.value
                 val loaded = coroutineScope {
+                    val settingsAsync = async { userSettingsRepository.get() }
                     val currencies = async { currencyRepository.getAll() }
                     val accountsAsync = async { accountRepository.getAll() }
                     val categories = async { categoryRepository.getCategories() }
@@ -124,12 +173,12 @@ class HomeViewModel(
                     val rateHistory = async { rateRepository.history() }
                     val allPlanLines = async { runCatching { budgetRepository.getAllLines() }.getOrDefault(previous.allPlanLines) }
                     val capitalGoals = async { runCatching { capitalRepository.getGoals() }.getOrDefault(previous.capitalGoals) }
-                    val capitalSettings = async { runCatching { capitalRepository.getSettings() }.getOrDefault(previous.capitalSettings) }
                     val plan = async {
+                        val period = periodFor(previous, settingsAsync.await())
                         val id = periodRepository.ensure(period)
                         val lines = async { budgetRepository.getLines(id) }
                         val target = async { budgetRepository.getSavingsTarget(id) }
-                        Triple(id, lines.await(), target.await())
+                        PlanData(period, id, lines.await(), target.await())
                     }
                     val accounts = accountsAsync.await()
                     val transactions = async { transactionRepository.getAll(accounts) }
@@ -144,12 +193,13 @@ class HomeViewModel(
                         checks = checks.await(),
                         debts = debts.await(),
                         rateHistory = rateHistory.await(),
-                        periodId = plan.await().first,
-                        lines = plan.await().second,
-                        savingsTarget = plan.await().third,
+                        period = plan.await().period,
+                        periodId = plan.await().periodId,
+                        lines = plan.await().lines,
+                        savingsTarget = plan.await().savingsTarget,
                         allPlanLines = allPlanLines.await(),
                         capitalGoals = capitalGoals.await(),
-                        capitalSettings = capitalSettings.await(),
+                        settings = settingsAsync.await(),
                     )
                 }
                 val currencies = loaded.currencies
@@ -161,13 +211,16 @@ class HomeViewModel(
                 val checks = loaded.checks
                 val debts = loaded.debts
                 val rateHistory = loaded.rateHistory
+                val period = loaded.period
                 val periodId = loaded.periodId
                 val lines = loaded.lines
                 val savingsTarget = loaded.savingsTarget
                 val allPlanLines = loaded.allPlanLines
                 val capitalGoals = loaded.capitalGoals
-                val capitalSettings = loaded.capitalSettings
+                val settings = loaded.settings
                 _state.update {
+                    val startDayChanged = settings.periodStartDay != it.periodStartDay
+                    val applyPlan = startDayChanged || it.period == period
                     it.copy(
                         loading = false,
                         refreshing = false,
@@ -185,17 +238,20 @@ class HomeViewModel(
                         balanceChecks = checks,
                         debts = debts,
                         rateHistory = rateHistory,
-                        periodId = if (it.period == period) periodId else it.periodId,
-                        budgetLines = if (it.period == period) lines else it.budgetLines,
-                        savingsTarget = if (it.period == period) savingsTarget else it.savingsTarget,
+                        period = if (startDayChanged) period else it.period,
+                        periodId = if (applyPlan) periodId else it.periodId,
+                        budgetLines = if (applyPlan) lines else it.budgetLines,
+                        savingsTarget = if (applyPlan) savingsTarget else it.savingsTarget,
                         allPlanLines = allPlanLines,
                         capitalGoals = capitalGoals,
-                        capitalSettings = capitalSettings,
+                        settings = settings,
                     )
                 }
                 if (sent > 0) _messages.send("Отправлено: ${operations(sent)}")
                 if (flush.rejected > 0) _messages.send("Не отправлено: ${operations(flush.rejected)}. Они остались в очереди")
                 if (offlineCache.servedFromCache && !initial) _messages.send("Нет сети, показаны сохранённые данные")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, refreshing = false, error = if (initial) e.message ?: "Ошибка загрузки" else it.error) }
                 if (!initial) _messages.send(e.message ?: "Не удалось обновить")
@@ -203,11 +259,11 @@ class HomeViewModel(
         }
     }
 
-    fun showPreviousPeriod() = switchPeriod(SalaryCycle.previous(_state.value.period))
+    fun showPreviousPeriod() = switchPeriod(SalaryCycle.previous(_state.value.period, startDay))
 
-    fun showNextPeriod() = switchPeriod(SalaryCycle.next(_state.value.period))
+    fun showNextPeriod() = switchPeriod(SalaryCycle.next(_state.value.period, startDay))
 
-    fun showCurrentPeriod() = switchPeriod(SalaryCycle.periodContaining(today))
+    fun showCurrentPeriod() = switchPeriod(SalaryCycle.periodContaining(today, startDay))
 
     private var periodJob: Job? = null
 
@@ -594,7 +650,7 @@ class HomeViewModel(
                 _state.update { it.copy(saving = true) }
                 val current = _state.value
                 val periodId = current.periodId ?: periodRepository.ensure(current.period)
-                val previousId = periodRepository.ensure(SalaryCycle.previous(current.period))
+                val previousId = periodRepository.ensure(SalaryCycle.previous(current.period, current.periodStartDay))
                 val previousLines = budgetRepository.getLines(previousId).filter { it.planned.minor > 0L }
                 val previousTarget = budgetRepository.getSavingsTarget(previousId)
                 require(previousLines.isNotEmpty() || previousTarget != null) { "В прошлом месяце план не заполнен" }
@@ -1053,16 +1109,132 @@ class HomeViewModel(
         }
     }
 
-    fun saveCapitalSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings) {
+    fun saveCapitalSettings(settings: CapitalSettings) {
         viewModelScope.launch {
             try {
-                require(settings.cushionMonths in 1..36) { "Подушка: от 1 до 36 месяцев" }
-                require(settings.annualReturn in 0.0..100.0) { "Доходность от 0 до 100 %" }
-                capitalRepository.saveSettings(settings)
-                _state.update { it.copy(capitalSettings = settings) }
+                require(settings.cushionMonths in CapitalSettings.CUSHION_MONTHS_RANGE) { "Подушка: от 1 до 36 месяцев" }
+                require(settings.annualReturn in 0.0..CapitalSettings.MAX_ANNUAL_RETURN) { "Доходность от 0 до 100 %" }
+                saveSettings(_state.value.settings.withCapital(settings))
                 _messages.send("Настройки капитала сохранены")
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось сохранить настройки")
+            }
+        }
+    }
+
+    fun setPeriodStartDay(day: Int) {
+        viewModelScope.launch {
+            try {
+                require(day in SalaryCycle.startDays) { "Начало месяца: день от 1 до 28" }
+                val current = _state.value
+                if (day == current.periodStartDay) return@launch
+                saveSettings(current.settings.copy(periodStartDay = day))
+                switchPeriod(SalaryCycle.periodContaining(today, day))
+                _messages.send("Месяц бюджета теперь начинается $day числа")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить начало месяца")
+            }
+        }
+    }
+
+    fun setIncomeDays(days: List<Int>) {
+        viewModelScope.launch {
+            try {
+                val cleaned = days.filter { it in 1..31 }.distinct().sorted()
+                saveSettings(_state.value.settings.copy(incomeDays = cleaned))
+                _messages.send(if (cleaned.isEmpty()) "Дни дохода не заданы" else "Дни дохода сохранены")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось сохранить дни дохода")
+            }
+        }
+    }
+
+    private suspend fun saveSettings(settings: UserSettings) {
+        val saved = userSettingsRepository.save(settings)
+        _state.update { it.copy(settings = saved) }
+    }
+
+    fun addCurrency(code: String) {
+        viewModelScope.launch {
+            try {
+                val normalized = code.trim().uppercase()
+                require(IsoCurrencies.find(normalized) != null) { "Неизвестный код валюты" }
+                require(_state.value.currencies.none { it.code == normalized }) { "Валюта $normalized уже добавлена" }
+                val currency = currencyRepository.ensure(normalized)
+                _state.update { it.copy(currencies = (it.currencies + currency).distinctBy { c -> c.code }.sortedBy { c -> c.code }) }
+                _messages.send("Валюта $normalized добавлена, курс появится в течение суток")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось добавить валюту")
+            }
+        }
+    }
+
+    fun changePassword(newPassword: String) {
+        viewModelScope.launch {
+            try {
+                require(newPassword.length >= MIN_PASSWORD_LENGTH) { "Пароль не короче $MIN_PASSWORD_LENGTH символов" }
+                auth.changePassword(newPassword)
+                _messages.send("Пароль изменён")
+            } catch (e: Exception) {
+                _messages.send(e.message ?: "Не удалось изменить пароль")
+            }
+        }
+    }
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(saving = true) }
+                localStore.clear()
+                auth.deleteAccount()
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось удалить аккаунт")
+            }
+        }
+    }
+
+    fun completeOnboarding(result: OnboardingResult) {
+        if (_state.value.saving) return
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(saving = true) }
+                val currencies = currencyRepository.getAll().toMutableList()
+                result.currencyCodes.map { it.trim().uppercase() }.distinct().forEach { code ->
+                    if (currencies.none { it.code == code }) currencies += currencyRepository.ensure(code)
+                }
+                val byCode = currencies.associateBy { it.code }
+                result.accounts.forEachIndexed { index, account ->
+                    val currency = requireNotNull(byCode[account.currencyCode]) { "Нет валюты ${account.currencyCode}" }
+                    val isSavings = account.role == AccountRole.CUSHION
+                    val kind = when (account.role) {
+                        AccountRole.CUSHION -> AccountKind.SAVINGS
+                        AccountRole.FUND -> AccountKind.ACCOUNT
+                        AccountRole.LIFE -> if (account.name.contains(OnboardingDefaults.CASH, ignoreCase = true)) AccountKind.CASH else AccountKind.CARD
+                    }
+                    val opening = account.openingBalance?.let { Money(it.minor, currency) } ?: Money.zero(currency)
+                    accountRepository.add(account.name.trim(), currency, kind, isSavings, account.role == AccountRole.FUND, (index + 1) * SORT_STEP, opening)
+                }
+                val existing = _state.value.categories
+                CategoryKind.entries.forEach { kind ->
+                    result.categories.filter { it.checked && it.kind == kind }.forEachIndexed { index, category ->
+                        val name = category.name.trim()
+                        if (name.isEmpty() || existing.any { it.kind == kind && it.name.equals(name, ignoreCase = true) }) return@forEachIndexed
+                        val created = categoryRepository.addCategory(name, kind, (index + 1) * SORT_STEP)
+                        category.subcategories.forEach { categoryRepository.addSubcategory(created.id, it) }
+                    }
+                }
+                val settings = _state.value.settings.copy(
+                    periodStartDay = result.periodStartDay,
+                    incomeDays = result.incomeDays.filter { it in 1..31 }.distinct().sorted(),
+                    onboardedAt = Clock.System.now(),
+                )
+                val saved = userSettingsRepository.save(settings)
+                _state.update { it.copy(saving = false, settings = saved, period = SalaryCycle.periodContaining(today, saved.periodStartDay)) }
+                reload(initial = true)
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                _messages.send(e.message ?: "Не удалось завершить настройку")
             }
         }
     }
@@ -1105,11 +1277,8 @@ class HomeViewModel(
     fun signOut() {
         viewModelScope.launch {
             try {
-                auth.signOut()
-                val theme = localStore.get(ThemeSettings.KEY)
                 localStore.clear()
-                theme?.let { localStore.put(ThemeSettings.KEY, it) }
-                _state.value = HomeState(today = today, period = SalaryCycle.periodContaining(today))
+                auth.signOut()
             } catch (e: Exception) {
                 _messages.send(e.message ?: "Не удалось выйти")
             }
@@ -1180,6 +1349,7 @@ class HomeViewModel(
         const val CORRECTION_SORT_ORDER = 900
         const val DEBT_CATEGORY = "Кредиты"
         const val LEGACY_DEBT_CATEGORY = "Долг"
+        const val MIN_PASSWORD_LENGTH = 8
     }
 
     private fun undoLabel(transaction: Transaction): String = when (transaction) {
@@ -1204,10 +1374,13 @@ private class LoadedData(
     val checks: List<BalanceCheck>,
     val debts: List<Debt>,
     val rateHistory: List<ExchangeRate>,
+    val period: Period,
     val periodId: String,
     val lines: List<BudgetLine>,
     val savingsTarget: Money?,
     val allPlanLines: List<PeriodBudgetLine>,
     val capitalGoals: List<CapitalGoal>,
-    val capitalSettings: CapitalSettings,
+    val settings: UserSettings,
 )
+
+private class PlanData(val period: Period, val periodId: String, val lines: List<BudgetLine>, val savingsTarget: Money?)

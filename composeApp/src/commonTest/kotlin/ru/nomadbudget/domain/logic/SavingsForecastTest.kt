@@ -6,11 +6,12 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class SavingsForecastTest {
 
     private fun point(month: Int, saved: Long) = MonthPoint(
-        SalaryCycle.periodContaining(LocalDate(2026, month, 10)), Money.rub(0L), Money.rub(0L), Money.rub(saved),
+        SalaryCycle.periodContaining(LocalDate(2026, month, 10), TEST_START_DAY), Money.rub(0L), Money.rub(0L), Money.rub(saved),
     )
 
     @Test

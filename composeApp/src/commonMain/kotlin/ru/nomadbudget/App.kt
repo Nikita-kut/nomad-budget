@@ -13,6 +13,7 @@ import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
 import ru.nomadbudget.demo.DemoMode
 import ru.nomadbudget.demo.demoModule
+import ru.nomadbudget.di.DEVICE_STORE
 import ru.nomadbudget.di.appModule
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
@@ -29,7 +30,8 @@ import ru.nomadbudget.presentation.theme.ThemeSettings
 @Composable
 fun App() {
     KoinApplication(application = { modules(if (DemoMode.enabled) demoModule else appModule) }) {
-        val store = getKoin().get<KeyValueStore>()
+        val koin = getKoin()
+        val store = remember { koin.getOrNull<KeyValueStore>(DEVICE_STORE) ?: koin.get<KeyValueStore>() }
         val settings = remember { ThemeSettings(store) }
         CompositionLocalProvider(LocalThemeSettings provides settings) {
             AppTheme(settings) {
@@ -44,10 +46,12 @@ fun App() {
 @Composable
 private fun Root() {
     val auth = koinInject<AuthRepository>()
-    val state by auth.state.collectAsState(initial = AuthState.LOADING)
-    when (state) {
-        AuthState.LOADING -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        AuthState.SIGNED_OUT -> LoginScreen(auth)
-        AuthState.SIGNED_IN -> HomeScreen()
+    val state by auth.state.collectAsState(initial = AuthState.Loading)
+    when (val current = state) {
+        AuthState.Loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        is AuthState.SignedOut -> LoginScreen(auth, notice = if (current.sessionExpired) SESSION_EXPIRED else null)
+        is AuthState.SignedIn -> HomeScreen()
     }
 }
+
+private const val SESSION_EXPIRED = "Сессия истекла, войди снова"

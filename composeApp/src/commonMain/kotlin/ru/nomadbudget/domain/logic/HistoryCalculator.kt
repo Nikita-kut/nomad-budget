@@ -27,10 +27,16 @@ data class CategoryTotal(val category: Category, val total: Money, val share: Do
 
 object HistoryCalculator {
 
-    fun monthly(transactions: List<Transaction>, accounts: List<Account>, upTo: Period, systemIds: Set<String> = emptySet()): List<MonthPoint> {
+    fun monthly(
+        transactions: List<Transaction>,
+        accounts: List<Account>,
+        upTo: Period,
+        startDay: Int,
+        systemIds: Set<String> = emptySet(),
+    ): List<MonthPoint> {
         if (transactions.isEmpty()) return emptyList()
         val savingsIds = accounts.filter { it.isSavings }.map { it.id }.toSet()
-        val first = SalaryCycle.periodContaining(transactions.minOf { it.date })
+        val first = SalaryCycle.periodContaining(transactions.minOf { it.date }, startDay)
         val points = mutableListOf<MonthPoint>()
         var period = first
         while (period.start <= upTo.start) {
@@ -41,7 +47,7 @@ object HistoryCalculator {
             val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds)
             val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds)
             points += MonthPoint(period, income, expense, saved - taken - spent)
-            period = SalaryCycle.next(period)
+            period = SalaryCycle.next(period, startDay)
         }
         return points
     }

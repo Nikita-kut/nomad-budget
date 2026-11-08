@@ -14,7 +14,7 @@ import kotlin.uuid.Uuid
 private data class DraftDto(val id: String, val text: String, val createdAt: Long)
 
 @OptIn(ExperimentalUuidApi::class)
-class DraftsStore(private val store: KeyValueStore) : DraftRepository {
+class DraftsStore(private val store: KeyValueStore, private val inbox: KeyValueStore? = null) : DraftRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(DraftDto.serializer())
@@ -31,7 +31,17 @@ class DraftsStore(private val store: KeyValueStore) : DraftRepository {
 
     override fun count(): Int = read().size
 
-    private fun read(): List<DraftDto> = store.get(KEY)?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }.orEmpty()
+    private fun read(): List<DraftDto> {
+        val own = decode(store.get(KEY))
+        val incoming = inbox?.let { decode(it.get(KEY)) }.orEmpty()
+        if (incoming.isEmpty()) return own
+        val merged = (own + incoming).distinctBy { it.id }
+        write(merged)
+        inbox?.remove(KEY)
+        return merged
+    }
+
+    private fun decode(raw: String?): List<DraftDto> = raw?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }.orEmpty()
 
     private fun write(items: List<DraftDto>) {
         if (items.isEmpty()) store.remove(KEY) else store.put(KEY, json.encodeToString(serializer, items))

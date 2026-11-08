@@ -18,10 +18,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class MonthModelTest {
 
-    private val period: Period = SalaryCycle.periodContaining(LocalDate(2026, 11, 10))
+    private val period: Period = SalaryCycle.periodContaining(LocalDate(2026, 11, 10), TEST_START_DAY)
     private val today = LocalDate(2026, 11, 20)
     private val rates = DefaultRates.table()
 

@@ -22,7 +22,7 @@ class DemoDatabaseTest {
 
     @Test
     fun seed_coversSixPeriods_withPlanForCurrent() {
-        val current = SalaryCycle.periodContaining(today)
+        val current = SalaryCycle.periodContaining(today, DemoDatabase.START_DAY)
         assertEquals(6, db.budgetLines.size)
         assertTrue(db.budgetLines.getValue(db.periodId(current)).isNotEmpty())
         assertTrue(db.transactions.any { it.date in current })

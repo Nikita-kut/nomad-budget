@@ -15,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class CapitalModelTest {
 
@@ -43,6 +44,7 @@ class CapitalModelTest {
             planMonthly = Money.rub(9_000_000L),
             settings = settings,
             goals = goals,
+            startDay = TEST_START_DAY,
         )
 
     private val history = listOf(

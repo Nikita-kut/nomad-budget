@@ -21,10 +21,11 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class MonthModelInvariantsTest {
 
-    private val period = SalaryCycle.periodContaining(LocalDate(2026, 11, 10))
+    private val period = SalaryCycle.periodContaining(LocalDate(2026, 11, 10), TEST_START_DAY)
     private val rates = DefaultRates.table()
 
     @Test

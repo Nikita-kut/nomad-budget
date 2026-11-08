@@ -16,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import ru.nomadbudget.domain.model.TEST_START_DAY
 
 class ForecastAndNetWorthTest {
 
@@ -48,7 +49,7 @@ class ForecastAndNetWorthTest {
     fun netWorth_sumsAccountsAtPeriodEnd_withRateOnThatDay() {
         val rub = Account("rub", "Карта", Currency.RUB, AccountKind.CARD, false, Money.rub(1_000_000L))
         val usd = Account("usd", "Доллары", Currency.USD, AccountKind.CASH, false, Money(10_000L, Currency.USD))
-        val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 10))
+        val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 10), TEST_START_DAY)
         val spent = Transaction.Expense(
             id = "e", date = LocalDate(2026, 9, 10), accountId = "rub", amount = Money.rub(200_000L), categoryId = "food",
             subcategoryId = null, amountBase = Money.rub(200_000L), rateSource = RateSource.API,
@@ -61,8 +62,8 @@ class ForecastAndNetWorthTest {
     fun netWorth_ignoresArchivedAccounts_andStartsAtTrackingStart() {
         val live = Account("live", "Карта", Currency.RUB, AccountKind.CARD, false, Money.zero(Currency.RUB))
         val archive = Account("old", "Архив", Currency.RUB, AccountKind.SAVINGS, true, Money.zero(Currency.RUB), isArchived = true)
-        val early = SalaryCycle.periodContaining(LocalDate(2025, 1, 10))
-        val late = SalaryCycle.periodContaining(LocalDate(2026, 9, 10))
+        val early = SalaryCycle.periodContaining(LocalDate(2025, 1, 10), TEST_START_DAY)
+        val late = SalaryCycle.periodContaining(LocalDate(2026, 9, 10), TEST_START_DAY)
         val legacy = Transaction.Income("l", LocalDate(2025, 1, 10), "old", Money.rub(500_000_000L), "salary", Money.rub(500_000_000L), RateSource.API)
         val opening = Transaction.Income("o", LocalDate(2026, 9, 10), "live", Money.rub(10_000_000L), "salary", Money.rub(10_000_000L), RateSource.API)
         val worth = HistoryCalculator.netWorth(listOf(early, late), listOf(live, archive), listOf(legacy, opening)) { _, _ -> 1.0 }
