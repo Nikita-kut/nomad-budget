@@ -74,7 +74,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
     val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories)
     var categoryPeriod by remember { mutableIntStateOf(0) }
 
-    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 24.dp) {
+    CenteredLazyColumn(bottom = 24.dp) {
         if (all.isEmpty()) {
             item { EmptyHint("Пока нет данных для графиков") }
             return@CenteredLazyColumn

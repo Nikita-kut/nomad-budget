@@ -1,5 +1,6 @@
 package ru.nomadbudget.demo
 
+import ru.nomadbudget.domain.repository.FlushResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.LocalDate
@@ -185,7 +186,7 @@ private class DemoTransactionRepository(private val db: DemoDatabase) : Transact
         db.transactions.remove(existing)
     }
 
-    override suspend fun flushPending(): Int = 0
+    override suspend fun flushPending(): FlushResult = FlushResult(0, 0)
 
     override fun pendingCount(): Int = 0
 
@@ -233,7 +234,7 @@ private class DemoDebtRepository(private val db: DemoDatabase) : DebtRepository 
 
     override suspend fun add(debt: Debt): Debt = debt.copy(id = db.newId("debt")).also { db.debts += it }
 
-    override suspend fun update(debt: Debt) {
+    override suspend fun update(debt: Debt, principalChanged: Boolean) {
         db.debts.replaceEach { if (it.id == debt.id) debt else it }
     }
 

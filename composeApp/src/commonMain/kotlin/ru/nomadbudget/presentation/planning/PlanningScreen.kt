@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.Ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -134,30 +136,9 @@ fun PlanningScreen(
             CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
         }
     }
-    if (twoColumns) {
-        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            LazyColumn(
-                modifier = Modifier.width(420.dp).fillMaxHeight(),
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = summaryItems,
-            )
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                contentPadding = PaddingValues(end = 16.dp, top = 16.dp, bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = sectionItems,
-            )
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            summaryItems()
-            sectionItems()
-        }
+    CenteredLazyColumn() {
+        summaryItems()
+        sectionItems()
     }
 
     editing?.let { category ->
@@ -215,15 +196,15 @@ fun PlanningScreen(
 private fun UnallocatedCard(month: MonthModel) {
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
+        Column(modifier = Modifier.padding(Ui.CardPadding + 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (negative) "Не хватает" else "Не распределено", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                 InfoHint("Не распределено", Hints.UNALLOCATED)
             }
             Text(
                 MoneyFormat.format(if (negative) -month.unallocated else month.unallocated, false),
-                style = MaterialTheme.typography.displaySmall,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = if (negative) colors.bad else colors.good,
             )

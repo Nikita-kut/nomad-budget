@@ -49,7 +49,7 @@ fun RatesScreen(state: HomeState, wide: Boolean = false) {
     val series = remember(state.rateHistory, pairs) {
         pairs.associateWith { (a, b) -> RatePairs.series(a, b, state.rateHistory) }
     }
-    CenteredLazyColumn(maxContentWidth = 1240.dp, bottom = 24.dp) {
+    CenteredLazyColumn(bottom = 24.dp) {
         item { SourceLine(state) }
         if (pairs.isEmpty()) item { EmptyHint("Кроме рубля валют нет") }
         pairs.forEach { pair ->

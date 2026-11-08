@@ -4,7 +4,8 @@ One rule, one component. A fix to a visual problem goes into the shared componen
 
 ## Layout
 
-- Scrollable screens use `CenteredLazyColumn`: the scroll area is full width, content is centered.
+- Scrollable screens use `CenteredLazyColumn`: the scroll area is full width, content is centered and capped at `Ui.ContentMaxWidth` on every screen.
+- No two side-by-side scroll columns; summary and sections go in one column.
 - No side-by-side columns of unequal height. Either stack groups full width, or use `EqualRow` / `TileRow` (equal height via `IntrinsicSize.Max`).
 - Spacing between cards: `Ui.Gap`. Card padding: `Ui.CardPadding`.
 
@@ -37,3 +38,18 @@ One rule, one component. A fix to a visual problem goes into the shared componen
 ## Colors
 
 - Only theme tokens (`MaterialTheme.colorScheme.*`, `AppTheme.colors.*`). No literal colors in screens.
+
+## Typography and shape
+
+- Font: Inter (Regular, Medium, SemiBold). No Bold; numbers use SemiBold.
+- Card radius 16, tiles 20, large blocks 24; buttons are pills.
+- The one main tile of a screen uses the hero gradient (`AppTheme.colors.hero`).
+
+## Icons
+
+- Only `AppIcons` (Lucide line icons, stroke 1.75). No Material icons.
+
+## Navigation
+
+- Wide screens: grouped sidebar (Бюджет / Деньги / Анализ), rows 36 dp, collapsible to icons with tooltips.
+- Narrow screens: bottom bar with five items.

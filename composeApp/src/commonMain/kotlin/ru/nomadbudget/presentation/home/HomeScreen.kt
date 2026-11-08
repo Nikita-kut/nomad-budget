@@ -102,6 +102,7 @@ import ru.nomadbudget.presentation.components.LoadingSkeleton
 import ru.nomadbudget.presentation.components.HeaderSkeleton
 import ru.nomadbudget.presentation.components.AppIcons
 import ru.nomadbudget.presentation.components.Sidebar
+import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.SidebarEntry
 import ru.nomadbudget.presentation.components.SidebarGroup
 
@@ -157,7 +158,7 @@ private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
 private val CONTENT_MAX_WIDTH = 760.dp
 private val WIDE_SINGLE_MAX_WIDTH = 960.dp
 private val ENTRY_PANEL_WIDTH = 460.dp
-private val WIDE_CONTENT_MAX_WIDTH = 1240.dp
+private val WIDE_CONTENT_MAX_WIDTH = Ui.ContentMaxWidth
 private val TWO_COLUMN_MIN_WIDTH = 1100.dp
 
 @Composable
@@ -180,8 +181,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.undoRequests.collect { request ->
             launch {
-                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Long)
-                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id) else viewModel.commitDelete(request.id)
+                snackbar.currentSnackbarData?.dismiss()
+                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Short)
+                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id)
             }
         }
     }
@@ -258,7 +260,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
         val selfCentered = backStack != null && (
             navController.isOn<ChartsRoute>() || navController.isOn<CapitalRoute>() || navController.isOn<RatesRoute>() || navController.isOn<ExchangeRoute>() ||
                 navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() ||
-                navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>() || navController.isOn<MonthRoute>()
+                navController.isOn<AccountsRoute>() || navController.isOn<DebtsRoute>() || navController.isOn<MonthRoute>() || navController.isOn<PlanningRoute>()
             )
         val contentMaxWidth = when {
             selfCentered -> Dp.Infinity
@@ -555,13 +557,6 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
     }
 }
 
-@Composable
-private fun TotalsInline(state: HomeState, cardModifier: Modifier = Modifier) {
-    TotalCard(Currency.BASE, MoneyFormat.format(state.totalBase, showFraction = false), state, cardModifier)
-    state.foreignCurrencies.filter(state.rates::hasRate).forEach { currency ->
-        TotalCard(currency, MoneyFormat.format(state.rates.fromBase(state.totalBase, currency), showFraction = false), state, cardModifier)
-    }
-}
 
 @Composable
 private fun RatesWarning(state: HomeState) {
@@ -643,7 +638,7 @@ private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier
         ) {
             Text(DateFormat.monthName(state.period.start), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(
-                listOfNotNull(DateFormat.periodRange(state.period), state.dayNumber?.let { "день $it из ${state.period.lengthDays}" }).joinToString(" · "),
+                listOfNotNull(DateFormat.periodRange(state.period), state.dayNumber?.let { "$it/${state.period.lengthDays} дн." }).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -655,20 +650,6 @@ private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier
     }
 }
 
-@Composable
-private fun TotalCard(currency: Currency, value: String, state: HomeState, modifier: Modifier = Modifier) {
-    val color = currencyColor(currency, state)
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (currency == Currency.BASE) "Всего" else "в ${currency.code}",
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-            )
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
-    }
-}
 
 @Composable
 private fun DemoBadge() {

@@ -128,4 +128,4 @@ private const val SHIMMER_WIDTH = 600f
 private const val SHIMMER_TRAVEL = 2400f
 private const val SHIMMER_MS = 1300
 private const val HEADER_ITEMS = 4
-private val SKELETON_MAX_WIDTH = 1240.dp
+private val SKELETON_MAX_WIDTH = Ui.ContentMaxWidth

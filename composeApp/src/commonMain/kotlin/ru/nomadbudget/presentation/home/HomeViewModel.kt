@@ -48,6 +48,8 @@ import kotlin.time.Clock
 import ru.nomadbudget.data.local.KeyValueStore
 import ru.nomadbudget.presentation.theme.ThemeSettings
 import kotlinx.coroutines.async
+import ru.nomadbudget.domain.repository.FlushResult
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import ru.nomadbudget.domain.model.Account
@@ -79,6 +81,7 @@ class HomeViewModel(
     private val _undoRequests = Channel<UndoRequest>(Channel.BUFFERED)
     val undoRequests: Flow<UndoRequest> = _undoRequests.receiveAsFlow()
     private val pendingDeletes = mutableMapOf<String, Pair<Int, Transaction>>()
+    private val deleteTimers = mutableMapOf<String, Job>()
 
     private val _navigateToEntry = Channel<Unit>(Channel.BUFFERED)
     val navigateToEntry: Flow<Unit> = _navigateToEntry.receiveAsFlow()
@@ -105,7 +108,8 @@ class HomeViewModel(
             try {
                 _state.update { it.copy(loading = initial, refreshing = !initial, error = null) }
                 offlineCache.beginLoad()
-                val sent = runCatching { transactionRepository.flushPending() }.getOrDefault(0)
+                val flush = runCatching { transactionRepository.flushPending() }.getOrDefault(FlushResult(0, 0))
+                val sent = flush.sent
                 val period = _state.value.period
                 val previous = _state.value
                 val loaded = coroutineScope {
@@ -150,7 +154,7 @@ class HomeViewModel(
                 val accounts = loaded.accounts
                 val categories = loaded.categories
                 val subcategories = loaded.subcategories
-                val transactions = loaded.transactions
+                val transactions = loaded.transactions.filterNot { it.id in pendingDeletes }
                 val rates = loaded.rates
                 val checks = loaded.checks
                 val debts = loaded.debts
@@ -188,6 +192,7 @@ class HomeViewModel(
                     )
                 }
                 if (sent > 0) _messages.send("Отправлено операций: $sent")
+                if (flush.rejected > 0) _messages.send("Сервер не принял операций: ${flush.rejected}. Они остались в очереди, остальные отправлены")
                 if (offlineCache.servedFromCache && !initial) _messages.send("Нет сети, показаны сохранённые данные")
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, refreshing = false, error = if (initial) e.message ?: "Ошибка загрузки" else it.error) }
@@ -435,9 +440,15 @@ class HomeViewModel(
         pendingDeletes[id] = index to transaction
         _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }) }
         viewModelScope.launch { _undoRequests.send(UndoRequest(id, "Удалено: ${undoLabel(transaction)}")) }
+        deleteTimers.remove(id)?.cancel()
+        deleteTimers[id] = viewModelScope.launch {
+            delay(UNDO_WINDOW_MS)
+            commitDelete(id)
+        }
     }
 
     fun undoDelete(id: String) {
+        deleteTimers.remove(id)?.cancel()
         val (index, transaction) = pendingDeletes.remove(id) ?: return
         _state.update { state ->
             val list = state.transactions.toMutableList()
@@ -446,7 +457,8 @@ class HomeViewModel(
         }
     }
 
-    fun commitDelete(id: String) {
+    private fun commitDelete(id: String) {
+        deleteTimers.remove(id)
         val (_, transaction) = pendingDeletes.remove(id) ?: return
         viewModelScope.launch {
             try {
@@ -953,8 +965,20 @@ class HomeViewModel(
                     _state.update { it.copy(debts = it.debts + created) }
                     _messages.send("Кредит добавлен")
                 } else {
-                    debtRepository.update(debt)
-                    _state.update { state -> state.copy(debts = state.debts.map { if (it.id == debt.id) debt else it }) }
+                    val current = _state.value.debts.firstOrNull { it.id == debt.id }
+                    val principalChanged = current == null || current.principalRemaining != debt.principalRemaining
+                    debtRepository.update(debt, principalChanged)
+                    _state.update { state ->
+                        state.copy(
+                            debts = state.debts.map { existing ->
+                                when {
+                                    existing.id != debt.id -> existing
+                                    principalChanged -> debt
+                                    else -> debt.copy(principalRemaining = existing.principalRemaining)
+                                }
+                            },
+                        )
+                    }
                     _messages.send("Кредит обновлён")
                 }
             } catch (e: Exception) {
@@ -1163,6 +1187,8 @@ class HomeViewModel(
 }
 
 data class UndoRequest(val id: String, val text: String)
+
+private const val UNDO_WINDOW_MS = 10_000L
 
 private class LoadedData(
     val currencies: List<Currency>,

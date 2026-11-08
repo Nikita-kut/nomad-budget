@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.StatTile
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -81,7 +83,7 @@ fun AccountsScreen(
     var editMode by remember { mutableStateOf(false) }
 
     CenteredLazyColumn(bottom = 96.dp) {
-        item { TotalsCard(state) }
+        item { TotalsCard(state, twoColumns) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onOpenExchange, modifier = Modifier.weight(1f)) { Text("Обменять валюту") }
@@ -374,22 +376,17 @@ private fun RatesCard(state: HomeState) {
 
 
 @Composable
-private fun TotalsCard(state: HomeState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("ВСЕГО", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(MoneyFormat.format(state.totalBase, false), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            val others = state.foreignCurrencies.filter(state.rates::hasRate).map { MoneyFormat.format(state.rates.fromBase(state.totalBase, it), false) }
-            if (others.isNotEmpty()) {
-                Text("≈ " + others.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(
-                "на жизнь ${MoneyFormat.format(state.operationalBase, false)} · копилки ${MoneyFormat.format(state.fundsBalance, false)} · подушка ${MoneyFormat.format(state.savingsBalance, false)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
+private fun TotalsCard(state: HomeState, wide: Boolean) {
+    val others = state.foreignCurrencies.filter(state.rates::hasRate).map { MoneyFormat.format(state.rates.fromBase(state.totalBase, it), false) }
+    TileRow(
+        wide,
+        listOf(
+            { m -> StatTile("Всего", MoneyFormat.format(state.totalBase, false), if (others.isEmpty()) "все счета по текущему курсу" else "≈ " + others.joinToString(" · "), modifier = m, accent = true) },
+            { m -> StatTile("На жизнь", MoneyFormat.format(state.operationalBase, false), "карты и наличные для обычных трат", modifier = m) },
+            { m -> StatTile("Копилки", MoneyFormat.format(state.fundsBalance, false), "на крупные регулярные траты", modifier = m) },
+            { m -> StatTile("Подушка", MoneyFormat.format(state.savingsBalance, false), "неприкосновенный запас", modifier = m) },
+        ),
+    )
 }
 
 @Composable

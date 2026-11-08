@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.month
 
+import ru.nomadbudget.presentation.components.Ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -168,57 +169,20 @@ fun MonthScreen(
 
 @Composable
 private fun SpendCard(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = AppTheme.colors
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (month.flexiblePlanned.isZero) {
-                Text("План расходов не задан", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (month.flexibleFact.isZero) "Задай план или скопируй прошлый месяц, и здесь появится, сколько ещё можно потратить."
-                    else "Потрачено ${MoneyFormat.format(month.flexibleFact, false)}. Задай план, чтобы видеть, сколько ещё можно.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = onCopyPlan, enabled = !saving, modifier = Modifier.weight(1f)) { Text("Скопировать") }
-                    OutlinedButton(onClick = onOpenPlanning, modifier = Modifier.weight(1f)) { Text("Планировать") }
-                }
-                return@Column
-            }
-            val over = month.canSpend.isNegative
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (over) "Перерасход по конвертам" else "Можно ещё потратить", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                InfoHint("Можно ещё потратить", Hints.CAN_SPEND)
-            }
+    Card(modifier = modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
+        Column(modifier = Modifier.padding(Ui.CardPadding + 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("План расходов не задан", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                MoneyFormat.format(if (over) -month.canSpend else month.canSpend, false),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (over) colors.bad else MaterialTheme.colorScheme.onSurface,
-            )
-            when {
-                month.perDay != null -> Text(
-                    "≈ ${MoneyFormat.format(month.perDay, false)} в день · осталось ${month.daysLeft} дн.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                month.isCurrent && !over -> Text("последний день месяца", style = MaterialTheme.typography.bodyMedium)
-                month.isPast -> Text(if (over) "месяц закрыт с перерасходом" else "месяц закрыт, осталось неистраченным", style = MaterialTheme.typography.bodyMedium)
-                else -> Unit
-            }
-            ProgressTrack(
-                fraction = share(month.flexibleFactWhole, month.flexiblePlannedWhole),
-                marker = if (month.isCurrent) month.elapsedShare.toFloat() else null,
-                color = if (over) colors.bad else MaterialTheme.colorScheme.primary,
-            )
-            val paceText = if (month.isCurrent) paceNote(month) else null
-            Text(
-                listOfNotNull("потрачено ${MoneyFormat.format(month.flexibleFactWhole, false)} из ${MoneyFormat.format(month.flexiblePlannedWhole, false)}", paceText).joinToString(" · "),
+                if (month.flexibleFact.isZero) "Задай план или скопируй прошлый месяц, и здесь появится, сколько ещё можно потратить."
+                else "Потрачено ${MoneyFormat.format(month.flexibleFact, false)}. Задай план, чтобы видеть, сколько ещё можно.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.weight(1f, fill = false))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onCopyPlan, enabled = !saving, modifier = Modifier.weight(1f)) { Text("Скопировать") }
+                OutlinedButton(onClick = onOpenPlanning, modifier = Modifier.weight(1f)) { Text("Планировать") }
+            }
         }
     }
 }
@@ -236,78 +200,7 @@ private fun paceNote(month: MonthModel): String? {
     }
 }
 
-@Composable
-private fun SavedCard(month: MonthModel, modifier: Modifier = Modifier) {
-    val colors = AppTheme.colors
-    val target = month.savingsTarget
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Отложено «Себе»", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        InfoHint("Отложено", Hints.SAVED)
-                    }
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            MoneyFormat.format(month.saved, false),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (month.saved.isNegative) colors.bad else MaterialTheme.colorScheme.onSurface,
-                        )
-                        target?.let { Text("из ${MoneyFormat.format(it, false)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 2.dp)) }
-                    }
-                }
-                when (month.savingsProgress) {
-                    SavingsProgress.DONE -> StatusPill("выполнено", PillTone.GOOD)
-                    SavingsProgress.PENDING -> StatusPill("ещё ${MoneyFormat.format(month.savingsLeft, false)}", PillTone.NEUTRAL)
-                    SavingsProgress.MISSED -> StatusPill("не добрано ${MoneyFormat.format(month.savingsLeft, false)}", PillTone.BAD)
-                    SavingsProgress.NONE -> Unit
-                }
-            }
-            target?.let { ProgressTrack(fraction = share(month.saved, it), marker = null, color = colors.save) }
-            if (!month.takenFromCushion.isZero) {
-                Text(
-                    "взято из подушки ${MoneyFormat.format(month.takenFromCushion, false)} · положено ${MoneyFormat.format(month.savedIn, false)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.warning,
-                )
-            }
-        }
-    }
-}
 
-@Composable
-private fun ObligationsCard(month: MonthModel, onOpenDebts: () -> Unit, modifier: Modifier = Modifier) {
-    val next = month.nextObligation
-    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onOpenDebts)) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Платежи по кредитам", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        InfoHint("Платежи по кредитам", Hints.OBLIGATIONS)
-                    }
-                    val paidDebts = month.debts.count { it.status == ObligationStatus.PAID }
-                    Text("оплачено $paidDebts из ${month.debts.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                }
-                when {
-                    month.debts.any { it.status == ObligationStatus.OVERDUE } -> StatusPill("есть просрочка", PillTone.BAD)
-                    next != null -> StatusPill(
-                        "${next.debt.name}${next.due?.let { " к ${it.day}-му" }.orEmpty()}",
-                        if (next.status == ObligationStatus.SOON) PillTone.WARNING else PillTone.NEUTRAL,
-                    )
-                    else -> StatusPill("всё оплачено", PillTone.GOOD)
-                }
-            }
-            Text(
-                "осталось заплатить ${MoneyFormat.format(month.debts.map { it.left }.fold(Money.zero(Currency.BASE)) { a, b -> a + b }, false)} из ${MoneyFormat.format(month.debtsPlanned, false)} · подробнее в «Кредитах»",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
 @Composable
 private fun IncomeCard(month: MonthModel, modifier: Modifier = Modifier) {
@@ -550,7 +443,7 @@ private fun WideMonth(
 ) {
     val month = state.month
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-    val side = centeredSide(maxWidth, 1240.dp)
+    val side = centeredSide(maxWidth, Ui.ContentMaxWidth)
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = side, end = side, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
