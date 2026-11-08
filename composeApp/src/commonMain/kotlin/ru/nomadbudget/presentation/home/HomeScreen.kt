@@ -180,8 +180,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.undoRequests.collect { request ->
             launch {
-                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Long)
-                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id) else viewModel.commitDelete(request.id)
+                snackbar.currentSnackbarData?.dismiss()
+                val result = snackbar.showSnackbar(request.text, actionLabel = "Отменить", duration = SnackbarDuration.Short)
+                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(request.id)
             }
         }
     }

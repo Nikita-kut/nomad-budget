@@ -66,7 +66,7 @@ interface TransactionRepository {
     suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction
     suspend fun update(transaction: Transaction, accounts: List<Account>): Transaction
     suspend fun delete(id: String)
-    suspend fun flushPending(): Int
+    suspend fun flushPending(): FlushResult
     fun pendingCount(): Int
 }
 
@@ -87,7 +87,7 @@ interface ExchangeRateRepository {
 interface DebtRepository {
     suspend fun getAll(): List<Debt>
     suspend fun add(debt: Debt): Debt
-    suspend fun update(debt: Debt)
+    suspend fun update(debt: Debt, principalChanged: Boolean)
     suspend fun close(id: String)
 }
 
@@ -110,3 +110,5 @@ interface CapitalRepository {
     suspend fun getSettings(): ru.nomadbudget.domain.logic.CapitalSettings
     suspend fun saveSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings)
 }
+
+data class FlushResult(val sent: Int, val rejected: Int)
