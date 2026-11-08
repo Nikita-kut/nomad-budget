@@ -9,19 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -92,17 +79,6 @@ import androidx.compose.material3.SnackbarResult
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.filled.EditCalendar
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FloatingActionButton
 import androidx.navigation.NavDestination.Companion.hierarchy
 import ru.nomadbudget.presentation.journal.JournalScreen
@@ -121,11 +97,13 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
 import ru.nomadbudget.presentation.theme.LocalThemeSettings
 import ru.nomadbudget.presentation.components.LoadingSkeleton
 import ru.nomadbudget.presentation.components.HeaderSkeleton
+import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.Sidebar
+import ru.nomadbudget.presentation.components.SidebarEntry
+import ru.nomadbudget.presentation.components.SidebarGroup
 
 @Serializable
 object MonthRoute
@@ -171,6 +149,7 @@ private data class Tab(
     val title: String,
     val icon: ImageVector,
     val primary: Boolean,
+    val group: String? = null,
     val isSelected: (NavHostController) -> Boolean,
 )
 
@@ -190,6 +169,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val balanceForm = remember { ru.nomadbudget.presentation.more.BalanceCheckForm(state.today) }
     var entryPanel by remember { mutableStateOf(false) }
     var isWide by remember { mutableStateOf(false) }
+    var sidebarCollapsed by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -212,16 +192,16 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
 
     val tabs = remember {
         listOf(
-            Tab(MonthRoute, "Месяц", Icons.Filled.CalendarMonth, primary = true) { it.isOn<MonthRoute>() },
-            Tab(JournalRoute, "Журнал", Icons.AutoMirrored.Filled.ReceiptLong, primary = true) { it.isOn<JournalRoute>() },
-            Tab(PlanningRoute, "План", Icons.Filled.EditCalendar, primary = true) { it.isOn<PlanningRoute>() },
-            Tab(AccountsRoute, "Счета", Icons.Filled.AccountBalanceWallet, primary = true) { it.isOn<AccountsRoute>() },
-            Tab(ExchangeRoute, "Обмен", Icons.Filled.CurrencyExchange, primary = false) { it.isOn<ExchangeRoute>() },
-            Tab(DebtsRoute, "Кредиты", Icons.Filled.CreditCard, primary = false) { it.isOn<DebtsRoute>() },
-            Tab(RatesRoute, "Курсы", Icons.AutoMirrored.Filled.ShowChart, primary = false) { it.isOn<RatesRoute>() },
-            Tab(CapitalRoute, "Капитал", Icons.Filled.Savings, primary = false) { it.isOn<CapitalRoute>() },
-            Tab(ChartsRoute, "Графики", Icons.Filled.BarChart, primary = false) { it.isOn<ChartsRoute>() },
-            Tab(MoreRoute, "Ещё", Icons.Filled.MoreHoriz, primary = true) {
+            Tab(MonthRoute, "Месяц", AppIcons.Calendar, primary = true, group = "Бюджет") { it.isOn<MonthRoute>() },
+            Tab(PlanningRoute, "План", AppIcons.Plan, primary = true, group = "Бюджет") { it.isOn<PlanningRoute>() },
+            Tab(JournalRoute, "Журнал", AppIcons.Receipt, primary = true, group = "Бюджет") { it.isOn<JournalRoute>() },
+            Tab(AccountsRoute, "Счета", AppIcons.Wallet, primary = true, group = "Деньги") { it.isOn<AccountsRoute>() },
+            Tab(DebtsRoute, "Кредиты", AppIcons.CreditCard, primary = false, group = "Деньги") { it.isOn<DebtsRoute>() },
+            Tab(ExchangeRoute, "Обмен", AppIcons.Swap, primary = false, group = "Деньги") { it.isOn<ExchangeRoute>() },
+            Tab(CapitalRoute, "Капитал", AppIcons.PiggyBank, primary = false, group = "Анализ") { it.isOn<CapitalRoute>() },
+            Tab(ChartsRoute, "Графики", AppIcons.ChartColumn, primary = false, group = "Анализ") { it.isOn<ChartsRoute>() },
+            Tab(RatesRoute, "Курсы", AppIcons.ChartLine, primary = false, group = "Анализ") { it.isOn<RatesRoute>() },
+            Tab(MoreRoute, "Ещё", AppIcons.More, primary = true) {
                 it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() ||
                     it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<CapitalRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
             },
@@ -292,7 +272,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             topBar = { if (!onEntry || wide) HeaderBar(state, viewModel, wide) },
             floatingActionButton = {
                 if (!wide && !onEntry) {
-                    FloatingActionButton(onClick = openEntry, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Icon(Icons.Filled.Add, contentDescription = "Новая запись") }
+                    FloatingActionButton(onClick = openEntry, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Icon(AppIcons.Add, contentDescription = "Новая запись") }
                 }
             },
             bottomBar = {
@@ -313,22 +293,21 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Row(modifier = Modifier.fillMaxSize()) {
                 if (wide) {
-                    NavigationRail(
-                        header = {
-                            FloatingActionButton(onClick = openEntry, modifier = Modifier.padding(vertical = 8.dp), containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
-                                Icon(Icons.Filled.Add, contentDescription = "Новая запись")
-                            }
-                        },
-                    ) {
-                        tabs.forEach { tab ->
-                            NavigationRailItem(
-                                selected = backStack != null && (if (tab.route == MoreRoute) navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() else tab.isSelected(navController)),
-                                onClick = { navController.switchTo(tab.route) },
-                                icon = { Icon(tab.icon, contentDescription = tab.title) },
-                                label = { Text(tab.title) },
-                            )
-                        }
+                    val entryOf = { tab: Tab ->
+                        SidebarEntry(
+                            title = tab.title,
+                            icon = tab.icon,
+                            selected = backStack != null && (if (tab.route == MoreRoute) navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() else tab.isSelected(navController)),
+                            onClick = { navController.switchTo(tab.route) },
+                        )
                     }
+                    Sidebar(
+                        collapsed = sidebarCollapsed ?: !twoColumns,
+                        onToggle = { sidebarCollapsed = !(sidebarCollapsed ?: !twoColumns) },
+                        onCreate = openEntry,
+                        groups = tabs.filter { it.group != null }.groupBy { it.group }.map { (title, list) -> SidebarGroup(title, list.map(entryOf)) },
+                        footer = tabs.filter { it.group == null }.map(entryOf),
+                    )
                 }
                 Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     Box(modifier = Modifier.widthIn(max = contentMaxWidth).fillMaxSize()) {
@@ -630,7 +609,7 @@ private fun ThemeButton() {
     val dark = settings.isDark(system)
     IconButton(onClick = { settings.toggle(system) }) {
         Icon(
-            if (dark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+            if (dark) AppIcons.Sun else AppIcons.Moon,
             contentDescription = if (dark) "Включить светлую тему" else "Включить тёмную тему",
         )
     }
@@ -643,7 +622,7 @@ private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
             if (state.refreshing) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
-                Icon(Icons.Filled.Refresh, contentDescription = "Обновить данные")
+                Icon(AppIcons.Refresh, contentDescription = "Обновить данные")
             }
         }
         state.lastSyncedAt?.let {
@@ -656,7 +635,7 @@ private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
 private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = viewModel::showPreviousPeriod) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущий месяц")
+            Icon(AppIcons.ChevronLeft, contentDescription = "Предыдущий месяц")
         }
         Column(
             modifier = Modifier.weight(1f, fill = false).clip(MaterialTheme.shapes.small).clickable(onClick = viewModel::showCurrentPeriod).padding(horizontal = 6.dp, vertical = 2.dp),
@@ -671,7 +650,7 @@ private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier
             )
         }
         IconButton(onClick = viewModel::showNextPeriod) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Следующий месяц")
+            Icon(AppIcons.ChevronRight, contentDescription = "Следующий месяц")
         }
     }
 }

@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -70,7 +68,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Surface
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Checkbox
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
@@ -86,7 +83,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import ru.nomadbudget.domain.model.sumIn
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -94,6 +90,7 @@ import ru.nomadbudget.presentation.entry.EditTransactionDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import ru.nomadbudget.presentation.components.AppIcons
 
 private enum class JournalFilter(val label: String) {
     ALL("Все"),
@@ -141,7 +138,7 @@ fun JournalScreen(
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("Поиск по всем месяцам") },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    leadingIcon = { Icon(AppIcons.Search, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -193,8 +190,8 @@ fun JournalScreen(
                 value = query,
                 onValueChange = { query = it },
                 placeholder = { Text("Поиск по всем месяцам") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = if (searching) ({ IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Clear, contentDescription = "Очистить поиск") } }) else null,
+                leadingIcon = { Icon(AppIcons.Search, contentDescription = null) },
+                trailingIcon = if (searching) ({ IconButton(onClick = { query = "" }) { Icon(AppIcons.Close, contentDescription = "Очистить поиск") } }) else null,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -387,7 +384,7 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
                 modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onErrorContainer)
+                Icon(AppIcons.Trash, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onErrorContainer)
             }
         },
     ) {

@@ -75,9 +75,10 @@ fun StatTile(
         val labelColor = if (accent) hero.heroMuted else MaterialTheme.colorScheme.onSurfaceVariant
         Column(modifier = Modifier.padding(Ui.CardPadding + 2.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = MaterialTheme.typography.labelLarge, color = labelColor, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                info?.let { InfoHint(label, it) }
-                Spacer(modifier = Modifier.weight(1f))
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = labelColor, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    info?.let { InfoHint(label, it) }
+                }
                 badge?.invoke()
             }
             Text(value, style = MaterialTheme.typography.headlineSmall, color = if (accent) hero.onHero else valueColor ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)

@@ -50,8 +50,6 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.androidx.navigation.compose)
-            implementation(libs.compose.material.icons.core)
-            implementation(libs.compose.material.icons.extended)
             implementation(libs.vico.multiplatform)
         }
         commonTest.dependencies {

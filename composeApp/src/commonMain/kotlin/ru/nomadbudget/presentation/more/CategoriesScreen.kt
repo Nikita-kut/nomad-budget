@@ -10,13 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,6 +43,7 @@ import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.AppIcons
 
 private sealed interface Dialog {
     data class RenameCategory(val category: Category) : Dialog
@@ -248,10 +242,10 @@ private fun CategoryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = { onMove(true) }, enabled = canMoveUp) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Выше") }
-            IconButton(onClick = { onMove(false) }, enabled = canMoveDown) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Ниже") }
-            IconButton(onClick = onRename) { Icon(Icons.Filled.Edit, contentDescription = "Переименовать") }
-            IconButton(onClick = onArchive) { Icon(Icons.Filled.Delete, contentDescription = "В архив") }
+            IconButton(onClick = { onMove(true) }, enabled = canMoveUp) { Icon(AppIcons.ChevronUp, contentDescription = "Выше") }
+            IconButton(onClick = { onMove(false) }, enabled = canMoveDown) { Icon(AppIcons.ChevronDown, contentDescription = "Ниже") }
+            IconButton(onClick = onRename) { Icon(AppIcons.Edit, contentDescription = "Переименовать") }
+            IconButton(onClick = onArchive) { Icon(AppIcons.Trash, contentDescription = "В архив") }
         }
         if (expanded) {
             HorizontalDivider()
@@ -263,13 +257,13 @@ private fun CategoryCard(
                             usage[sub.id]?.let { (count, _) -> Text("$count операций", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                         IconButton(onClick = { onRenameSubcategory(sub) }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(AppIcons.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onMergeSubcategory(sub) }) {
-                            Icon(Icons.Filled.CallMerge, contentDescription = "Слить с другой", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(AppIcons.Merge, contentDescription = "Слить с другой", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onDeleteSubcategory(sub) }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Убрать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(AppIcons.Close, contentDescription = "Убрать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

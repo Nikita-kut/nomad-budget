@@ -6,6 +6,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.FontFamily
+import org.jetbrains.compose.resources.Font
+import nomad_budget.composeapp.generated.resources.Res
+import nomad_budget.composeapp.generated.resources.inter_regular
+import nomad_budget.composeapp.generated.resources.inter_medium
+import nomad_budget.composeapp.generated.resources.inter_semibold
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
@@ -157,8 +163,23 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(24.dp),
 )
 
+@Composable
 private fun appTypography(): Typography {
-    val base = Typography()
+    val inter = FontFamily(
+        Font(Res.font.inter_regular, FontWeight.Normal),
+        Font(Res.font.inter_medium, FontWeight.Medium),
+        Font(Res.font.inter_semibold, FontWeight.SemiBold),
+        Font(Res.font.inter_semibold, FontWeight.Bold),
+    )
+    val plain = Typography()
+    fun TextStyle.inter() = copy(fontFamily = inter)
+    val base = Typography(
+        displayLarge = plain.displayLarge.inter(), displayMedium = plain.displayMedium.inter(), displaySmall = plain.displaySmall.inter(),
+        headlineLarge = plain.headlineLarge.inter(), headlineMedium = plain.headlineMedium.inter(), headlineSmall = plain.headlineSmall.inter(),
+        titleLarge = plain.titleLarge.inter(), titleMedium = plain.titleMedium.inter(), titleSmall = plain.titleSmall.inter(),
+        bodyLarge = plain.bodyLarge.inter(), bodyMedium = plain.bodyMedium.inter(), bodySmall = plain.bodySmall.inter(),
+        labelLarge = plain.labelLarge.inter(), labelMedium = plain.labelMedium.inter(), labelSmall = plain.labelSmall.inter(),
+    )
     fun TextStyle.tight(weight: FontWeight? = null, spacing: Double = -0.2) = copy(fontWeight = weight ?: fontWeight, letterSpacing = spacing.sp)
     return base.copy(
         displaySmall = base.displaySmall.tight(FontWeight.SemiBold, -0.8),

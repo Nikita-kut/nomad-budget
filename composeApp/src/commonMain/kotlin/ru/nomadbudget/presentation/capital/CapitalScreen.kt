@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -66,6 +64,7 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.AppIcons
 
 private val HORIZONS = listOf(12 to "1 год", 24 to "2 года", 60 to "5 лет")
 
@@ -380,7 +379,7 @@ private fun GoalRow(title: String, current: Money, target: Money, lines: List<St
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Text("${MoneyFormat.format(current.coerceAtMost(target), false)} / ${MoneyFormat.format(target, false)}", fontWeight = FontWeight.SemiBold)
-            onDelete?.let { IconButton(onClick = it) { Icon(Icons.Filled.Delete, contentDescription = "Удалить цель", tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            onDelete?.let { IconButton(onClick = it) { Icon(AppIcons.Trash, contentDescription = "Удалить цель", tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
         }
         Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
             Box(modifier = Modifier.fillMaxWidth(share.toFloat()).fillMaxHeight().clip(CircleShape).background(AppTheme.colors.save))

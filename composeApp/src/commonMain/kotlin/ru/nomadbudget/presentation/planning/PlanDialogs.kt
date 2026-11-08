@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -52,6 +49,7 @@ import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.home.PlanItemInput
 import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.components.AppIcons
 
 private const val MAX_SUGGESTIONS = 8
 
@@ -107,7 +105,7 @@ fun PlanEditorDialog(
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(modifier = Modifier.fillMaxSize().imePadding()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Закрыть без сохранения") }
+                    IconButton(onClick = onDismiss) { Icon(AppIcons.Close, contentDescription = "Закрыть без сохранения") }
                     Text(category.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     TextButton(onClick = { draft()?.let(onSave) }, enabled = dirty && error == null && !state.saving) { Text("Сохранить") }
                 }
@@ -153,7 +151,7 @@ fun PlanEditorDialog(
                                     modifier = Modifier.weight(1f),
                                 )
                                 IconButton(onClick = { rows = rows.filterNot { it.key == row.key } }) {
-                                    Icon(Icons.Filled.Clear, contentDescription = "Убрать строку", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Icon(AppIcons.Close, contentDescription = "Убрать строку", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }

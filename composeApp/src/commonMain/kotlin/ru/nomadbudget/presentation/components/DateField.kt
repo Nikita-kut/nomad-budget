@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,8 +31,6 @@ import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import ru.nomadbudget.presentation.format.DateFormat
 import kotlin.time.Instant
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,12 +70,12 @@ fun DateField(
             TextButton(onClick = { onChange(today) }) { Text("Сегодня") }
         }
         IconButton(onClick = { onChange(date.plus(-1, DateTimeUnit.DAY)) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "На день раньше")
+            Icon(AppIcons.ChevronLeft, contentDescription = "На день раньше")
         }
         IconButton(onClick = { onChange(date.plus(1, DateTimeUnit.DAY)) }, enabled = canGoForward) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "На день позже")
+            Icon(AppIcons.ChevronRight, contentDescription = "На день позже")
         }
-        IconButton(onClick = { pickerOpen = true }) { Icon(Icons.Filled.DateRange, contentDescription = "Выбрать дату") }
+        IconButton(onClick = { pickerOpen = true }) { Icon(AppIcons.CalendarDays, contentDescription = "Выбрать дату") }
     }
     if (pickerOpen) {
         val pickerState = rememberDatePickerState(initialSelectedDateMillis = date.toEpochMillisUtc())

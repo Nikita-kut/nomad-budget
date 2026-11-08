@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +60,7 @@ import ru.nomadbudget.domain.logic.RatePairs
 import ru.nomadbudget.presentation.charts.MultiLineChart
 import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.components.AppIcons
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
@@ -234,7 +233,7 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
                 }
             }
             IconButton(onClick = { onDelete(exchange.id) }) {
-                Icon(Icons.Filled.Clear, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(AppIcons.Close, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         HorizontalDivider()

@@ -20,8 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -75,6 +73,7 @@ import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.AppIcons
 
 @Composable
 fun DebtsScreen(
@@ -283,7 +282,7 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
                 Text(debt.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 StatusPill(statusText(obligation), statusTone(obligation.status))
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Действия с кредитом") }
+                    IconButton(onClick = { menu = true }) { Icon(AppIcons.MoreVertical, contentDescription = "Действия с кредитом") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Изменить") }, onClick = { menu = false; onEdit() })
                         DropdownMenuItem(text = { Text("Закрыть кредит") }, onClick = { menu = false; onClose() })
