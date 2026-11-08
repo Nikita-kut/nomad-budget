@@ -8,7 +8,6 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.RateSource
-import ru.nomadbudget.domain.model.SalaryCycle
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import kotlin.test.Test

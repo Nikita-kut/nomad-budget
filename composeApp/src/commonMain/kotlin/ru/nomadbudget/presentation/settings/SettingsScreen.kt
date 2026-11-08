@@ -42,6 +42,7 @@ import ru.nomadbudget.presentation.components.StartDayPicker
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysText
 import ru.nomadbudget.presentation.components.startDayText
+import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
@@ -70,7 +71,7 @@ fun SettingsScreen(
     var deleteStep by remember { mutableStateOf(0) }
     val theme = LocalThemeSettings.current
 
-    CenteredLazyColumn(bottom = 96.dp) {
+    CenteredLazyColumn {
         if (onBack != null) item { SubScreenHeader("Настройки", onBack) }
 
         item { SectionTitle("Месяц бюджета", hint = "начинается ${startDayText(settings.periodStartDay)}", info = Hints.PERIOD_START) }
@@ -159,7 +160,7 @@ fun SettingsScreen(
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column {
-                    ActionRow("Сменить пароль", "новый пароль не короче 8 символов") { changingPassword = true }
+                    ActionRow("Сменить пароль", "новый пароль не короче $MIN_PASSWORD символов") { changingPassword = true }
                     HorizontalDivider()
                     ActionRow("Выйти из аккаунта", "сохранённые копии данных на этом устройстве удалятся") { confirmSignOut = true }
                     HorizontalDivider()
@@ -299,7 +300,7 @@ private fun themeLabel(mode: ThemeMode): String = when (mode) {
     ThemeMode.DARK -> "Тёмная"
 }
 
-private fun formatReturn(value: Double): String = if (value == 0.0) "без доходности" else "${value.toString().removeSuffix(".0")} % годовых"
+private fun formatReturn(value: Double): String = if (value == 0.0) "без доходности" else "${MoneyFormat.formatPercentValue(value)} годовых"
 
 private const val MIN_PASSWORD = 8
 private const val DELETE_WORD = "УДАЛИТЬ"

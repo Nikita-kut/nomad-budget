@@ -7,24 +7,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -47,7 +44,10 @@ import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.logic.CategoryBudget
 import ru.nomadbudget.domain.logic.CategoryHistory
 import ru.nomadbudget.domain.logic.MonthModel
-import ru.nomadbudget.domain.logic.SavingsForecast
+import ru.nomadbudget.domain.logic.PlanCalculator
+import ru.nomadbudget.domain.logic.CapitalModel
+import ru.nomadbudget.domain.logic.Scenario
+import ru.nomadbudget.presentation.components.incomeDaysHint
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.Currency
@@ -88,7 +88,7 @@ fun PlanningScreen(
     var editingFund by remember { mutableStateOf<Account?>(null) }
     val month = state.month
 
-    val summaryItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+    val summaryItems: LazyListScope.() -> Unit = {
         if (onBack != null) {
             item { SubScreenHeader("План", onBack) }
         }
@@ -96,7 +96,7 @@ fun PlanningScreen(
             Text(
                 listOfNotNull(
                     "План на ${DateFormat.monthName(state.period.start).lowercase()}: ${DateFormat.periodRange(state.period)}. Другой месяц выбирается стрелками в шапке.",
-                    state.incomeDaysHint?.let { "$it." },
+                    incomeDaysHint(state.settings.incomeDays)?.let { "$it." },
                 ).joinToString(" "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -116,7 +116,7 @@ fun PlanningScreen(
         }
 
     }
-    val sectionItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+    val sectionItems: LazyListScope.() -> Unit = {
         item { SectionTitle("Доход", hint = "только регулярный", info = Hints.INCOME) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -259,7 +259,7 @@ private fun AllocationCard(month: MonthModel) {
                         Text(label, modifier = Modifier.weight(1f))
                         AmountCell(MoneyFormat.format(money, false), bold = true)
                         AmountCell(
-                            month.available.takeIf { it.minor > 0L }?.let { MoneyFormat.formatShare(money.minor.toDouble() / it.minor) } ?: "",
+                            month.available.takeIf { it.minor > 0L }?.let { MoneyFormat.formatShare(money.shareOf(it)) } ?: "",
                             muted = true,
                             width = SHARE_WIDTH,
                         )
@@ -306,7 +306,7 @@ private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: Str
 }
 
 @Composable
-private fun SavingsCard(month: MonthModel, capital: ru.nomadbudget.domain.logic.CapitalModel?, onClick: () -> Unit, onOpenCapital: () -> Unit) {
+private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -> Unit, onOpenCapital: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val target = month.savingsTarget
@@ -320,7 +320,7 @@ private fun SavingsCard(month: MonthModel, capital: ru.nomadbudget.domain.logic.
                     )
                     if (target != null && month.incomePlanned.minor > 0L) {
                         Text(
-                            "${MoneyFormat.formatShare(target.minor.toDouble() / month.incomePlanned.minor)} дохода · отложено ${MoneyFormat.format(month.saved, false)}",
+                            "${MoneyFormat.formatShare(target.shareOf(month.incomePlanned))} дохода · отложено ${MoneyFormat.format(month.saved, false)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -329,8 +329,8 @@ private fun SavingsCard(month: MonthModel, capital: ru.nomadbudget.domain.logic.
             }
             capital?.let { c ->
                 HorizontalDivider()
-                val byPlan = c.cushionPath(ru.nomadbudget.domain.logic.Scenario.PLAN, 12).last()
-                val byFact = c.cushionPath(ru.nomadbudget.domain.logic.Scenario.FACT, 12).last()
+                val byPlan = c.cushionPath(Scenario.PLAN, CapitalModel.YEAR_MONTHS).last()
+                val byFact = c.cushionPath(Scenario.FACT, CapitalModel.YEAR_MONTHS).last()
                 PlanLine("В подушке сейчас", MoneyFormat.format(c.cushion, false))
                 HorizontalDivider()
                 PlanLine("Через 12 мес., если откладывать по плану", MoneyFormat.format(byPlan, false), bold = true)
@@ -417,7 +417,7 @@ private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, 
                 )
             }
             history?.takeIf { it.average.minor > 0L }?.let { h ->
-                val differs = budget.hasPlan && abs(h.average.minor - budget.planned.minor).toDouble() / h.average.minor > DIFF_THRESHOLD
+                val differs = budget.hasPlan && PlanCalculator.differsFromUsual(budget.planned, h)
                 Text(
                     "обычно ~${MoneyFormat.format(h.average.withoutFraction(), false)} в месяц",
                     style = MaterialTheme.typography.bodySmall,
@@ -442,11 +442,12 @@ private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, 
     }
 }
 
-private const val DIFF_THRESHOLD = 0.2
+private val SAVINGS_SHARES = listOf(10, 20, 30)
+private const val PERCENT = 100L
 
 @Composable
 private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () -> Unit, onConfirm: (Money?) -> Unit) {
-    var text by remember { mutableStateOf(current?.let(::majorText).orEmpty()) }
+    var text by remember { mutableStateOf(current?.let(MoneyFormat::editText).orEmpty()) }
     val transformation = remember { ThousandsVisualTransformation() }
     val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, Currency.BASE)
     AlertDialog(
@@ -465,8 +466,8 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
                 )
                 if (income.minor > 0L) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(10, 20, 30).forEach { percent ->
-                            TagChip(text = "$percent %", onClick = { text = (income.wholeUnits * percent / 100).toString() })
+                        SAVINGS_SHARES.forEach { percent ->
+                            TagChip(text = "$percent %", onClick = { text = (income.wholeUnits * percent / PERCENT).toString() })
                         }
                     }
                     Text("10, 20 или 30 % от планового дохода", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

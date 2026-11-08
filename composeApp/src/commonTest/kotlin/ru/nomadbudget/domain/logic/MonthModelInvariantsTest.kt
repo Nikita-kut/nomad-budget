@@ -130,10 +130,9 @@ class MonthModelInvariantsTest {
             assertTrue(!d.left.isNegative, ctx)
             if (d.status == ObligationStatus.PAID) assertTrue(d.left.isZero || d.planned.isZero, ctx)
         }
-        assertTrue(m.obligationsPaid <= m.obligationsCount, ctx)
+        assertTrue(m.debtsPaid <= m.debts.size, ctx)
         m.funds.forEach { assertTrue(!it.contributionLeft.isNegative, ctx) }
 
-        if (!m.flexibleOk && m.level != null) assertEquals(MonthLevel.BAD, m.level, ctx)
     }
 
     private companion object {

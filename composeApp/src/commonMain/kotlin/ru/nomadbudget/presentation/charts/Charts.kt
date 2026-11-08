@@ -41,7 +41,6 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
-import kotlin.math.roundToInt
 
 private val CHART_HEIGHT = 220.dp
 
@@ -128,6 +127,7 @@ private fun PlotChart(
     val guideColor = colorsScheme.outline
     val tooltipColor = colorsScheme.inverseSurface
     val ringColor = colorsScheme.surface
+    val fallbackColor = colorsScheme.outline
     var hover by remember { mutableStateOf<Int?>(null) }
     val points = series.firstOrNull()?.size ?: 0
 
@@ -174,12 +174,12 @@ private fun PlotChart(
                                 val y = l.y(v)
                                 val top = minOf(y, zeroY)
                                 val height = kotlin.math.abs(zeroY - y).coerceAtLeast(1f)
-                                drawRoundRect(colors.getOrElse(s) { Color.Gray }, Offset(x, top), Size(bar * 0.8f, height), CornerRadius(3f, 3f))
+                                drawRoundRect(colors.getOrElse(s) { fallbackColor }, Offset(x, top), Size(bar * 0.8f, height), CornerRadius(3f, 3f))
                             }
                         }
                     } else {
                         linePaths?.forEachIndexed { s, path ->
-                            val color = colors.getOrElse(s) { Color.Gray }
+                            val color = colors.getOrElse(s) { fallbackColor }
                             if (series[s].size == 1) drawCircle(color, 4.dp.toPx(), Offset(l.x(0), l.y(series[s][0])))
                             else drawPath(path, color, style = stroke)
                         }
@@ -193,7 +193,7 @@ private fun PlotChart(
                             values.getOrNull(index)?.let { v ->
                                 val center = Offset(x, l.y(v))
                                 drawCircle(ringColor, 6.dp.toPx(), center)
-                                drawCircle(colors.getOrElse(s) { Color.Gray }, 4.dp.toPx(), center)
+                                drawCircle(colors.getOrElse(s) { fallbackColor }, 4.dp.toPx(), center)
                             }
                         }
                     }

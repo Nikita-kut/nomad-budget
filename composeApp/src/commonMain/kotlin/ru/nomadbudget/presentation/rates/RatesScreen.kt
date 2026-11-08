@@ -3,6 +3,7 @@ package ru.nomadbudget.presentation.rates
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.logic.RatePairs
 import ru.nomadbudget.domain.logic.RatePoint
@@ -93,7 +95,7 @@ private fun PairBlock(a: Currency, b: Currency, points: List<RatePoint>, state: 
             wide,
             listOf(
                 { DirectionChart(a, b, points, colorA) },
-                { DirectionChart(b, a, points.map { it.copy(value = 1.0 / it.value) }, colorB) },
+                { DirectionChart(b, a, RatePairs.inverted(points), colorB) },
             ),
         )
         HistoryTable(a, b, points)
@@ -101,8 +103,8 @@ private fun PairBlock(a: Currency, b: Currency, points: List<RatePoint>, state: 
 }
 
 @Composable
-private fun DirectionChart(from: Currency, to: Currency, points: List<RatePoint>, color: androidx.compose.ui.graphics.Color) {
-    val unit = MoneyFormat.quoteUnit(points.map { it.value }.sorted()[points.size / 2])
+private fun DirectionChart(from: Currency, to: Currency, points: List<RatePoint>, color: Color) {
+    val unit = MoneyFormat.quoteUnit(RatePairs.median(points))
     val scaled = points.map { it.value * unit }
     ChartPanel(
         title = MoneyFormat.rateText(from, to, scaled.last(), unit),
@@ -128,16 +130,16 @@ private fun DirectionChart(from: Currency, to: Currency, points: List<RatePoint>
 private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
     var showAll by remember(a, b) { mutableStateOf(false) }
     val rows = points.indices.reversed().let { if (showAll) it.toList() else it.take(COLLAPSED_ROWS) }
-    val median = points.map { it.value }.sorted()[points.size / 2]
+    val median = RatePairs.median(points)
     val unitA = MoneyFormat.quoteUnit(median)
     val unitB = MoneyFormat.quoteUnit(1.0 / median)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 8.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("Дата", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                HeaderCell(MoneyFormat.perUnitLabel(unitA, a, b), width = WIDE_CELL)
+                HeaderCell(MoneyFormat.perUnitLabel(unitA, a, b), width = Ui.WideAmountColumn)
                 HeaderCell("за день, %")
-                HeaderCell(MoneyFormat.perUnitLabel(unitB, b, a), width = WIDE_CELL)
+                HeaderCell(MoneyFormat.perUnitLabel(unitB, b, a), width = Ui.WideAmountColumn)
                 HeaderCell("за день, %")
             }
             HorizontalDivider()
@@ -147,13 +149,13 @@ private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
                 val prev = points.getOrNull(index - 1)
                 val direct = point.value * unitA
                 val inverse = unitB / point.value
-                val delta = prev?.let { point.value / it.value - 1.0 }
-                val inverseDelta = prev?.let { it.value / point.value - 1.0 }
+                val delta = point.changeFrom(prev)
+                val inverseDelta = prev?.let { RatePoint(point.date, 1.0 / point.value).changeFrom(RatePoint(it.date, 1.0 / it.value)) }
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(DateFormat.dayMonth(point.date) + ".${point.date.year % 100}", modifier = Modifier.weight(1f))
-                    AmountCell(MoneyFormat.formatQuote(direct), bold = true, width = WIDE_CELL)
+                    Text(DateFormat.dayMonthYearShort(point.date), modifier = Modifier.weight(1f))
+                    AmountCell(MoneyFormat.formatQuote(direct), bold = true, width = Ui.WideAmountColumn)
                     DeltaCell(delta)
-                    AmountCell(MoneyFormat.formatQuote(inverse), bold = true, width = WIDE_CELL)
+                    AmountCell(MoneyFormat.formatQuote(inverse), bold = true, width = Ui.WideAmountColumn)
                     DeltaCell(inverseDelta)
                 }
             }
@@ -165,7 +167,7 @@ private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.DeltaCell(delta: Double?) {
+private fun RowScope.DeltaCell(delta: Double?) {
     val text = delta?.let(MoneyFormat::formatChange) ?: ""
     val colors = AppTheme.colors
     AmountCell(
@@ -179,4 +181,3 @@ private fun androidx.compose.foundation.layout.RowScope.DeltaCell(delta: Double?
 }
 
 private const val COLLAPSED_ROWS = 5
-private val WIDE_CELL = 140.dp

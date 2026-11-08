@@ -53,15 +53,29 @@ class MoneyFormatTest {
     }
 
     @Test
-    fun formatRate_bigAndSmall() {
-        assertEquals("25\u00A0900", MoneyFormat.formatRate(25_900.0))
-        assertEquals("84,1975", MoneyFormat.formatRate(84.1975))
+    fun formatQuote_bigAndSmall() {
+        assertEquals("25\u00A0900", MoneyFormat.formatQuote(25_900.0))
+        assertEquals("0,8420", MoneyFormat.formatQuote(0.84197))
     }
 
     @Test
-    fun formatPercent_sign() {
-        assertEquals("−1,03%", MoneyFormat.formatPercent(-1.026))
-        assertEquals("+0,50%", MoneyFormat.formatPercent(0.5))
+    fun editText_dropsZeroFraction_keepsNonZero() {
+        assertEquals("1500", MoneyFormat.editText(Money.rub(150_000L)))
+        assertEquals("1500,50", MoneyFormat.editText(Money.rub(150_050L)))
+        assertEquals("7,05", MoneyFormat.editText(Money.rub(705L)))
+    }
+
+    @Test
+    fun formatTenths_trimsZeroTenth() {
+        assertEquals("6", MoneyFormat.formatTenths(6.04))
+        assertEquals("6,5", MoneyFormat.formatTenths(6.49))
+        assertEquals("−1,2", MoneyFormat.formatTenths(-1.2))
+    }
+
+    @Test
+    fun formatPercentPoints_roundsWhole() {
+        assertEquals("12%", MoneyFormat.formatPercentPoints(12.4))
+        assertEquals("-3%", MoneyFormat.formatPercentPoints(-2.6))
     }
 
     @Test

@@ -3,12 +3,9 @@ package ru.nomadbudget.presentation.more
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,6 +43,12 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.ConfirmDialog
+import ru.nomadbudget.presentation.components.Dropdown
+import ru.nomadbudget.presentation.components.TextDialog
+import ru.nomadbudget.domain.model.CorrectionCategory
+import ru.nomadbudget.domain.model.Transaction
+import kotlinx.datetime.LocalDate
 
 private sealed interface Dialog {
     data class RenameCategory(val category: Category) : Dialog
@@ -76,7 +79,7 @@ fun CategoriesScreen(
     var dialog by remember { mutableStateOf<Dialog?>(null) }
     var expandedId by remember { mutableStateOf<String?>(null) }
     val usage = remember(state.transactions) {
-        state.transactions.filterIsInstance<ru.nomadbudget.domain.model.Transaction.Expense>()
+        state.transactions.filterIsInstance<Transaction.Expense>()
             .filter { it.subcategoryId != null }
             .groupBy { it.subcategoryId }
             .mapValues { (_, list) -> list.size to list.maxOf { it.date } }
@@ -123,7 +126,7 @@ fun CategoriesScreen(
                             Text(category.name, fontWeight = FontWeight.Medium)
                             Text(if (category.kind == CategoryKind.EXPENSE) "расход · только остатки счетов" else "доход · только остатки счетов", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (category.name != ru.nomadbudget.domain.model.CorrectionCategory.NAME) {
+                        if (category.name != CorrectionCategory.NAME) {
                             TextButton(onClick = { onSetSystem(category.id, false) }) { Text("Вернуть в бюджет") }
                         }
                     }
@@ -202,7 +205,7 @@ private fun MergeDialog(subcategory: Subcategory, targets: List<Subcategory>, on
                     Text("В этой категории нет другой подкатегории, с которой можно объединить.")
                 } else {
                     Text("Все операции и строки плана перейдут в выбранную подкатегорию, «${subcategory.name}» удалится.")
-                    ru.nomadbudget.presentation.components.Dropdown("Куда", targets, target, Subcategory::name, { target = it })
+                    Dropdown("Куда", targets, target, Subcategory::name, { target = it })
                 }
             }
         },
@@ -215,7 +218,7 @@ private fun MergeDialog(subcategory: Subcategory, targets: List<Subcategory>, on
 private fun CategoryCard(
     category: Category,
     subcategories: List<Subcategory>,
-    usage: Map<String?, Pair<Int, kotlinx.datetime.LocalDate>>,
+    usage: Map<String?, Pair<Int, LocalDate>>,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMove: (Boolean) -> Unit,
@@ -307,7 +310,7 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
                 if (category.kind == CategoryKind.EXPENSE) {
                     OutlinedTextField(
                         value = amount,
-                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
+                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
                         label = { Text("План на месяц, ${Currency.BASE.code}") },
                         supportingText = { Text("$periodTitle · необязательно") },
                         singleLine = true,
@@ -321,37 +324,6 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
         confirmButton = {
             Button(onClick = { onConfirm(name, planned) }, enabled = name.isNotBlank() && (amount.isBlank() || planned != null)) { Text("Сохранить") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-    )
-}
-
-@Composable
-fun TextDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Название") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = { Button(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Сохранить") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-    )
-}
-
-@Composable
-fun ConfirmDialog(title: String, text: String, confirmText: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { Button(onClick = onConfirm) { Text(confirmText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

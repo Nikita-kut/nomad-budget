@@ -28,7 +28,7 @@ import kotlin.math.abs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import ru.nomadbudget.data.local.KeyValueStore
+import ru.nomadbudget.domain.repository.KeyValueStore
 
 data class AppColors(
     val base: Color,

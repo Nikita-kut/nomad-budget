@@ -116,7 +116,7 @@ fun CurrencyChip(currency: Currency, state: HomeState, modifier: Modifier = Modi
 }
 
 @Composable
-fun CurrencyAmount(text: String, currency: Currency, state: HomeState, style: TextStyle, fontWeight: FontWeight? = null, modifier: Modifier = Modifier) {
+fun CurrencyAmount(text: String, style: TextStyle, fontWeight: FontWeight? = null, modifier: Modifier = Modifier) {
     Text(text, style = style, fontWeight = fontWeight, color = amountColor(text), modifier = modifier, maxLines = 1)
 }
 

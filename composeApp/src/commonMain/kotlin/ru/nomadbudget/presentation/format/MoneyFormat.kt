@@ -47,6 +47,12 @@ object MoneyFormat {
         else -> format(money, showFraction)
     }
 
+    fun editText(money: Money): String {
+        val major = money.minor / money.currency.minorFactor
+        val fraction = money.minor % money.currency.minorFactor
+        return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
+    }
+
     fun formatPercentValue(value: Double): String {
         val scaled = (value * 100).roundToLong()
         val whole = scaled / 100
@@ -63,7 +69,7 @@ object MoneyFormat {
         else -> formatRate(rate)
     }
 
-    fun formatRate(rate: Double): String = when {
+    private fun formatRate(rate: Double): String = when {
         rate >= 100.0 -> groupThousands(rate.roundToLong())
         else -> {
             val scaled = (rate * 10_000).roundToLong()
@@ -120,21 +126,21 @@ object MoneyFormat {
         return "$sign${groupThousands(abs(rounded))}$THIN_SPACE${Currency.BASE.symbol}"
     }
 
-    private fun trimTenths(value: Double): String {
+    fun formatTenths(value: Double): String {
         val tenths = (value * 10).roundToLong()
-        return if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10},${tenths % 10}"
+        val sign = if (tenths < 0) MINUS else ""
+        val absolute = abs(tenths)
+        return if (absolute % 10 == 0L) "$sign${absolute / 10}" else "$sign${absolute / 10},${absolute % 10}"
     }
+
+    private fun trimTenths(value: Double): String = formatTenths(value)
 
     fun formatShare(value: Double): String = when {
         value > 0.0 && value < SMALL_SHARE -> "<1%"
         else -> "${(value * 100).roundToLong()}%"
     }
 
-    fun formatPercent(value: Double): String {
-        val scaled = (abs(value) * 100).roundToLong()
-        val sign = if (value < 0) MINUS else "+"
-        return "$sign${scaled / 100},${(scaled % 100).toString().padStart(2, '0')}%"
-    }
+    fun formatPercentPoints(value: Double): String = "${value.roundToLong()}%"
 
     fun parse(input: String, currency: Currency): Money? {
         val cleaned = input.replace(" ", "").replace(THIN_SPACE, "").replace(',', '.').trim()
@@ -166,7 +172,6 @@ object MoneyFormat {
 
 object DateFormat {
 
-    private val weekdays = listOf("пн", "вт", "ср", "чт", "пт", "сб", "вс")
     private val weekdaysFull = listOf("понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье")
     private val months = listOf(
         "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -189,12 +194,17 @@ object DateFormat {
 
     fun monthYear(date: LocalDate): String = "${months[date.month.number - 1].lowercase()} ${date.year}"
 
+    fun monthYearShort(date: LocalDate): String = "${twoDigits(date.month.number)}.${twoDigits(date.year % 100)}"
+
     fun byMonthYear(date: LocalDate): String = "к ${monthsDative[date.month.number - 1]} ${date.year}"
 
     fun periodRange(period: Period): String = "${dayMonth(period.start)} – ${dayMonth(period.lastDay)}"
 
-    fun dayMonth(date: LocalDate): String =
-        "${date.day.toString().padStart(2, '0')}.${date.month.number.toString().padStart(2, '0')}"
+    fun dayMonth(date: LocalDate): String = "${twoDigits(date.day)}.${twoDigits(date.month.number)}"
+
+    fun dayMonthYear(date: LocalDate): String = "${dayMonth(date)}.${date.year}"
+
+    fun dayMonthYearShort(date: LocalDate): String = "${dayMonth(date)}.${twoDigits(date.year % 100)}"
 
     fun dayMonthTime(instant: Instant): String {
         val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
@@ -203,10 +213,10 @@ object DateFormat {
 
     fun timeOnly(instant: Instant): String {
         val local = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
+        return "${twoDigits(local.hour)}:${twoDigits(local.minute)}"
     }
 
-    fun weekdayShort(date: LocalDate): String = weekdays[date.dayOfWeek.ordinal]
-
     fun weekdayFull(date: LocalDate): String = weekdaysFull[date.dayOfWeek.ordinal]
+
+    private fun twoDigits(value: Int): String = value.toString().padStart(2, '0')
 }

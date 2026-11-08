@@ -2,71 +2,58 @@ package ru.nomadbudget.presentation.charts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.datetime.number
 import ru.nomadbudget.domain.logic.HistoryCalculator
 import ru.nomadbudget.domain.logic.MonthPoint
+import ru.nomadbudget.domain.logic.RatePairs
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.domain.model.sumIn
-import ru.nomadbudget.presentation.components.EmptyHint
-import ru.nomadbudget.presentation.components.Hints
-import ru.nomadbudget.presentation.components.KeyValueRow
-import ru.nomadbudget.presentation.components.SectionTitle
-import ru.nomadbudget.presentation.format.MoneyFormat
-import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.presentation.theme.AppTheme
-import kotlin.math.roundToLong
+import ru.nomadbudget.presentation.components.AmountCell
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.ChartPanel
 import ru.nomadbudget.presentation.components.ChartPeriod
+import ru.nomadbudget.presentation.components.EmptyHint
+import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.components.Ui
-import ru.nomadbudget.presentation.components.AmountCell
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.height
+import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.presentation.theme.AppTheme
 
 private val MONTH_PERIODS = listOf(ChartPeriod("12 мес.", 12), ChartPeriod("24 мес.", 24), ChartPeriod("всё", null))
 
 @Composable
 fun ChartsScreen(state: HomeState, wide: Boolean = false) {
     val all = state.monthlyHistory
-    val labels = all.map { monthLabel(it) }
+    val labels = all.map(::monthLabel)
     val incomeColor = AppTheme.colors.good
     val expenseColor = AppTheme.colors.bad
     val savedColor = AppTheme.colors.save
     val planColor = MaterialTheme.colorScheme.outline
-    val netWorth = remember(all, state.accounts, state.transactions, state.rateHistory) {
+    val netWorth = remember(all, state.accounts, state.transactions, state.rateHistory, state.rates) {
         HistoryCalculator.netWorth(all.map { it.period }, state.accounts, state.transactions) { currency, date ->
-            state.rateHistory.filter { it.quote == currency && it.date <= date }.maxByOrNull { it.date }?.basePerUnit
-                ?: state.rates.rateFor(currency)?.basePerUnit
+            RatePairs.basePerUnitOn(state.rateHistory, currency, date) ?: state.rates.rateFor(currency)?.basePerUnit
         }
     }
     val closed = if (all.isNotEmpty() && state.today in all.last().period) all.dropLast(1) else all
@@ -79,7 +66,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             item { EmptyHint("Пока нет данных для графиков") }
             return@CenteredLazyColumn
         }
-        item { Totals(closed.takeLast(12), wide) }
+        item { Totals(closed.takeLast(TOTALS_MONTHS), wide) }
         item {
             ChartPanel(
                 title = "Доходы и расходы по месяцам",
@@ -91,7 +78,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             ) { from, visible ->
                 val slice = all.drop(from)
                 ColumnsChart(
-                    series = listOf(slice.map { it.income.toRubles() }, slice.map { it.expense.toRubles() }),
+                    series = listOf(slice.map { it.income.toMajor() }, slice.map { it.expense.toMajor() }),
                     colors = listOf(incomeColor, expenseColor),
                     names = listOf("доход", "расход"),
                     labels = labels.drop(from),
@@ -115,7 +102,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     values = slice.map { ((it.savingsRate ?: 0.0) * PERCENT).coerceIn(-PERCENT, PERCENT) },
                     color = savedColor,
                     labels = slice.map(::monthLabel),
-                    formatY = { "${it.roundToLong()}%" },
+                    formatY = MoneyFormat::formatPercentPoints,
                     visibleCount = visible,
                 )
             }
@@ -134,8 +121,8 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     val slice = withPlan.drop(from)
                     ColumnsChart(
                         series = listOf(
-                            slice.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toRubles() },
-                            slice.map { it.expense.toRubles() },
+                            slice.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toMajor() },
+                            slice.map { it.expense.toMajor() },
                         ),
                         colors = listOf(planColor, expenseColor),
                         names = listOf("план", "факт"),
@@ -158,9 +145,9 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             ) { from, visible ->
                 val slice = netWorth.drop(from)
                 LineChart(
-                    values = slice.map { it.second.toRubles() },
+                    values = slice.map { it.second.toMajor() },
                     color = incomeColor,
-                    labels = slice.map { periodLabel(it.first.start) },
+                    labels = slice.map { DateFormat.monthYearShort(it.first.start) },
                     formatY = MoneyFormat::formatAxis,
                     formatValue = MoneyFormat::formatWhole,
                     visibleCount = visible,
@@ -178,7 +165,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                 periods = MONTH_PERIODS,
             ) { from, visible ->
                 LineChart(
-                    values = HistoryCalculator.cumulative(all.drop(from)) { it.netSaved }.map { it.toRubles() },
+                    values = HistoryCalculator.cumulative(all.drop(from)) { it.netSaved }.map { it.toMajor() },
                     color = savedColor,
                     labels = labels.drop(from),
                     formatY = MoneyFormat::formatAxis,
@@ -209,7 +196,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     totals.forEachIndexed { index, total ->
                         if (index > 0) HorizontalDivider()
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(total.category.name, modifier = Modifier.width(200.dp), maxLines = 1)
+                            Text(total.category.name, modifier = Modifier.width(CATEGORY_WIDTH), maxLines = 1)
                             LinearProgressIndicator(
                                 progress = { total.share.toFloat() },
                                 color = expenseColor,
@@ -218,7 +205,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                                 modifier = Modifier.weight(1f).height(8.dp),
                             )
                             AmountCell(MoneyFormat.format(total.total, false))
-                            AmountCell("${(total.share * 100).roundToLong()}%", muted = true, width = 56.dp)
+                            AmountCell(MoneyFormat.formatShare(total.share), muted = true, width = SHARE_WIDTH)
                         }
                     }
                 }
@@ -229,23 +216,21 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
 
 @Composable
 private fun Totals(points: List<MonthPoint>, wide: Boolean) {
-    val income = points.map { it.income }.sumIn(Currency.BASE)
-    val expense = points.map { it.expense }.sumIn(Currency.BASE)
-    val saved = points.map { it.netSaved }.sumIn(Currency.BASE)
-    val months = points.size
+    val totals = HistoryCalculator.totals(points)
+    val months = totals.months
     TileRow(
         wide,
         listOf(
-            { m -> StatTile("Доход за $months мес.", MoneyFormat.format(income, false), "в среднем ${MoneyFormat.format(Money.rub(if (months > 0) income.minor / months else 0L), false)} в месяц", m) },
-            { m -> StatTile("Расход за $months мес.", MoneyFormat.format(expense, false), "в среднем ${MoneyFormat.format(Money.rub(if (months > 0) expense.minor / months else 0L), false)} в месяц", m) },
-            { m -> StatTile("Отложено чистыми", MoneyFormat.format(saved, false), "пришло в подушку минус ушло из неё", m) },
+            { m -> StatTile("Доход за $months мес.", MoneyFormat.format(totals.income, false), "в среднем ${MoneyFormat.format(totals.averageIncome, false)} в месяц", m) },
+            { m -> StatTile("Расход за $months мес.", MoneyFormat.format(totals.expense, false), "в среднем ${MoneyFormat.format(totals.averageExpense, false)} в месяц", m) },
+            { m -> StatTile("Отложено чистыми", MoneyFormat.format(totals.netSaved, false), "пришло в подушку минус ушло из неё", m) },
             { m ->
                 StatTile(
                     "Доля отложенного",
-                    if (income.minor > 0L) MoneyFormat.formatShare(saved.minor.toDouble() / income.minor) else "—",
+                    totals.savingsShare?.let(MoneyFormat::formatShare) ?: "—",
                     "доля дохода, которая осталась в подушке",
                     m,
-                    progress = if (income.minor > 0L) (saved.minor.toDouble() / income.minor).toFloat() else null,
+                    progress = totals.savingsShare?.toFloat(),
                     progressColor = AppTheme.colors.save,
                 )
             },
@@ -253,13 +238,9 @@ private fun Totals(points: List<MonthPoint>, wide: Boolean) {
     )
 }
 
-private fun monthLabel(point: MonthPoint): String = periodLabel(point.period.start)
-
-private fun periodLabel(start: kotlinx.datetime.LocalDate): String {
-    return "${start.month.number.toString().padStart(2, '0')}.${start.year % 100}"
-}
-
-private fun Money.toRubles(): Double = minor / 100.0
+private fun monthLabel(point: MonthPoint): String = DateFormat.monthYearShort(point.period.start)
 
 private const val PERCENT = 100.0
-
+private const val TOTALS_MONTHS = 12
+private val CATEGORY_WIDTH = 200.dp
+private val SHARE_WIDTH = 56.dp

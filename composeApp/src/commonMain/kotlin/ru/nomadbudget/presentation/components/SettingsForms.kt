@@ -62,6 +62,13 @@ fun startDayText(day: Int): String = if (day == SalaryCycle.DEFAULT_START_DAY) "
 
 fun incomeDaysText(days: Collection<Int>): String = if (days.isEmpty()) "нерегулярно" else days.sorted().joinToString(", ")
 
+fun incomeDaysHint(days: Collection<Int>): String? {
+    if (days.isEmpty()) return null
+    val sorted = days.sorted()
+    val listed = if (sorted.size == 1) sorted.first().toString() else sorted.dropLast(1).joinToString(", ") + " и " + sorted.last()
+    return "Доход обычно приходит $listed числа"
+}
+
 @Composable
 fun CapitalSettingsFields(settings: CapitalSettings, onChange: (CapitalSettings?) -> Unit, modifier: Modifier = Modifier) {
     var months by remember(settings) { mutableStateOf(settings.cushionMonths.toString()) }

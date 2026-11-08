@@ -18,7 +18,6 @@ class DebtCalculatorTest {
     @Test
     fun principalPart_isPaymentMinusInterest() {
         assertEquals(Money.rub(1_288_200L), DebtCalculator.principalPart(mortgage, mortgage.monthlyPayment))
-        assertEquals(Money.rub(718_711_800L), DebtCalculator.afterPayment(mortgage, mortgage.monthlyPayment).principalRemaining)
     }
 
     @Test

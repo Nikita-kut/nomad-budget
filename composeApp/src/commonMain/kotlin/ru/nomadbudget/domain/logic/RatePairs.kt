@@ -4,7 +4,9 @@ import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.ExchangeRate
 
-data class RatePoint(val date: LocalDate, val value: Double)
+data class RatePoint(val date: LocalDate, val value: Double) {
+    fun changeFrom(previous: RatePoint?): Double? = previous?.let { value / it.value - 1.0 }
+}
 
 object RatePairs {
 
@@ -12,6 +14,16 @@ object RatePairs {
         val ordered = listOf(Currency.BASE) + currencies.filter { it != Currency.BASE }.sortedBy { it.code }
         return ordered.flatMapIndexed { i, a -> ordered.drop(i + 1).map { b -> a to b } }
     }
+
+    fun inverted(points: List<RatePoint>): List<RatePoint> = points.map { it.copy(value = 1.0 / it.value) }
+
+    fun median(points: List<RatePoint>): Double {
+        require(points.isNotEmpty()) { "Нет точек для медианы" }
+        return points.map { it.value }.sorted()[points.size / 2]
+    }
+
+    fun basePerUnitOn(history: List<ExchangeRate>, currency: Currency, date: LocalDate): Double? =
+        if (currency == Currency.BASE) 1.0 else history.filter { it.quote == currency && it.date <= date }.maxByOrNull { it.date }?.basePerUnit
 
     fun series(from: Currency, to: Currency, history: List<ExchangeRate>): List<RatePoint> {
         val byQuote = history.groupBy { it.quote }.mapValues { (_, list) -> list.sortedBy { it.date } }

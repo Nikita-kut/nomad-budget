@@ -17,15 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.domain.model.Currency
-import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.AppIcons
 
@@ -43,7 +40,7 @@ fun MoreScreen(
     onExport: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    CenteredLazyColumn(bottom = 96.dp) {
+    CenteredLazyColumn {
         if (showSecondary) {
             item { SectionTitle("Деньги") }
             item {
@@ -52,7 +49,7 @@ fun MoreScreen(
                     HorizontalDivider()
                     MenuRow(
                         "Кредиты",
-                        if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · остаток ${MoneyFormat.format(state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE), false)}",
+                        if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · остаток ${MoneyFormat.format(state.capital.debt, false)}",
                         onDebts,
                     )
                 }

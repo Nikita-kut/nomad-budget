@@ -3,14 +3,21 @@ package ru.nomadbudget.presentation.home
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.domain.logic.BudgetLine
+import ru.nomadbudget.domain.logic.CapitalGoal
+import ru.nomadbudget.domain.logic.CapitalModel
+import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.logic.CategoryBudget
+import ru.nomadbudget.domain.logic.CategoryHistory
+import ru.nomadbudget.domain.logic.DebtCategories
 import ru.nomadbudget.domain.logic.HistoryCalculator
+import ru.nomadbudget.domain.logic.MonthModel
 import ru.nomadbudget.domain.logic.MonthPoint
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.logic.PlanCalculator
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Category
-import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DefaultRates
@@ -21,17 +28,18 @@ import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
-import ru.nomadbudget.domain.model.sumIn
-import kotlin.time.Instant
-import ru.nomadbudget.domain.logic.CategoryHistory
-import ru.nomadbudget.domain.logic.PeriodBudgetLine
-import ru.nomadbudget.domain.logic.SavingsForecast
-import ru.nomadbudget.domain.logic.MonthModel
-import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.model.TransactionKind
 import ru.nomadbudget.domain.model.UserSettings
-import ru.nomadbudget.domain.logic.CapitalSettings
+import kotlin.time.Instant
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
+
+val EntryType.transactionKind: TransactionKind
+    get() = when (this) {
+        EntryType.EXPENSE -> TransactionKind.EXPENSE
+        EntryType.INCOME -> TransactionKind.INCOME
+        EntryType.TRANSFER -> TransactionKind.TRANSFER
+    }
 
 data class EntryDraft(
     val type: EntryType,
@@ -78,12 +86,6 @@ data class ExchangeDraft(
     val note: String = "",
 )
 
-data class JournalDay(
-    val date: LocalDate,
-    val transactions: List<Transaction>,
-    val spentBase: Money,
-)
-
 data class HomeState(
     val today: LocalDate,
     val period: Period,
@@ -110,21 +112,13 @@ data class HomeState(
     val balanceChecks: List<BalanceCheck> = emptyList(),
     val debts: List<Debt> = emptyList(),
     val rateHistory: List<ExchangeRate> = emptyList(),
-    val capitalGoals: List<ru.nomadbudget.domain.logic.CapitalGoal> = emptyList(),
+    val capitalGoals: List<CapitalGoal> = emptyList(),
     val settings: UserSettings = UserSettings(),
     private val memo: Memo = Memo(),
 ) {
     val periodStartDay: Int = settings.periodStartDay
 
-    val capitalSettings: CapitalSettings = settings.capital
-
     val needsOnboarding: Boolean = !loading && error == null && !offline && !settings.isOnboarded
-
-    val incomeDaysHint: String? = settings.incomeDays.takeIf { it.isNotEmpty() }?.let { days ->
-        val sorted = days.sorted()
-        val listed = if (sorted.size == 1) sorted.first().toString() else sorted.dropLast(1).joinToString(", ") + " и " + sorted.last()
-        "Доход обычно приходит $listed числа"
-    }
 
     val systemCategoryIds: Set<String> = memo.get("system", categories) { categories.filter { it.isSystem }.map { it.id }.toSet() }
 
@@ -135,26 +129,14 @@ data class HomeState(
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
 
     val debtCategoryIds: Set<String> = memo.get("debtCategories", debts, subcategories, transactions) {
-        val debtNames = openDebts.map { it.name.trim().lowercase() }.toSet()
-        val bySubcategory = subcategories.filter { it.name.trim().lowercase() in debtNames }.map { it.categoryId }
-        val byPayments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }.map { it.categoryId }
-        (bySubcategory + byPayments).toSet()
+        DebtCategories.categoryIds(openDebts, subcategories, transactions)
     }
 
-    fun isDebtOnlyEnvelope(budget: CategoryBudget): Boolean =
-        budget.category.id in debtCategoryIds && !budget.hasPlan && budget.fact.isZero
+    fun isDebtOnlyEnvelope(budget: CategoryBudget): Boolean = DebtCategories.isDebtOnlyEnvelope(budget, debtCategoryIds)
 
-    fun isDebtCategory(categoryId: String?): Boolean =
-        openDebts.isNotEmpty() && categoryId != null && (debtCategoryIds.isEmpty() || categoryId in debtCategoryIds)
+    fun isDebtCategory(categoryId: String?): Boolean = DebtCategories.isDebtCategory(categoryId, openDebts, debtCategoryIds)
 
-    fun debtBySubcategoryName(name: String): Debt? = openDebts.firstOrNull { it.name.trim().equals(name.trim(), ignoreCase = true) }
-
-    fun paidThisPeriod(debt: Debt): Money = inPeriod
-        .filterIsInstance<Transaction.Expense>()
-        .filter { it.debtId == debt.id }
-        .map { it.amount }
-        .filter { it.currency == debt.currency }
-        .sumIn(debt.currency)
+    fun debtBySubcategoryName(name: String): Debt? = DebtCategories.byName(openDebts, name)
 
     val accountsById: Map<String, Account> = accounts.associateBy { it.id }
     val categoriesById: Map<String, Category> = categories.associateBy { it.id }
@@ -180,36 +162,40 @@ data class HomeState(
 
     val month: MonthModel = memo.get("month", period, today, categories, subcategories, budgetLines, transactions, accounts, debts, rates, savingsTarget) {
         MonthModel.build(
-        period = period,
-        today = today,
-        categories = categories,
-        subcategories = subcategories,
-        lines = budgetLines,
-        transactions = transactions,
-        accounts = accounts,
-        debts = debts,
-        rates = rates,
-        balances = balances,
-        savingsTarget = savingsTarget,
+            period = period,
+            today = today,
+            categories = categories,
+            subcategories = subcategories,
+            lines = budgetLines,
+            transactions = transactions,
+            accounts = accounts,
+            debts = debts,
+            rates = rates,
+            balances = balances,
+            savingsTarget = savingsTarget,
         )
     }
 
     val budgets: List<CategoryBudget> = month.incomeBudgets + month.envelopes
 
-    val cushionAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.CUSHION }
+    val operationalAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.LIFE }
 
     val fundAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.FUND }
 
-    val savingsBalance: Money
-        get() = cushionAccounts.mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }.sumIn(Currency.BASE)
+    val cushionAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.CUSHION }
 
-    val fundsBalance: Money
-        get() = fundAccounts.mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }.sumIn(Currency.BASE)
+    val totalBase: Money = BalanceCalculator.totalInBase(activeAccounts, balances, rates)
 
-    val savingsForecast: SavingsForecast? get() = HistoryCalculator.savingsForecast(monthlyHistory, today in period, savingsBalance, savingsTarget)
+    val operationalBase: Money = BalanceCalculator.totalInBase(operationalAccounts, balances, rates)
 
-    val capital: ru.nomadbudget.domain.logic.CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, settings, capitalGoals) {
-        ru.nomadbudget.domain.logic.CapitalModel.build(
+    val fundsBalance: Money = BalanceCalculator.totalInBase(fundAccounts, balances, rates)
+
+    val savingsBalance: Money = BalanceCalculator.totalInBase(cushionAccounts, balances, rates)
+
+    val capitalSettings: CapitalSettings = settings.capital
+
+    val capital: CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, settings, capitalGoals) {
+        CapitalModel.build(
             today = today,
             accounts = accounts,
             balances = balances,
@@ -224,55 +210,15 @@ data class HomeState(
         )
     }
 
-    val categoryHistory: Map<String, CategoryHistory> get() = memo.get("categoryHistory", transactions, period, accounts, settings) { PlanCalculator.history(transactions, period, periodStartDay, accounts) }
-
-    val totalBase: Money = activeAccounts
-        .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
-        .sumIn(Currency.BASE)
-
-    val operationalAccounts: List<Account> = activeAccounts.filter { it.role == AccountRole.LIFE }
-
-    val operationalBase: Money = operationalAccounts
-        .mapNotNull { rates.toBaseOrNull(balances.getValue(it.id)) }
-        .sumIn(Currency.BASE)
-
-    val operationalAtPeriodStartBase: Money get() = memo.get("opStart", accounts, transactions, period, rates) {
-        operationalAccounts
-            .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
-            .sumIn(Currency.BASE)
-    }
-
-    val hasExpensePlan: Boolean = month.envelopes.any { it.hasPlan }
-
-    val journal: List<JournalDay> get() = memo.get("journal", transactions, period) {
-        inPeriod
-        .groupBy { it.date }
-        .entries
-        .sortedByDescending { it.key }
-        .map { (date, list) ->
-            JournalDay(
-                date = date,
-                transactions = list,
-                spentBase = list.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE),
-            )
-        }
+    val categoryHistory: Map<String, CategoryHistory> get() = memo.get("categoryHistory", transactions, period, accounts, settings) {
+        PlanCalculator.history(transactions, period, periodStartDay, accounts)
     }
 
     val exchanges: List<Transaction.Exchange> get() = memo.get("exchanges", transactions) { transactions.filterIsInstance<Transaction.Exchange>() }
 
     val dayNumber: Int? = if (today in period) period.dayNumber(today) else null
 
-    val isCurrentPeriod: Boolean = today in period
-
-    val daysLeft: Int = if (today in period) period.lengthDays - period.dayNumber(today) + 1 else 0
-
     val isFirstRun: Boolean = !loading && transactions.isEmpty() && budgetLines.isEmpty()
-
-    val elapsedShare: Double = when {
-        today in period -> period.dayNumber(today).toDouble() / period.lengthDays
-        today >= period.endExclusive -> 1.0
-        else -> 0.0
-    }
 
     fun accountName(id: String): String = accountsById[id]?.name ?: "?"
 

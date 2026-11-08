@@ -1,5 +1,7 @@
 package ru.nomadbudget.data.local
 
+import ru.nomadbudget.domain.repository.KeyValueStore
+
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json

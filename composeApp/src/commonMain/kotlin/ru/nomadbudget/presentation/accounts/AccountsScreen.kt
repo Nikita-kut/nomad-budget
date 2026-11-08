@@ -4,12 +4,9 @@ import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.components.StatTile
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -39,7 +36,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material3.RadioButton
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
-import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.Dropdown
@@ -53,8 +49,9 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.components.AccountName
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.domain.logic.ExchangeAnalyzer
-import androidx.compose.foundation.layout.Box
+import ru.nomadbudget.presentation.components.TextDialog
 import androidx.compose.foundation.layout.height
 import ru.nomadbudget.presentation.components.AppIcons
 
@@ -72,9 +69,9 @@ fun AccountsScreen(
     onOpenDebts: () -> Unit = {},
     onOpenExchange: () -> Unit = {},
 ) {
-    val daily = state.activeAccounts.filter { it.role == AccountRole.LIFE }.sortedBy { it.sortOrder }
-    val funds = state.activeAccounts.filter { it.role == AccountRole.FUND }.sortedBy { it.sortOrder }
-    val savings = state.activeAccounts.filter { it.role == AccountRole.CUSHION }.sortedBy { it.sortOrder }
+    val daily = state.operationalAccounts
+    val funds = state.fundAccounts
+    val savings = state.cushionAccounts
     var adding by remember { mutableStateOf(false) }
     var changingRole by remember { mutableStateOf<Account?>(null) }
     var editingFund by remember { mutableStateOf<Account?>(null) }
@@ -82,7 +79,7 @@ fun AccountsScreen(
     var renaming by remember { mutableStateOf<Account?>(null) }
     var editMode by remember { mutableStateOf(false) }
 
-    CenteredLazyColumn(bottom = 96.dp) {
+    CenteredLazyColumn {
         item { TotalsCard(state, twoColumns) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -144,7 +141,7 @@ fun AccountsScreen(
         }
     }
     renaming?.let { account ->
-        RenameDialog(initial = account.name, onDismiss = { renaming = null }) { name ->
+        TextDialog(title = "Переименовать счёт", initial = account.name, onDismiss = { renaming = null }) { name ->
             onRename(account.id, name)
             renaming = null
         }
@@ -213,7 +210,7 @@ private fun AccountsCard(
         }
         if (accounts.isEmpty()) return@Card
         HorizontalDivider()
-        val total = accounts.mapNotNull { state.rates.toBaseOrNull(state.balances.getValue(it.id)) }.sumIn(Currency.BASE)
+        val total = BalanceCalculator.totalInBase(accounts, state.balances, state.rates)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -273,7 +270,7 @@ private fun AccountRow(
             }
         }
         Column(horizontalAlignment = Alignment.End) {
-            CurrencyAmount(MoneyFormat.format(balance), account.currency, state, MaterialTheme.typography.bodyLarge, FontWeight.SemiBold)
+            CurrencyAmount(MoneyFormat.format(balance), MaterialTheme.typography.bodyLarge, FontWeight.SemiBold)
             if (account.currency != Currency.BASE) {
                 val inBase = state.rates.toBaseOrNull(balance)
                 Text(
@@ -295,20 +292,6 @@ private fun AccountRow(
             }
         }
     }
-}
-
-@Composable
-private fun RenameDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Переименовать счёт") },
-        text = {
-            OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Название") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        },
-        confirmButton = { Button(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Сохранить") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-    )
 }
 
 @Composable

@@ -1,12 +1,6 @@
 package ru.nomadbudget.data.local
 
-interface KeyValueStore {
-    fun get(key: String): String?
-    fun put(key: String, value: String)
-    fun remove(key: String)
-    fun keys(prefix: String): List<String>
-    fun clear()
-}
+import ru.nomadbudget.domain.repository.KeyValueStore
 
 class InMemoryStore : KeyValueStore {
     private val values = mutableMapOf<String, String>()

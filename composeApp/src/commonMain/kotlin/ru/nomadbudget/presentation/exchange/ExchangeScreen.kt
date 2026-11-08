@@ -2,12 +2,9 @@ package ru.nomadbudget.presentation.exchange
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -16,7 +13,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,9 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.plus
 import ru.nomadbudget.domain.logic.ExchangeAnalyzer
+import ru.nomadbudget.domain.logic.ExchangeSeries
+import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Transaction
@@ -52,11 +48,9 @@ import ru.nomadbudget.presentation.components.AccountsLine
 import ru.nomadbudget.presentation.components.ArrowGlyph
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
-import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.components.ChartPanel
 import ru.nomadbudget.presentation.components.ChartPeriod
-import ru.nomadbudget.domain.logic.RatePairs
 import ru.nomadbudget.presentation.charts.MultiLineChart
 import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.components.Ui
@@ -64,12 +58,12 @@ import ru.nomadbudget.presentation.components.AppIcons
 
 @Composable
 fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
-    CenteredLazyColumn(bottom = 96.dp) {
+    CenteredLazyColumn {
         if (onBack != null) {
             item { SubScreenHeader("Обмен валюты", onBack) }
         }
         item { ExchangeForm(state, onSubmit) }
-        val charts = exchangeCharts(state)
+        val charts = ExchangeAnalyzer.series(state.exchanges, state.rateHistory, state.rates)
         items(charts.size) { index ->
             val chart = charts[index]
             if (chart.points.size >= MIN_EXCHANGES) ExchangeRateChart(chart, state) else SingleExchangeCard(chart)
@@ -165,8 +159,8 @@ private fun RateHints(
     state: HomeState,
     from: Account?,
     to: Account?,
-    given: ru.nomadbudget.domain.model.Money?,
-    received: ru.nomadbudget.domain.model.Money?,
+    given: Money?,
+    received: Money?,
     sameCurrency: Boolean,
     sameAccount: Boolean,
 ) {
@@ -181,14 +175,12 @@ private fun RateHints(
             val referenceQuote = ExchangeAnalyzer.pairQuote(from.currency, to.currency, reference)
             KeyValueRow("Курс по таблице", MoneyFormat.quoteText(referenceQuote))
             if (given != null && received != null) {
-                val effective = received.toMajor() / given.toMajor()
-                val spread = (reference - effective) / reference * 100
-                val effectiveQuote = if (referenceQuote.unit == from.currency) ru.nomadbudget.domain.logic.RateQuote(from.currency, to.currency, effective) else ru.nomadbudget.domain.logic.RateQuote(to.currency, from.currency, 1.0 / effective)
-                KeyValueRow("Твой курс", MoneyFormat.quoteText(effectiveQuote), emphasize = true)
+                val analysis = ExchangeAnalyzer.compare(given, received, state.rates)
+                KeyValueRow("Твой курс", MoneyFormat.quoteText(ExchangeAnalyzer.orientedQuote(given, received, referenceQuote)), emphasize = true)
                 Text(
-                    spreadText(spread),
+                    spreadText(analysis.spreadPercent),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (spread > 0) AppTheme.colors.bad else AppTheme.colors.good,
+                    color = if (analysis.spreadPercent > 0) AppTheme.colors.bad else AppTheme.colors.good,
                 )
             }
         }
@@ -209,9 +201,9 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CurrencyAmount(MoneyFormat.format(exchange.given), exchange.given.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
+                    CurrencyAmount(MoneyFormat.format(exchange.given), MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
                     ArrowGlyph(MaterialTheme.colorScheme.onSurface)
-                    CurrencyAmount(MoneyFormat.format(exchange.received), exchange.received.currency, state, MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
+                    CurrencyAmount(MoneyFormat.format(exchange.received), MaterialTheme.typography.bodyMedium, FontWeight.SemiBold)
                 }
                 AccountsLine(
                     state,
@@ -240,36 +232,8 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
     }
 }
 
-private data class ExchangePoint(val date: kotlinx.datetime.LocalDate, val mine: Double, val table: Double?)
-
-private data class ExchangeChartData(val unit: Currency, val price: Currency, val points: List<ExchangePoint>)
-
-private fun exchangeCharts(state: HomeState): List<ExchangeChartData> =
-    state.exchanges
-        .groupBy { setOf(it.given.currency, it.received.currency) }
-        .values
-        .sortedByDescending { it.size }
-        .map { list ->
-            val sorted = list.sortedBy { it.date }
-            val orientation = ExchangeAnalyzer.quote(sorted.last())
-            val market = RatePairs.series(orientation.unit, orientation.price, state.rateHistory)
-            val current = state.rates.cross(orientation.unit, orientation.price)
-            ExchangeChartData(
-                unit = orientation.unit,
-                price = orientation.price,
-                points = sorted.map { tx ->
-                    val q = ExchangeAnalyzer.quote(tx)
-                    ExchangePoint(
-                        date = tx.date,
-                        mine = if (q.unit == orientation.unit) q.value else 1.0 / q.value,
-                        table = market.lastOrNull { it.date <= tx.date }?.value ?: current,
-                    )
-                },
-            )
-        }
-
 @Composable
-private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
+private fun ExchangeRateChart(data: ExchangeSeries, state: HomeState) {
     val mineColor = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state)
     val tableColor = MaterialTheme.colorScheme.outline
     val withTable = data.points.all { it.table != null }
@@ -297,9 +261,9 @@ private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
 private const val MIN_EXCHANGES = 2
 
 @Composable
-private fun SingleExchangeCard(data: ExchangeChartData) {
+private fun SingleExchangeCard(data: ExchangeSeries) {
     val point = data.points.single()
-    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${data.unit.code} → ${data.price.code}: один обмен", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(

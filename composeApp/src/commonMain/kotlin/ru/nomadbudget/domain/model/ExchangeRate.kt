@@ -25,8 +25,6 @@ class RateTable(rates: List<ExchangeRate>) {
 
     val all: List<ExchangeRate> = byQuote.values.sortedBy { it.quote.code }
 
-    val quotes: Set<Currency> = byQuote.keys
-
     fun rateFor(currency: Currency): ExchangeRate? = when (currency) {
         Currency.BASE -> null
         else -> byQuote[currency]

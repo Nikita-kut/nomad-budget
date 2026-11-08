@@ -3,6 +3,7 @@ package ru.nomadbudget.domain.repository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BudgetLine
+import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -87,7 +88,6 @@ interface PeriodRepository {
 }
 
 interface TransactionRepository {
-    suspend fun getInPeriod(period: Period, accounts: List<Account>): List<Transaction>
     suspend fun getAll(accounts: List<Account>): List<Transaction>
     suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction
     suspend fun update(transaction: Transaction, accounts: List<Account>): Transaction
@@ -130,8 +130,8 @@ interface BalanceCheckRepository {
 }
 
 interface CapitalRepository {
-    suspend fun getGoals(): List<ru.nomadbudget.domain.logic.CapitalGoal>
-    suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): ru.nomadbudget.domain.logic.CapitalGoal
+    suspend fun getGoals(): List<CapitalGoal>
+    suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): CapitalGoal
     suspend fun deleteGoal(id: String)
 }
 

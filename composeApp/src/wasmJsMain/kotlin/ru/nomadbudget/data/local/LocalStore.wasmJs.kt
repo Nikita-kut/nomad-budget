@@ -1,5 +1,7 @@
 package ru.nomadbudget.data.local
 
+import ru.nomadbudget.domain.repository.KeyValueStore
+
 private fun storageGet(key: String): String? = js("localStorage.getItem(key)")
 
 private fun storageSet(key: String, value: String) {

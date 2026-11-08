@@ -103,11 +103,10 @@ class MonthModelTest {
     }
 
     @Test
-    fun overspend_hasNoPerDay_andIsBad() {
+    fun overspend_hasNoPerDay() {
         val m = build(listOf(BudgetLine("food", Money.rub(1_000_000L))), listOf(expense("a", "food", 1_500_000L)))
         assertTrue(m.canSpend.isNegative)
         assertNull(m.perDay)
-        assertEquals(MonthLevel.BAD, m.level)
     }
 
     @Test
@@ -153,8 +152,10 @@ class MonthModelTest {
         assertEquals(ObligationStatus.OVERDUE, build(debts = listOf(loan), at = LocalDate(2026, 11, 25)).debts.single().status)
         assertEquals(ObligationStatus.UPCOMING, build(debts = listOf(earlyLoan)).debts.single().status)
         val m = build(debts = listOf(loan), at = LocalDate(2026, 11, 25))
-        assertTrue(m.hasOverdue)
-        assertEquals(MonthLevel.BAD, build(listOf(BudgetLine("food", Money.rub(100L))), debts = listOf(loan), at = LocalDate(2026, 11, 25)).level)
+        assertTrue(m.debtsOverdue)
+        assertEquals(Money.rub(2_000_000L), m.debtsLeft)
+        assertEquals(0, m.debtsPaid)
+        assertEquals(1, build(tx = paid, debts = listOf(loan)).debtsPaid)
     }
 
     @Test
@@ -222,10 +223,10 @@ class MonthModelTest {
     }
 
     @Test
-    fun level_goodWhenWithinPlanAndSaved() {
+    fun savingsProgress_doneWhenTargetReached() {
         val tx = listOf(expense("a", "food", 500_000L), transfer("t", "card", "cushion", 1_000_000L))
         val m = build(listOf(BudgetLine("food", Money.rub(1_000_000L))), tx, target = Money.rub(1_000_000L))
-        assertEquals(MonthLevel.GOOD, m.level)
-        assertFalse(m.hasOverdue)
+        assertEquals(SavingsProgress.DONE, m.savingsProgress)
+        assertFalse(m.debtsOverdue)
     }
 }

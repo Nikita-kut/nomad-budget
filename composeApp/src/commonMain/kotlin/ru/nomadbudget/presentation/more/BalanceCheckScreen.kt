@@ -2,12 +2,9 @@ package ru.nomadbudget.presentation.more
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -68,12 +65,7 @@ fun BalanceCheckScreen(
     val lastCheck = account?.let { acc -> state.balanceChecks.filter { it.accountId == acc.id && it.date < date }.maxByOrNull { it.date } }
     val since = account?.let { acc ->
         state.transactions.filter { tx ->
-            tx.date <= date && (lastCheck == null || tx.date > lastCheck.date) && when (tx) {
-                is Transaction.Expense -> tx.accountId == acc.id
-                is Transaction.Income -> tx.accountId == acc.id
-                is Transaction.Transfer -> tx.fromAccountId == acc.id || tx.toAccountId == acc.id
-                is Transaction.Exchange -> tx.fromAccountId == acc.id || tx.toAccountId == acc.id
-            }
+            tx.date <= date && (lastCheck == null || tx.date > lastCheck.date) && tx.touches(acc.id)
         }.sortedByDescending { it.date }
     }.orEmpty()
     val actual = account?.let { acc ->

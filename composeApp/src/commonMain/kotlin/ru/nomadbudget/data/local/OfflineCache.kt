@@ -1,5 +1,8 @@
 package ru.nomadbudget.data.local
 
+import ru.nomadbudget.domain.repository.KeyValueStore
+import ru.nomadbudget.domain.repository.OfflineStatus
+
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
 import kotlinx.coroutines.CancellationException
@@ -9,17 +12,17 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class OfflineCache(private val store: KeyValueStore) {
+class OfflineCache(private val store: KeyValueStore) : OfflineStatus {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-    var servedFromCache: Boolean = false
+    override var servedFromCache: Boolean = false
         private set
 
-    var oldestCachedAt: Instant? = null
+    override var oldestCachedAt: Instant? = null
         private set
 
-    fun beginLoad() {
+    override fun beginLoad() {
         servedFromCache = false
         oldestCachedAt = null
     }
