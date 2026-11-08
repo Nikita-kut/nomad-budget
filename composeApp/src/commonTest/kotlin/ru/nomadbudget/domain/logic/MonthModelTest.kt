@@ -173,6 +173,27 @@ class MonthModelTest {
     }
 
     @Test
+    fun carryOver_lifeAccountsAtPeriodStart_addsToAvailable() {
+        val before = Transaction.Income("old", LocalDate(2026, 10, 20), "card", Money.rub(5_000_000L), "salary", Money.rub(5_000_000L), RateSource.API)
+        val toCushion = Transaction.Transfer("oldsave", LocalDate(2026, 10, 21), "card", "cushion", Money.rub(1_000_000L), Money.rub(1_000_000L))
+        val m = build(lines = listOf(BudgetLine("salary", Money.rub(38_000_000L)), BudgetLine("food", Money.rub(30_000_000L))), tx = listOf(before, toCushion, income("i", 38_000_000L)))
+        assertEquals(Money.rub(4_000_000L), m.carryOver)
+        assertEquals(Money.rub(42_000_000L), m.available)
+        assertEquals(Money.rub(42_000_000L - 30_000_000L - 2_300_000L), m.unallocated)
+    }
+
+    @Test
+    fun carryOver_backdatedExpenseInPreviousMonth_reducesIt() {
+        val before = Transaction.Income("old", LocalDate(2026, 10, 20), "card", Money.rub(5_000_000L), "salary", Money.rub(5_000_000L), RateSource.API)
+        val lateFix = expense("fix", "food", 1_500_000L, date = LocalDate(2026, 10, 30))
+        val plain = build(tx = listOf(before))
+        val fixed = build(tx = listOf(before, lateFix))
+        assertEquals(Money.rub(5_000_000L), plain.carryOver)
+        assertEquals(Money.rub(3_500_000L), fixed.carryOver)
+        assertEquals(plain.unallocated - Money.rub(1_500_000L), fixed.unallocated)
+    }
+
+    @Test
     fun unallocated_balancesIncomeObligationsFlexibleSavings() {
         val lines = listOf(BudgetLine("salary", Money.rub(38_000_000L)), BudgetLine("food", Money.rub(16_320_000L)))
         val m = build(lines, debts = listOf(loan, earlyLoan), target = Money.rub(9_000_000L))

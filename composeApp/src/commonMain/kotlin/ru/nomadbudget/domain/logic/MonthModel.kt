@@ -61,6 +61,7 @@ data class MonthModel(
     val savedOut: Money,
     val spentFromCushion: Money,
     val corrections: Money,
+    val carryOver: Money = Money.zero(Currency.BASE),
 ) {
     val incomePlanned: Money = incomeBudgets.map { it.planned }.sumIn(Currency.BASE)
     val incomeFact: Money = incomeBudgets.map { it.fact }.sumIn(Currency.BASE)
@@ -104,10 +105,12 @@ data class MonthModel(
 
     val savingsLeft: Money = savingsTarget?.let { if (saved >= it) Money.zero(Currency.BASE) else it - saved.coerceAtLeastZero() } ?: Money.zero(Currency.BASE)
 
-    val unallocated: Money = incomePlanned - obligationsPlanned - flexiblePlanned - (savingsTarget ?: Money.zero(Currency.BASE))
+    val available: Money = incomePlanned + carryOver
+
+    val unallocated: Money = available - obligationsPlanned - flexiblePlanned - (savingsTarget ?: Money.zero(Currency.BASE))
 
     val allocatedShare: Double? =
-        if (incomePlanned.minor > 0L) (incomePlanned - unallocated).minor.toDouble() / incomePlanned.minor else null
+        if (available.minor > 0L) (available - unallocated).minor.toDouble() / available.minor else null
 
     val hasPlan: Boolean = !flexiblePlanned.isZero || !incomePlanned.isZero || (savingsTarget?.isZero == false) || obligationsCount > 0
 
@@ -137,6 +140,10 @@ data class MonthModel(
             balances: Map<String, Money>,
             savingsTarget: Money?,
         ): MonthModel {
+            val carryOver = accounts
+                .filter { !it.isArchived && it.role == AccountRole.LIFE }
+                .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
+                .sumIn(Currency.BASE)
             val inPeriod = transactions.filter { it.date in period }
             val systemIds = categories.filter { it.isSystem }.map { it.id }.toSet()
             val visible = categories.filter { !it.isSystem && (!it.isArchived || inPeriod.any { tx -> tx.categoryIdOrNull() == it.id }) }
@@ -157,6 +164,7 @@ data class MonthModel(
                 debts = debts.filterNot { it.isClosed }.map { debtObligation(it, period, today, inPeriod, rates) },
                 funds = accounts.filter { it.role == AccountRole.FUND && !it.isArchived }.map { fundState(it, period, today, inPeriod, rates, balances, systemIds) },
                 savingsTarget = savingsTarget?.takeIf { it.minor > 0L },
+                carryOver = carryOver,
                 savedIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemIds),
                 savedOut = BudgetCalculator.cushionOutflow(inPeriod, cushionIds),
                 spentFromCushion = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemIds),

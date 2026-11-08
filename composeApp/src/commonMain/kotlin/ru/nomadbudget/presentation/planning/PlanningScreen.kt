@@ -211,10 +211,15 @@ private fun UnallocatedCard(month: MonthModel) {
                 fontWeight = FontWeight.SemiBold,
                 color = if (negative) colors.bad else colors.good,
             )
-            Text(
-                "Плановый доход ${MoneyFormat.format(month.incomePlanned, false)}" + (month.allocatedShare?.let { ", распределено ${MoneyFormat.formatShare(it)}" } ?: ""),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SourceRow("Доход по плану", MoneyFormat.format(month.incomePlanned, false))
+                SourceRow("Остаток с прошлого месяца", MoneyFormat.formatSigned(month.carryOver, false))
+                SourceRow(
+                    "Всего на месяц" + (month.allocatedShare?.let { ", распределено ${MoneyFormat.formatShare(it)}" } ?: ""),
+                    MoneyFormat.format(month.available, false),
+                    bold = true,
+                )
+            }
             val parts = listOf(
                 Triple("Кредиты", month.debtsPlanned, MaterialTheme.colorScheme.outline),
                 Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
@@ -222,7 +227,7 @@ private fun UnallocatedCard(month: MonthModel) {
                 Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
                 Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
             )
-            if (month.incomePlanned.minor > 0L) {
+            if (month.available.minor > 0L) {
                 SegmentBar(parts.filterNot { it.first == "Не хватает" }.map { it.second to it.third })
             }
             parts.filter { it.second.minor > 0L }.forEach { (label, money, color) ->
@@ -230,12 +235,20 @@ private fun UnallocatedCard(month: MonthModel) {
                     Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
                     Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Text(MoneyFormat.format(money, false), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    month.incomePlanned.takeIf { it.minor > 0L }?.let {
+                    month.available.takeIf { it.minor > 0L }?.let {
                         Text(MoneyFormat.formatShare(money.minor.toDouble() / it.minor), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(44.dp), textAlign = TextAlign.End)
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SourceRow(label: String, value: String, bold: Boolean = false) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (bold) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Medium)
     }
 }
 

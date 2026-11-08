@@ -100,7 +100,7 @@ class MonthModelInvariantsTest {
         val m = MonthModel.build(period, today, categories, subcategories, lines, tx, accounts, debts, rates, balances, target)
         val ctx = "seed=$seed"
 
-        assertEquals(m.incomePlanned, m.obligationsPlanned + m.flexiblePlanned + (m.savingsTarget ?: Money.zero(Currency.BASE)) + m.unallocated, ctx)
+        assertEquals(m.available, m.obligationsPlanned + m.flexiblePlanned + (m.savingsTarget ?: Money.zero(Currency.BASE)) + m.unallocated, ctx)
         m.allocatedShare?.let { share -> if (!m.unallocated.isNegative) assertTrue(share <= 1.0 + 1e-9, "$ctx share=$share") }
         assertEquals(m.flexiblePlannedWhole - m.flexibleFactWhole, m.canSpend, ctx)
         m.perDay?.let { assertTrue(it.minor >= 0L && it.minor * m.daysLeft <= m.canSpend.minor, "$ctx perDay") }
