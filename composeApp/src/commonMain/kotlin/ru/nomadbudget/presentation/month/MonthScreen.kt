@@ -64,6 +64,7 @@ import ru.nomadbudget.presentation.components.StatusPill
 import ru.nomadbudget.presentation.components.PillTone
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -103,7 +104,7 @@ fun MonthScreen(
             item { FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry) }
         }
         item { MonthTiles(month, state.saving, onCopyPlan, onOpenPlanning, onOpenDebts, wide = false) }
-        item { SectionTitle("Доходы", hint = "факт из плана", info = Hints.INCOME) }
+        item { SectionTitle("Доходы", hint = "получено и план", info = Hints.INCOME) }
         item { IncomeCard(month) }
         if (!month.corrections.isZero) {
             item {
@@ -117,7 +118,7 @@ fun MonthScreen(
         }
     }
     val envelopes: LazyListScope.() -> Unit = {
-        item { SectionTitle("Конверты", hint = "потрачено из плана", info = Hints.ENVELOPES) }
+        item { SectionTitle("Конверты", hint = "потрачено и план", info = Hints.ENVELOPES) }
         if (active.isEmpty()) {
             item {
                 Text(
@@ -194,8 +195,8 @@ private fun paceNote(month: MonthModel): String? {
     val delta = month.flexibleFactWhole.minor - expected
     val tolerance = (planned * BudgetCalculator.PACE_TOLERANCE).toLong()
     return when {
-        delta > tolerance -> "идёшь быстрее плана"
-        delta < -tolerance -> "идёшь медленнее плана"
+        delta > tolerance -> "тратишь быстрее плана"
+        delta < -tolerance -> "тратишь медленнее плана"
         else -> "в темпе плана"
     }
 }
@@ -269,7 +270,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
             when {
                 budget.status == BudgetStatus.OVER -> Text("перерасход ${MoneyFormat.format(-budget.remainingWhole, false)}", style = MaterialTheme.typography.bodySmall, color = colors.bad)
                 budget.status == BudgetStatus.OVER_SLIGHTLY -> Text("чуть выше плана: +${MoneyFormat.format(-budget.remainingWhole, false)}", style = MaterialTheme.typography.bodySmall, color = colors.warning)
-                ahead -> Text("быстрее плана на ${MoneyFormat.format(budget.aheadBy(state.month.elapsedShare), false)}", style = MaterialTheme.typography.bodySmall, color = colors.warning)
+                ahead -> Text("опережаешь план на ${MoneyFormat.format(budget.aheadBy(state.month.elapsedShare), false)}", style = MaterialTheme.typography.bodySmall, color = colors.warning)
                 else -> Unit
             }
             if (expanded) {
@@ -363,8 +364,8 @@ private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit, modifi
                                 color = if (fund.balance >= goal) colors.good else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             !fund.spent.isZero -> Unit
-                            fund.isEnough == true -> Text("к оплате ${MoneyFormat.format(goal, false)} к ${fund.due.day}-му · хватает", style = MaterialTheme.typography.bodySmall, color = colors.good)
-                            else -> Text("к оплате ${MoneyFormat.format(goal, false)} к ${fund.due.day}-му · не хватает ${MoneyFormat.format(shortBy, false)}", style = MaterialTheme.typography.bodySmall, color = colors.warning)
+                            fund.isEnough == true -> Text("оплата ${MoneyFormat.format(goal, false)} ${fund.due.day}-го · хватает", style = MaterialTheme.typography.bodySmall, color = colors.good)
+                            else -> Text("оплата ${MoneyFormat.format(goal, false)} ${fund.due.day}-го · не хватает ${MoneyFormat.format(shortBy, false)}", style = MaterialTheme.typography.bodySmall, color = colors.warning)
                         }
                     }
                 }
@@ -459,7 +460,7 @@ private fun WideMonth(
         if (state.isFirstRun) FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry)
         MonthTiles(month, state.saving, onCopyPlan, onOpenPlanning, onOpenDebts, wide = true)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle("Конверты", hint = "потрачено с карт и наличных из плана", info = Hints.ENVELOPES)
+            SectionTitle("Конверты", hint = "потрачено с карт и наличных и план", info = Hints.ENVELOPES)
             EnvelopeTable(active, state, expandedCategoryId, onToggle)
             if (idle.isNotEmpty()) IdleLine(idle.map { it.category.name }, onOpenPlanning)
         }
@@ -467,7 +468,7 @@ private fun WideMonth(
             wide = true,
             cells = listOfNotNull(
                 {
-                    SectionTitle("Доходы", hint = "факт из плана", info = Hints.INCOME)
+                    SectionTitle("Доходы", hint = "получено и план", info = Hints.INCOME)
                     IncomeCard(month, Modifier.weight(1f))
                 },
                 if (month.funds.isNotEmpty()) {
@@ -615,7 +616,7 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
                 label = if (over) "Перерасход по конвертам" else "Можно ещё потратить",
                 value = MoneyFormat.format(if (over) -month.canSpend else month.canSpend, false),
                 sub = listOfNotNull(
-                    month.perDay?.let { "≈ ${MoneyFormat.format(it, false)} в день · ${month.daysLeft} дн." },
+                    month.perDay?.let { "≈ ${MoneyFormat.format(it, false)} в день на ${plural(month.daysLeft, "день", "дня", "дней")}" },
                     "потрачено ${MoneyFormat.format(month.flexibleFactWhole, false)} из ${MoneyFormat.format(month.flexiblePlannedWhole, false)}",
                 ).joinToString(" · "),
                 modifier = m.clickable(onClick = onOpenPlanning),
@@ -631,10 +632,10 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
     val target = month.savingsTarget
     tiles += { m ->
         StatTile(
-            label = "Отложено «Себе»",
+            label = "Отложено в подушку",
             value = MoneyFormat.format(month.saved, false),
             sub = listOfNotNull(
-                target?.let { "из ${MoneyFormat.format(it, false)}" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "цель «Себе» не задана",
+                target?.let { "из ${MoneyFormat.format(it, false)} по плану «Себе»" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "план «Себе» не задан",
                 month.takenFromCushion.takeUnless { it.isZero }?.let { "взято из подушки ${MoneyFormat.format(it, false)}" },
             ).joinToString(" · "),
             modifier = m,

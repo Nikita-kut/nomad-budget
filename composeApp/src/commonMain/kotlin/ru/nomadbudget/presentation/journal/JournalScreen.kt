@@ -56,6 +56,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.EntryDraft
 import ru.nomadbudget.presentation.home.EntryType
@@ -157,7 +158,7 @@ fun JournalScreen(
                     onSelect = { account = it },
                 )
                 HorizontalDivider()
-                Text("${filtered.size} операций", style = MaterialTheme.typography.bodyMedium)
+                Text(operations(filtered.size), style = MaterialTheme.typography.bodyMedium)
                 if (!spent.isZero) Text("расход ${MoneyFormat.format(spent, false)}", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.bad)
                 if (!earned.isZero) Text("доход ${MoneyFormat.format(earned, false)}", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.good)
             }
@@ -216,7 +217,7 @@ fun JournalScreen(
             SectionTitle(
                 if (searching) "Найдено во всех месяцах" else "Журнал",
                 hint = listOfNotNull(
-                    "${filtered.size} опер.",
+                    operations(filtered.size),
                     spent.takeUnless { it.isZero }?.let { "расход ${MoneyFormat.format(it, false)}" },
                     earned.takeUnless { it.isZero }?.let { "доход ${MoneyFormat.format(it, false)}" },
                 ).joinToString(" · "),
@@ -307,7 +308,7 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(DateFormat.dayMonth(day.date), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "${DateFormat.weekdayFull(day.date)} · ${day.transactions.size} опер.",
+                    "${DateFormat.weekdayFull(day.date)} · ${operations(day.transactions.size)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -325,7 +326,7 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
         val groups = listOf(
             JournalGroup("Расходы", AppTheme.colors.bad, expenses, "−" + MoneyFormat.format(expenses.map { it.amountBase }.sumIn(Currency.BASE), false)),
             JournalGroup("Доходы", AppTheme.colors.good, incomes, "+" + MoneyFormat.format(incomes.map { it.amountBase }.sumIn(Currency.BASE), false)),
-            JournalGroup("Переводы и обмены", MaterialTheme.colorScheme.primary, moves, "${moves.size} опер."),
+            JournalGroup("Переводы и обмены", MaterialTheme.colorScheme.primary, moves, operations(moves.size)),
         ).filter { it.items.isNotEmpty() }
         groups.forEach { group ->
             GroupHeader(group)

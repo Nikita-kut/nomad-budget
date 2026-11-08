@@ -44,6 +44,8 @@ import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.operations
+import ru.nomadbudget.presentation.format.plural
 import kotlin.time.Clock
 import ru.nomadbudget.data.local.KeyValueStore
 import ru.nomadbudget.presentation.theme.ThemeSettings
@@ -191,8 +193,8 @@ class HomeViewModel(
                         capitalSettings = capitalSettings,
                     )
                 }
-                if (sent > 0) _messages.send("Отправлено операций: $sent")
-                if (flush.rejected > 0) _messages.send("Сервер не принял операций: ${flush.rejected}. Они остались в очереди, остальные отправлены")
+                if (sent > 0) _messages.send("Отправлено: ${operations(sent)}")
+                if (flush.rejected > 0) _messages.send("Не отправлено: ${operations(flush.rejected)}. Они остались в очереди")
                 if (offlineCache.servedFromCache && !initial) _messages.send("Нет сети, показаны сохранённые данные")
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, refreshing = false, error = if (initial) e.message ?: "Ошибка загрузки" else it.error) }
@@ -234,7 +236,7 @@ class HomeViewModel(
             try {
                 val current = _state.value
                 val rates = current.rates
-                require(rates.hasRate(draft.amount.currency)) { "Нет курса для ${draft.amount.currency.code}, заполни таблицу курсов" }
+                require(rates.hasRate(draft.amount.currency)) { "Нет курса для ${draft.amount.currency.code}, операцию пока не записать" }
                 val rateSource = rateSourceFor(draft.amount)
                 val debt = draft.debtId?.takeIf { draft.type == EntryType.EXPENSE }?.let { id -> current.debts.firstOrNull { it.id == id } }
                 val principal = debt?.let { DebtCalculator.principalFor(it, draft.amount, draft.debtEarly) }
@@ -325,7 +327,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 val current = _state.value
-                require(current.rates.hasRate(draft.given.currency)) { "Нет курса для ${draft.given.currency.code}, заполни таблицу курсов" }
+                require(current.rates.hasRate(draft.given.currency)) { "Нет курса для ${draft.given.currency.code}, обмен пока не записать" }
                 val transaction = Transaction.Exchange(
                     id = "",
                     date = draft.date,
@@ -466,7 +468,7 @@ class HomeViewModel(
                 transactionRepository.delete(id)
                 _state.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }, pendingCount = transactionRepository.pendingCount()) }
                 val debtNote = removed?.debtId?.let { debtId ->
-                    removed.debtPrincipal?.let { debtNoteAfter(debtId, it, restored = true) } ?: ", остаток кредита не менялся"
+                    removed.debtPrincipal?.let { debtNoteAfter(debtId, it, restored = true) } ?: ", остаток кредита не изменился"
                 }
                 debtNote?.let { _messages.send("Удалено" + it) }
             } catch (e: Exception) {
@@ -609,7 +611,7 @@ class HomeViewModel(
                         savingsTarget = previousTarget ?: state.savingsTarget,
                     )
                 }
-                _messages.send("План скопирован: ${toCopy.size} категорий")
+                _messages.send("План скопирован: ${plural(toCopy.size, "категория", "категории", "категорий")}")
             } catch (e: Exception) {
                 _state.update { it.copy(saving = false) }
                 _messages.send(e.message ?: "Не удалось скопировать план")
@@ -879,6 +881,7 @@ class HomeViewModel(
             val lastPayment = current.transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId == debtId }.maxByOrNull { it.date }
             val categoryId = lastPayment?.categoryId
                 ?: current.activeCategories.firstOrNull { it.kind == CategoryKind.EXPENSE && it.name.equals(DEBT_CATEGORY, ignoreCase = true) }?.id
+                ?: current.activeCategories.firstOrNull { it.kind == CategoryKind.EXPENSE && it.name.equals(LEGACY_DEBT_CATEGORY, ignoreCase = true) }?.id
             _state.update {
                 it.copy(
                     entryPrefill = EntryPrefill(
@@ -1010,7 +1013,7 @@ class HomeViewModel(
 
     private fun debtNoteAfter(debtId: String, delta: Money?, restored: Boolean = false): String {
         val debt = _state.value.debts.firstOrNull { it.id == debtId } ?: return ""
-        if (delta == null) return ", остаток кредита не менял: другая валюта"
+        if (delta == null) return ", остаток кредита не изменился: другая валюта"
         if (delta.currency != debt.currency) return ""
         val updated = debt.copy(principalRemaining = debt.principalRemaining + delta)
         _state.update { state -> state.copy(debts = state.debts.map { if (it.id == debtId) updated else it }) }
@@ -1053,7 +1056,7 @@ class HomeViewModel(
     fun saveCapitalSettings(settings: ru.nomadbudget.domain.logic.CapitalSettings) {
         viewModelScope.launch {
             try {
-                require(settings.cushionMonths in 1..36) { "Месяцев подушки от 1 до 36" }
+                require(settings.cushionMonths in 1..36) { "Подушка: от 1 до 36 месяцев" }
                 require(settings.annualReturn in 0.0..100.0) { "Доходность от 0 до 100 %" }
                 capitalRepository.saveSettings(settings)
                 _state.update { it.copy(capitalSettings = settings) }
@@ -1175,7 +1178,8 @@ class HomeViewModel(
     private companion object {
         const val SORT_STEP = 10
         const val CORRECTION_SORT_ORDER = 900
-        const val DEBT_CATEGORY = "Долг"
+        const val DEBT_CATEGORY = "Кредиты"
+        const val LEGACY_DEBT_CATEGORY = "Долг"
     }
 
     private fun undoLabel(transaction: Transaction): String = when (transaction) {

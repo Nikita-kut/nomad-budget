@@ -578,9 +578,9 @@ private fun RatesWarning(state: HomeState) {
     }
     val warning = when {
         state.currenciesWithoutRate.isNotEmpty() ->
-            "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: заполни таблицу курсов"
+            "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: суммы в рублях не посчитать, курс появится после обновления"
         state.rates.rateFor(Currency.USD)?.source == RateSource.MANUAL ->
-            "Курсы по умолчанию: таблица курсов ещё пуста"
+            "Курсы ещё не загружены, суммы в рублях приблизительные"
         else -> null
     }
     warning?.let {
@@ -638,7 +638,7 @@ private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier
         ) {
             Text(DateFormat.monthName(state.period.start), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(
-                listOfNotNull(DateFormat.periodRange(state.period), state.dayNumber?.let { "$it/${state.period.lengthDays} дн." }).joinToString(" · "),
+                listOfNotNull(DateFormat.periodRange(state.period), state.dayNumber?.let { "$it/${state.period.lengthDays}" }).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

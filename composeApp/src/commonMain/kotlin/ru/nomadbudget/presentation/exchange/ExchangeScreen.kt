@@ -74,7 +74,7 @@ fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete
             val chart = charts[index]
             if (chart.points.size >= MIN_EXCHANGES) ExchangeRateChart(chart, state) else SingleExchangeCard(chart)
         }
-        item { SectionTitle("Журнал обменов", hint = "спред к кросс-курсу", info = Hints.EXCHANGE_SPREAD) }
+        item { SectionTitle("Журнал обменов", hint = "твой курс против таблицы", info = Hints.EXCHANGE_SPREAD) }
         if (state.exchanges.isEmpty()) {
             item { EmptyHint("Обменов пока нет") }
         }
@@ -120,14 +120,14 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AccountDropdown("Отдал со счёта", daily, from, state, { from = it }, Modifier.weight(1f))
-                AccountDropdown("Получил на счёт", daily, to, state, { to = it }, Modifier.weight(1f))
+                AccountDropdown("Со счёта", daily, from, state, { from = it }, Modifier.weight(1f))
+                AccountDropdown("На счёт", daily, to, state, { to = it }, Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = givenText,
                     onValueChange = { givenText = ThousandsVisualTransformation.sanitize(it, from?.currency?.minorUnits ?: 2) },
-                    label = { Text("Отдал${from?.let { ", ${it.currency.code}" }.orEmpty()}") },
+                    label = { Text("Отдано${from?.let { ", ${it.currency.code}" }.orEmpty()}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -136,7 +136,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
                 OutlinedTextField(
                     value = receivedText,
                     onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it, to?.currency?.minorUnits ?: 2) },
-                    label = { Text("Получил${to?.let { ", ${it.currency.code}" }.orEmpty()}") },
+                    label = { Text("Получено${to?.let { ", ${it.currency.code}" }.orEmpty()}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -149,12 +149,12 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
                 value = note,
                 onValueChange = { note = it },
                 label = { Text("Где менял") },
-                placeholder = { Text("обменник, ATM, банк") },
+                placeholder = { Text("обменник, банкомат, банк") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.saving) "Сохраняем…" else "Записать обмен")
+                Text(if (state.saving) "Сохранение…" else "Записать обмен")
             }
         }
     }
@@ -173,9 +173,9 @@ private fun RateHints(
     when {
         from == null || to == null -> Unit
         sameAccount -> Text("Выбери разные счета", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
-        sameCurrency -> Text("Одна валюта — это перевод, не обмен. Вкладка «Ввод».", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
+        sameCurrency -> Text("Одна валюта — это перевод, не обмен. Запиши его через «+».", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
         !state.rates.hasRate(from.currency) || !state.rates.hasRate(to.currency) ->
-            Text("Нет курса для одной из валют, заполни таблицу курсов", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
+            Text("Нет курса для одной из валют, сравнить с таблицей пока нельзя", color = AppTheme.colors.warning, style = MaterialTheme.typography.bodySmall)
         else -> {
             val reference = state.rates.cross(from.currency, to.currency)
             val referenceQuote = ExchangeAnalyzer.pairQuote(from.currency, to.currency, reference)
@@ -186,7 +186,7 @@ private fun RateHints(
                 val effectiveQuote = if (referenceQuote.unit == from.currency) ru.nomadbudget.domain.logic.RateQuote(from.currency, to.currency, effective) else ru.nomadbudget.domain.logic.RateQuote(to.currency, from.currency, 1.0 / effective)
                 KeyValueRow("Твой курс", ExchangeAnalyzer.quoteText(effectiveQuote, MoneyFormat::formatQuote), emphasize = true)
                 Text(
-                    "Спред ${MoneyFormat.formatPercent(-spread)} к таблице",
+                    spreadText(spread),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (spread > 0) AppTheme.colors.bad else AppTheme.colors.good,
                 )
@@ -226,7 +226,7 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
                 Text(ExchangeAnalyzer.quoteText(quote, MoneyFormat::formatQuote), fontWeight = FontWeight.SemiBold)
                 if (analysis != null) {
                     Text(
-                        "${MoneyFormat.formatPercent(-analysis.spreadPercent)} к таблице",
+                        spreadText(analysis.spreadPercent),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (analysis.spreadPercent > 0) AppTheme.colors.bad else AppTheme.colors.good,
                     )
@@ -275,7 +275,7 @@ private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
     val withTable = data.points.all { it.table != null }
     ChartPanel(
         title = "1 ${data.unit.symbol} → ${data.price.symbol}: твой курс в обменах",
-        hint = "сколько ${data.price.code} ты получал за 1 ${data.unit.code}" + if (withTable) "; выше линии таблицы — обменял выгодно" else "",
+        hint = "сколько ${data.price.code} давали за 1 ${data.unit.code}" + if (withTable) "; выше линии таблицы — обмен выгодный" else "",
         legend = listOfNotNull(LegendEntry("твой курс", mineColor), LegendEntry("по таблице в тот день", tableColor).takeIf { withTable }),
         totalPoints = data.points.size,
         periods = EXCHANGE_PERIODS,
@@ -313,4 +313,10 @@ private fun SingleExchangeCard(data: ExchangeChartData) {
     }
 }
 
-private val EXCHANGE_PERIODS = listOf(ChartPeriod("10 обменов", 10), ChartPeriod("все", null))
+private val EXCHANGE_PERIODS = listOf(ChartPeriod("10 обменов", 10), ChartPeriod("всё", null))
+
+private fun spreadText(spreadPercent: Double): String = when {
+    spreadPercent > 0 -> "хуже таблицы на ${MoneyFormat.formatPercentValue(spreadPercent)}"
+    spreadPercent < 0 -> "лучше таблицы на ${MoneyFormat.formatPercentValue(-spreadPercent)}"
+    else -> "как в таблице"
+}

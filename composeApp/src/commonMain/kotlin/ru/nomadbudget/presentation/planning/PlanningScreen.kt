@@ -86,7 +86,7 @@ fun PlanningScreen(
 
     val summaryItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
         if (onBack != null) {
-            item { SubScreenHeader("Планирование", onBack) }
+            item { SubScreenHeader("План", onBack) }
         }
         item {
             Text(
@@ -126,12 +126,12 @@ fun PlanningScreen(
         item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
         item { SavingsCard(month, state.capital, onClick = { editingSavings = true }, onOpenCapital = onOpenCapital) }
 
-        item { SectionTitle("Кредиты", hint = "платежи берутся из экрана «Кредиты»", info = Hints.OBLIGATIONS) }
+        item { SectionTitle("Кредиты", hint = "платежи подставляются сами", info = Hints.OBLIGATIONS) }
         item { DebtsPlanCard(state, onOpenDebts) }
         item { SectionTitle("Копилки", hint = "взносы и траты из копилок", info = Hints.FUNDS) }
         item { FundsPlanCard(state, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
 
-        item { SectionTitle("Гибкие", hint = "план · обычно", info = Hints.PLAN_CATEGORY) }
+        item { SectionTitle("Конверты", hint = "план и среднее за 3 месяца", info = Hints.PLAN_CATEGORY) }
         items(month.envelopes.filterNot { it.category.isArchived || state.isDebtOnlyEnvelope(it) }, key = { it.category.id }) { budget ->
             CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
         }
@@ -215,7 +215,7 @@ private fun UnallocatedCard(month: MonthModel) {
             val parts = listOf(
                 Triple("Кредиты", month.debtsPlanned, MaterialTheme.colorScheme.outline),
                 Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
-                Triple("Гибкие категории", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
+                Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
                 Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
                 Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
             )
@@ -299,9 +299,9 @@ private fun SavingsCard(month: MonthModel, capital: ru.nomadbudget.domain.logic.
                 PlanLine("Через 12 мес., если откладывать по плану", MoneyFormat.format(byPlan, false), bold = true)
                 HorizontalDivider()
                 c.paceMedian?.let { median ->
-                    PlanLine("Через 12 мес., если как последние ${c.paceMonths} мес. (${MoneyFormat.formatSigned(median, false)}/мес)", MoneyFormat.format(byFact, false))
+                    PlanLine("Через 12 мес. «как сейчас»: ${MoneyFormat.formatSigned(median, false)} в месяц, медиана за ${c.paceMonths} мес.", MoneyFormat.format(byFact, false))
                 }
-                TextButton(onClick = onOpenCapital, modifier = Modifier.padding(start = 0.dp)) { Text("Разбивка по месяцам, цели и прогноз — в «Капитале» →") }
+                TextButton(onClick = onOpenCapital, modifier = Modifier.padding(start = 0.dp)) { Text("Подробнее в «Капитале» →") }
             }
         }
     }
@@ -349,7 +349,7 @@ private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpe
                     sub = listOfNotNull(
                         balance?.let { "в копилке ${MoneyFormat.format(it, false)}" },
                         if (monthly == null) "взнос в этом месяце не планируется" else "взнос в месяц",
-                        fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} к $d-му" } ?: "цель ${MoneyFormat.format(goal, false)}" },
+                        fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} $d-го" } ?: "цель ${MoneyFormat.format(goal, false)}" },
                     ).joinToString(" · "),
                 )
             }
@@ -432,7 +432,7 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
                             TagChip(text = "$percent %", onClick = { text = (income.wholeUnits * percent / 100).toString() })
                         }
                     }
-                    Text("Проценты считаются от планового дохода", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("10, 20 или 30 % от планового дохода", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },

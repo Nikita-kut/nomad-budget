@@ -83,7 +83,7 @@ fun PlanEditorDialog(
     val free = if (freeText.isBlank()) Money.zero(Currency.BASE) else MoneyFormat.parse(freeText, Currency.BASE)
     val dirty = freeText != initialFree || rows != initialRows
     val error = when {
-        free == null -> "Сумма не распознана"
+        free == null -> "Введи сумму в «Прочее»"
         parsedRows.any { (row, money) -> row.name.isBlank() || money == null } -> "У каждой строки нужны название и сумма"
         rows.map { it.name.trim().lowercase() }.let { it.size != it.toSet().size } -> "Подкатегории повторяются"
         else -> null
@@ -222,7 +222,7 @@ fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Mone
                 OutlinedTextField(
                     value = goal,
                     onValueChange = { goal = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
-                    label = { Text("Ближайшая оплата из копилки, ${currency.code}") },
+                    label = { Text("Ближайшая оплата, ${currency.code}") },
                     placeholder = { Text("необязательно") },
                     singleLine = true,
                     visualTransformation = transformation,

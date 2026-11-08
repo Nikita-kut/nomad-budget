@@ -174,6 +174,15 @@ object DateFormat {
         "июля", "августа", "сентября", "октября", "ноября", "декабря",
     )
 
+    private val monthsDative = listOf(
+        "январю", "февралю", "марту", "апрелю", "маю", "июню",
+        "июлю", "августу", "сентябрю", "октябрю", "ноябрю", "декабрю",
+    )
+
+    fun monthYear(date: LocalDate): String = "${months[date.month.number - 1].lowercase()} ${date.year}"
+
+    fun byMonthYear(date: LocalDate): String = "к ${monthsDative[date.month.number - 1]} ${date.year}"
+
     fun periodRange(period: Period): String = "${dayMonth(period.start)} – ${dayMonth(period.lastDay)}"
 
     fun dayMonth(date: LocalDate): String =

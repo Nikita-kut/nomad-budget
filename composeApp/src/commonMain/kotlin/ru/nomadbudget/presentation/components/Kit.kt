@@ -191,7 +191,7 @@ fun ChartPanel(
             ChartLegend(legend)
             chart(totalPoints - count, visible)
             Text(
-                if (visible < count) "на экране $visible из $count · листай график по горизонтали · наведи, чтобы увидеть значение" else "наведи на график, чтобы увидеть значение",
+                if (visible < count) "на экране $visible из $count · листай график по горизонтали · нажми или наведи на график, чтобы увидеть значение" else "нажми или наведи на график, чтобы увидеть значение",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -153,7 +153,7 @@ fun EditTransactionDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = ThousandsVisualTransformation.sanitize(it, account?.currency?.minorUnits ?: 2) },
-                    label = { Text(if (tx is Transaction.Exchange) "Отдал, ${accountCurrency?.code.orEmpty()}" else "Сумма, ${accountCurrency?.code.orEmpty()}") },
+                    label = { Text(if (tx is Transaction.Exchange) "Отдано, ${accountCurrency?.code.orEmpty()}" else "Сумма, ${accountCurrency?.code.orEmpty()}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -163,7 +163,7 @@ fun EditTransactionDialog(
                     OutlinedTextField(
                         value = receivedText,
                         onValueChange = { receivedText = ThousandsVisualTransformation.sanitize(it, toAccount?.currency?.minorUnits ?: 2) },
-                        label = { Text("Получил, ${toAccount?.currency?.code.orEmpty()}") },
+                        label = { Text("Получено, ${toAccount?.currency?.code.orEmpty()}") },
                         singleLine = true,
                         visualTransformation = transformation,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -204,7 +204,7 @@ fun EditTransactionDialog(
                     EarlyPaymentToggle(checked = debtEarly, onChange = { debtEarly = it }, preview = null, differentCurrency = debt != null && account?.currency != debt.currency)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Сумма в ₽ пересчитается по сегодняшнему курсу, если сумму изменил.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Если сумма изменилась, сумма в ₽ пересчитается по сегодняшнему курсу.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },

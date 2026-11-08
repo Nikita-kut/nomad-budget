@@ -38,6 +38,7 @@ import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 
@@ -65,8 +66,8 @@ private fun SourceLine(state: HomeState) {
     Text(
         when {
             latest == null -> "Курсов пока нет"
-            latest.source == RateSource.MANUAL -> "Курсы по умолчанию: таблица пуста"
-            else -> "Источник ${latest.sourceName} · курс за ${DateFormat.dayMonth(latest.date)}" + (latest.fetchedAt?.let { " · получен ${DateFormat.dayMonthTime(it)}" } ?: "") + " · обновляется раз в сутки"
+            latest.source == RateSource.MANUAL -> "Курсы ещё не загружены"
+            else -> "Источник ${latest.sourceName} · курс за ${DateFormat.dayMonth(latest.date)} · обновляется раз в сутки"
         },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -82,10 +83,10 @@ private fun PairBlock(a: Currency, b: Currency, points: List<RatePoint>, state: 
             CurrencyChip(a, state)
             Text("⇄", color = MaterialTheme.colorScheme.onSurfaceVariant)
             CurrencyChip(b, state)
-            SectionTitle("${a.code} и ${b.code}", hint = if (points.isEmpty()) "нет снимков" else "${points.size} снимков", info = Hints.RATES, modifier = Modifier.weight(1f))
+            SectionTitle("${a.code} и ${b.code}", hint = if (points.isEmpty()) "курсов нет" else plural(points.size, "день", "дня", "дней"), info = Hints.RATES, modifier = Modifier.weight(1f))
         }
         if (points.size < 2) {
-            Text("Для графика нужно хотя бы два снимка курса", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Для графика нужен курс хотя бы за два дня", color = MaterialTheme.colorScheme.onSurfaceVariant)
             return@Column
         }
         EqualRow(
@@ -135,9 +136,9 @@ private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("Дата", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                 HeaderCell("${MoneyFormat.unitLabel(unitA, a.symbol)} в ${b.code}", width = WIDE_CELL)
-                HeaderCell("изм., %")
+                HeaderCell("за день, %")
                 HeaderCell("${MoneyFormat.unitLabel(unitB, b.symbol)} в ${a.code}", width = WIDE_CELL)
-                HeaderCell("изм., %")
+                HeaderCell("за день, %")
             }
             HorizontalDivider()
             rows.forEachIndexed { position, index ->

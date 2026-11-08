@@ -43,6 +43,7 @@ import ru.nomadbudget.presentation.components.KeyValueRow
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -115,8 +116,8 @@ fun BalanceCheckScreen(
                     difference?.let { diff ->
                         val (label, color) = when {
                             diff.isZero -> "Сходится" to AppTheme.colors.good
-                            diff.isNegative -> "Не хватает ${MoneyFormat.format(-diff)}, запишу как расход «Корректировка»" to AppTheme.colors.bad
-                            else -> "Лишние ${MoneyFormat.format(diff)}, запишу как доход «Корректировка»" to AppTheme.colors.warning
+                            diff.isNegative -> "Не хватает ${MoneyFormat.format(-diff)}: запишется расход «Корректировка»" to AppTheme.colors.bad
+                            else -> "Лишние ${MoneyFormat.format(diff)}: запишется доход «Корректировка»" to AppTheme.colors.warning
                         }
                         Text(label, color = color, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
@@ -124,7 +125,7 @@ fun BalanceCheckScreen(
                         value = note,
                         onValueChange = { form.note = it },
                         label = { Text("Заметка") },
-                        placeholder = { Text("пересчитал кошелёк") },
+                        placeholder = { Text("пересчёт наличных") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -136,7 +137,7 @@ fun BalanceCheckScreen(
                     Button(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
                         Text(
                             when {
-                                state.saving -> "Сохраняем…"
+                                state.saving -> "Сохранение…"
                                 difference == null || difference.isZero -> "Записать сверку на ${DateFormat.dayMonth(date)}"
                                 else -> "Записать корректировку ${MoneyFormat.formatSigned(difference)} на ${DateFormat.dayMonth(date)}"
                             },
@@ -154,7 +155,7 @@ fun BalanceCheckScreen(
             item {
                 SectionTitle(
                     if (lastCheck != null) "После сверки ${DateFormat.dayMonth(lastCheck.date)}" else "Последние операции по счёту",
-                    hint = "записей: ${since.size}",
+                    hint = operations(since.size),
                 )
             }
             item {

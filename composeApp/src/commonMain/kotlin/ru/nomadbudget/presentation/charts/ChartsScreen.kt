@@ -103,8 +103,8 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         }
         item {
             ChartPanel(
-                title = "Норма сбережений",
-                hint = "% дохода, отложенный в подушку; месяцы без дохода не показаны, шкала ограничена ±100%",
+                title = "Доля отложенного",
+                hint = "доля дохода, отложенная в подушку; месяцы без дохода не показаны",
                 info = Hints.CHART_SAVINGS_RATE,
                 legend = listOf(LegendEntry("Отложено / доход месяца", savedColor)),
                 totalPoints = rated.size,
@@ -150,7 +150,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         item {
             ChartPanel(
                 title = "Все счета на конец месяца",
-                hint = "активные счета с начала учёта, по курсу на конец месяца, без долгов; капитал за вычетом долгов — в разделе «Капитал»",
+                hint = "по курсу на конец месяца, без долгов",
                 info = Hints.CHART_NET_WORTH,
                 legend = listOf(LegendEntry("Сумма всех счетов", incomeColor)),
                 totalPoints = netWorth.size.coerceAtLeast(1),
@@ -170,8 +170,8 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         }
         item {
             ChartPanel(
-                title = "Отложено накопительно",
-                hint = "накопленный итог с начала выбранного периода",
+                title = "Отложено с начала периода",
+                hint = "итог нарастающим итогом с начала выбранного периода",
                 info = Hints.CHART_SAVED,
                 legend = listOf(LegendEntry("Пришло в подушку минус ушло из неё", savedColor)),
                 totalPoints = all.size,
@@ -241,7 +241,7 @@ private fun Totals(points: List<MonthPoint>, wide: Boolean) {
             { m -> StatTile("Отложено чистыми", MoneyFormat.format(saved, false), "пришло в подушку минус ушло из неё", m) },
             { m ->
                 StatTile(
-                    "Норма сбережений",
+                    "Доля отложенного",
                     if (income.minor > 0L) MoneyFormat.formatShare(saved.minor.toDouble() / income.minor) else "—",
                     "доля дохода, которая осталась в подушке",
                     m,

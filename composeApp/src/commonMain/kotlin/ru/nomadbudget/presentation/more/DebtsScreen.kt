@@ -67,6 +67,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StatusPill
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -169,7 +170,7 @@ private fun DebtsSummary(state: HomeState, wide: Boolean) {
     TileRow(
         wide,
         listOf(
-            { m -> StatTile("Должен всего", MoneyFormat.format(owed, false), "остаток тела по ${state.openDebts.size} кредитам", modifier = m, accent = true) },
+            { m -> StatTile("Остаток долга", MoneyFormat.format(owed, false), "тело по ${plural(state.openDebts.size, "кредиту", "кредитам", "кредитам")}", modifier = m, accent = true) },
             { m ->
                 StatTile(
                     "Платежи в этом месяце",
@@ -183,7 +184,7 @@ private fun DebtsSummary(state: HomeState, wide: Boolean) {
             { m ->
                 StatTile(
                     "Последний закроется",
-                    lastClose?.let { monthYear(state.today.plus(it, DateTimeUnit.MONTH)) } ?: "—",
+                    lastClose?.let { DateFormat.monthYear(state.today.plus(it, DateTimeUnit.MONTH)) } ?: "—",
                     lastClose?.let { "через $it мес. при текущих платежах" } ?: if (forecasts.isEmpty()) "кредитов нет" else "по одному из кредитов платёж не покрывает проценты",
                     modifier = m,
                 )
@@ -303,8 +304,8 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
                 Text(
                     when {
                         forecast == null -> "платёж не покрывает проценты: долг не уменьшается"
-                        forecast.totalInterest.isZero -> "закроется ${monthYear(today.plus(forecast.months, DateTimeUnit.MONTH))}"
-                        else -> "закроется ${monthYear(today.plus(forecast.months, DateTimeUnit.MONTH))} · переплата ≈ ${MoneyFormat.format(forecast.totalInterest, false)}"
+                        forecast.totalInterest.isZero -> "закроется ${DateFormat.byMonthYear(today.plus(forecast.months, DateTimeUnit.MONTH))}"
+                        else -> "закроется ${DateFormat.byMonthYear(today.plus(forecast.months, DateTimeUnit.MONTH))} · переплата ≈ ${MoneyFormat.format(forecast.totalInterest, false)}"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (forecast == null) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -333,8 +334,6 @@ private fun statusTone(status: ObligationStatus): PillTone = when (status) {
     ObligationStatus.SOON -> PillTone.WARNING
     ObligationStatus.UPCOMING -> PillTone.NEUTRAL
 }
-
-private fun monthYear(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${date.year}"
 
 @Composable
 private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (Debt) -> Unit) {
@@ -376,7 +375,7 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
                 )
                 OutlinedTextField(
                     value = extra, onValueChange = { extra = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
-                    label = { Text("Досрочно в месяц сверху, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
+                    label = { Text("Досрочное погашение в месяц, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
                     placeholder = { Text("0") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
                 )

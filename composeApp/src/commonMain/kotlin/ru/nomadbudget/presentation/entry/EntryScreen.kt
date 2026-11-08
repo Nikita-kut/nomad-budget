@@ -59,6 +59,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.EntryDraft
 import ru.nomadbudget.presentation.home.EntryType
@@ -282,7 +283,7 @@ fun EntryScreen(
                     onSubmit = ::trySubmit,
                 )
             }
-            item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else "${state.drafts.size} заметок", info = Hints.INBOX) }
+            item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else plural(state.drafts.size, "заметка", "заметки", "заметок"), info = Hints.INBOX) }
             item { InboxCard(state.drafts, onAddDraft, onUseDraft, onRemoveDraft) }
         }
         Surface(
@@ -297,7 +298,7 @@ fun EntryScreen(
         ) {
             Text(
                 when {
-                    state.saving -> "Сохраняем…"
+                    state.saving -> "Сохранение…"
                     missing != null -> missing.replaceFirstChar { it.uppercase() }
                     form.type == EntryType.EXPENSE -> "Записать расход ${amount?.let { MoneyFormat.format(it) }.orEmpty()}"
                     form.type == EntryType.INCOME -> "Записать доход ${amount?.let { MoneyFormat.format(it) }.orEmpty()}"
@@ -403,7 +404,7 @@ private fun EntryForm(
             if (form.type == EntryType.EXPENSE && account != null) {
                 when (account.role) {
                     AccountRole.FUND -> Text("Трата из копилки «${account.name}»: в конверты месяца не попадёт", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
-                    AccountRole.CUSHION -> Text("Трата из подушки: уменьшит «Отложено» за месяц", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+                    AccountRole.CUSHION -> Text("Трата из подушки: уменьшит отложенное в подушку за месяц", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
                     AccountRole.LIFE -> Unit
                 }
             }
@@ -462,7 +463,7 @@ private fun EntryForm(
 
             DateField(date = form.date, today = state.today, onChange = { form.date = it })
             if (form.date != state.today) {
-                Text("Запись уйдёт не на сегодня: ${DateFormat.dayMonth(form.date)}, ${DateFormat.weekdayFull(form.date)}", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+                Text("Дата не сегодня: ${DateFormat.dayMonth(form.date)}, ${DateFormat.weekdayFull(form.date)}", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
             }
             if (form.type != EntryType.TRANSFER) {
                 val choices = categoryChoices(state, categories, form.type)
@@ -604,7 +605,7 @@ private fun InboxCard(
                     value = text,
                     onValueChange = { text = it },
                     label = { Text("Быстрая заметка") },
-                    placeholder = { Text("кофе 60к") },
+                    placeholder = { Text("такси 450") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
@@ -614,7 +615,7 @@ private fun InboxCard(
                         text = ""
                     },
                     enabled = text.isNotBlank(),
-                ) { Text("В список") }
+                ) { Text("В заметки") }
             }
             if (drafts.isEmpty()) {
                 Text(
