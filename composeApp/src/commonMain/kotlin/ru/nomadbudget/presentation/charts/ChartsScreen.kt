@@ -93,6 +93,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                 ColumnsChart(
                     series = listOf(slice.map { it.income.toRubles() }, slice.map { it.expense.toRubles() }),
                     colors = listOf(incomeColor, expenseColor),
+                    names = listOf("доход", "расход"),
                     labels = labels.drop(from),
                     formatY = MoneyFormat::formatAxis,
                     formatValue = MoneyFormat::formatWhole,
@@ -137,6 +138,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                             slice.map { it.expense.toRubles() },
                         ),
                         colors = listOf(planColor, expenseColor),
+                        names = listOf("план", "факт"),
                         labels = slice.map(::monthLabel),
                         formatY = MoneyFormat::formatAxis,
                         formatValue = MoneyFormat::formatWhole,

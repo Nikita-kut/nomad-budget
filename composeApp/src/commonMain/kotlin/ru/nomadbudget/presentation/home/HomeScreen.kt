@@ -449,8 +449,8 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                 )
                             }
                         }
-                        if (state.loading) LoadingSkeleton(wide = wide)
                     }
+                    if (state.loading) LoadingSkeleton(wide = wide)
                 }
             }
                 if (wide && entryPanel) {

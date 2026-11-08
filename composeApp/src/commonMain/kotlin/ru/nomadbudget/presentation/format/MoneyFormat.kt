@@ -8,6 +8,7 @@ import kotlin.time.Instant
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToLong
 import ru.nomadbudget.domain.model.Period
 
@@ -17,6 +18,7 @@ object MoneyFormat {
 
     private const val MINUS = "−"
     private const val MILLION = 1_000_000.0
+    private const val MAX_QUOTE_UNIT = 1_000_000L
     private const val THOUSAND = 1_000.0
     private const val THIN_SPACE = "\u00A0"
 
@@ -66,6 +68,32 @@ object MoneyFormat {
             val scaled = (rate * 10_000).roundToLong()
             "${scaled / 10_000},${(scaled % 10_000).toString().padStart(4, '0')}"
         }
+    }
+
+    fun quoteUnit(value: Double): Long {
+        var unit = 1L
+        val absolute = abs(value)
+        while (absolute > 0.0 && absolute * unit < 1.0 && unit < MAX_QUOTE_UNIT) unit *= 10
+        return unit
+    }
+
+    fun unitLabel(unit: Long, symbol: String): String = "${groupThousands(unit)}$THIN_SPACE$symbol"
+
+    fun formatNumber(value: Double, decimals: Int): String {
+        val factor = 10.0.pow(decimals)
+        val scaled = (abs(value) * factor).roundToLong()
+        val whole = scaled / factor.toLong()
+        val fraction = (scaled % factor.toLong()).toString().padStart(decimals, '0')
+        val sign = if (value < 0 && scaled != 0L) MINUS else ""
+        return if (decimals == 0) "$sign${groupThousands(whole)}" else "$sign${groupThousands(whole)},$fraction"
+    }
+
+    fun formatChange(share: Double): String {
+        val hundredths = (share * 10_000).roundToLong()
+        if (hundredths == 0L) return "0"
+        val sign = if (hundredths < 0) MINUS else "+"
+        val absolute = abs(hundredths)
+        return "$sign${absolute / 100},${(absolute % 100).toString().padStart(2, '0')}"
     }
 
     fun formatAxis(value: Double): String {

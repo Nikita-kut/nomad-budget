@@ -195,6 +195,7 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
             MultiLineChart(
                 series = scenarios.map { s -> indices.map { paths.getValue(s)[it].wholeUnits.toDouble() } },
                 colors = scenarios.map { scenarioColors.getValue(it) },
+                names = scenarios.map { scenarioTitle(it, capital) },
                 labels = indices.map { shortMonth(capital.dateAfterMonths(it)) },
                 formatY = MoneyFormat::formatAxis,
                 formatValue = MoneyFormat::formatWhole,

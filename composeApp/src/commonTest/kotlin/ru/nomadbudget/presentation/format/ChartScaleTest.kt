@@ -57,4 +57,26 @@ class ChartScaleTest {
     fun tooltipShowsExactRubles() {
         assertEquals("4 832 105 ₽", MoneyFormat.formatWhole(4_832_105.4))
     }
+
+    @Test
+    fun smallRatesAreQuotedPerThousand() {
+        assertEquals(1_000L, MoneyFormat.quoteUnit(0.0032))
+        assertEquals(1L, MoneyFormat.quoteUnit(314.0))
+        assertEquals(10L, MoneyFormat.quoteUnit(0.5))
+        assertEquals("1\u00A0000\u00A0₽", MoneyFormat.unitLabel(1_000L, "₽"))
+    }
+
+    @Test
+    fun changesArePercentWithPlainZero() {
+        assertEquals("0", MoneyFormat.formatChange(0.00004))
+        assertEquals("−0,14", MoneyFormat.formatChange(-0.00136))
+        assertEquals("+1,50", MoneyFormat.formatChange(0.015))
+    }
+
+    @Test
+    fun numbersKeepRequestedDecimals() {
+        assertEquals("1,095", MoneyFormat.formatNumber(1.095, 3))
+        assertEquals("−0,50", MoneyFormat.formatNumber(-0.5, 2))
+        assertEquals("1\u00A0250", MoneyFormat.formatNumber(1250.0, 0))
+    }
 }

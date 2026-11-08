@@ -556,7 +556,11 @@ private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Mon
         amount == null -> "В рублях по курсу на сегодня: —"
         amount.currency == Currency.BASE -> "Счёт в рублях, курс не нужен"
         !state.rates.hasRate(amount.currency) -> "Нет курса для ${amount.currency.code}, записать нельзя"
-        else -> "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.formatRate(state.rates.basePerUnit(amount.currency))} ₽ за 1 ${amount.currency.code}"
+        else -> {
+            val perUnit = state.rates.basePerUnit(amount.currency)
+            val unit = MoneyFormat.quoteUnit(perUnit)
+            "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.formatQuote(perUnit * unit)} ₽ за ${MoneyFormat.unitLabel(unit, amount.currency.code)}"
+        }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))

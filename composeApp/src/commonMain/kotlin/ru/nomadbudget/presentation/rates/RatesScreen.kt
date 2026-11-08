@@ -101,22 +101,22 @@ private fun PairBlock(a: Currency, b: Currency, points: List<RatePoint>, state: 
 
 @Composable
 private fun DirectionChart(from: Currency, to: Currency, points: List<RatePoint>, color: androidx.compose.ui.graphics.Color) {
-    val last = points.last().value
+    val unit = MoneyFormat.quoteUnit(points.map { it.value }.sorted()[points.size / 2])
+    val scaled = points.map { it.value * unit }
     ChartPanel(
-        title = "1 ${from.symbol} = ${MoneyFormat.formatQuote(last)} ${to.symbol}",
-        hint = "сколько ${to.code} за 1 ${from.code}",
+        title = "${MoneyFormat.unitLabel(unit, from.symbol)} = ${MoneyFormat.formatQuote(scaled.last())} ${to.symbol}",
+        hint = "сколько ${to.code} за ${MoneyFormat.unitLabel(unit, from.code)}",
         legend = listOf(LegendEntry("по дням", color)),
         totalPoints = points.size,
         periods = RATE_PERIODS,
         modifier = Modifier.fillMaxWidth(),
         stateKey = from.code + to.code,
     ) { start, visible ->
-        val slice = points.drop(start)
         LineChart(
-            values = slice.map { it.value },
+            values = scaled.drop(start),
             color = color,
-            labels = slice.map { DateFormat.dayMonth(it.date) },
-            formatY = { MoneyFormat.formatQuote(it) },
+            labels = points.drop(start).map { DateFormat.dayMonth(it.date) },
+            formatY = MoneyFormat::formatQuote,
             visibleCount = visible,
             fitToData = true,
         )
@@ -127,29 +127,33 @@ private fun DirectionChart(from: Currency, to: Currency, points: List<RatePoint>
 private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
     var showAll by remember(a, b) { mutableStateOf(false) }
     val rows = points.indices.reversed().let { if (showAll) it.toList() else it.take(COLLAPSED_ROWS) }
-    val colors = AppTheme.colors
+    val median = points.map { it.value }.sorted()[points.size / 2]
+    val unitA = MoneyFormat.quoteUnit(median)
+    val unitB = MoneyFormat.quoteUnit(1.0 / median)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 8.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("Дата", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                HeaderCell("1 ${a.symbol} в ${b.code}", width = WIDE_CELL)
-                HeaderCell("изм.")
-                HeaderCell("1 ${b.symbol} в ${a.code}", width = WIDE_CELL)
-                HeaderCell("изм.")
+                HeaderCell("${MoneyFormat.unitLabel(unitA, a.symbol)} в ${b.code}", width = WIDE_CELL)
+                HeaderCell("изм., %")
+                HeaderCell("${MoneyFormat.unitLabel(unitB, b.symbol)} в ${a.code}", width = WIDE_CELL)
+                HeaderCell("изм., %")
             }
             HorizontalDivider()
             rows.forEachIndexed { position, index ->
                 if (position > 0) HorizontalDivider()
                 val point = points[index]
                 val prev = points.getOrNull(index - 1)
-                val delta = prev?.let { point.value - it.value }
-                val inverseDelta = prev?.let { 1.0 / point.value - 1.0 / it.value }
+                val direct = point.value * unitA
+                val inverse = unitB / point.value
+                val delta = prev?.let { point.value / it.value - 1.0 }
+                val inverseDelta = prev?.let { it.value / point.value - 1.0 }
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(DateFormat.dayMonth(point.date) + ".${point.date.year % 100}", modifier = Modifier.weight(1f))
-                    AmountCell(MoneyFormat.formatQuote(point.value), bold = true, width = WIDE_CELL)
-                    AmountCell(delta?.let(::signed) ?: "", color = delta?.let { if (it >= 0) colors.good else colors.bad }, muted = delta == null)
-                    AmountCell(MoneyFormat.formatQuote(1.0 / point.value), bold = true, width = WIDE_CELL)
-                    AmountCell(inverseDelta?.let(::signed) ?: "", color = inverseDelta?.let { if (it >= 0) colors.good else colors.bad }, muted = inverseDelta == null)
+                    AmountCell(MoneyFormat.formatQuote(direct), bold = true, width = WIDE_CELL)
+                    DeltaCell(delta)
+                    AmountCell(MoneyFormat.formatQuote(inverse), bold = true, width = WIDE_CELL)
+                    DeltaCell(inverseDelta)
                 }
             }
             if (points.size > COLLAPSED_ROWS) {
@@ -159,7 +163,19 @@ private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
     }
 }
 
-private fun signed(value: Double): String = (if (value >= 0) "+" else "−") + MoneyFormat.formatQuote(kotlin.math.abs(value))
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.DeltaCell(delta: Double?) {
+    val text = delta?.let(MoneyFormat::formatChange) ?: ""
+    val colors = AppTheme.colors
+    AmountCell(
+        text,
+        color = when {
+            delta == null || text == "0" -> MaterialTheme.colorScheme.onSurfaceVariant
+            delta > 0 -> colors.good
+            else -> colors.bad
+        },
+    )
+}
 
 private const val COLLAPSED_ROWS = 5
 private val WIDE_CELL = 140.dp

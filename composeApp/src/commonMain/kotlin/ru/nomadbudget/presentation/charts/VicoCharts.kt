@@ -43,10 +43,14 @@ import com.patrykandpatrick.vico.multiplatform.cartesian.marker.DefaultCartesian
 import com.patrykandpatrick.vico.multiplatform.cartesian.marker.LineCartesianLayerMarkerTarget
 import com.patrykandpatrick.vico.multiplatform.cartesian.marker.rememberDefaultCartesianMarker
 import com.patrykandpatrick.vico.multiplatform.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.multiplatform.common.component.ShapeComponent
+import com.patrykandpatrick.vico.multiplatform.common.component.rememberLineComponent
+import androidx.compose.foundation.shape.CircleShape
 import com.patrykandpatrick.vico.multiplatform.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.multiplatform.common.Insets
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
+import ru.nomadbudget.presentation.format.MoneyFormat
 import com.patrykandpatrick.vico.multiplatform.cartesian.axis.Axis
 import kotlin.math.pow
 
@@ -75,6 +79,7 @@ fun ColumnsChart(
     formatY: (Double) -> String,
     visibleCount: Int,
     formatValue: (Double) -> String = formatY,
+    names: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val producer = remember { CartesianChartModelProducer() }
@@ -97,7 +102,7 @@ fun ColumnsChart(
                 bottomAxis = HorizontalAxis.rememberBottom(
                     valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
                 ),
-                marker = rememberHoverMarker(labels, formatValue),
+                marker = rememberHoverMarker(labels, formatValue, names),
                 markerController = CartesianMarkerController.rememberShowOnHover(),
             ),
             modelProducer = producer,
@@ -115,6 +120,7 @@ fun LineChart(
     formatY: (Double) -> String,
     visibleCount: Int,
     formatValue: (Double) -> String = formatY,
+    names: List<String> = emptyList(),
     modifier: Modifier = Modifier,
     fitToData: Boolean = false,
 ) {
@@ -138,7 +144,7 @@ fun LineChart(
                 bottomAxis = HorizontalAxis.rememberBottom(
                     valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
                 ),
-                marker = rememberHoverMarker(labels, formatValue),
+                marker = rememberHoverMarker(labels, formatValue, names),
                 markerController = CartesianMarkerController.rememberShowOnHover(),
             ),
             modelProducer = producer,
@@ -156,6 +162,7 @@ fun MultiLineChart(
     formatY: (Double) -> String,
     visibleCount: Int,
     formatValue: (Double) -> String = formatY,
+    names: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val producer = remember { CartesianChartModelProducer() }
@@ -178,7 +185,7 @@ fun MultiLineChart(
                 bottomAxis = HorizontalAxis.rememberBottom(
                     valueFormatter = CartesianValueFormatter { _, value, _ -> labels.getOrNull(value.toInt()).orEmpty() },
                 ),
-                marker = rememberHoverMarker(labels, formatValue),
+                marker = rememberHoverMarker(labels, formatValue, names),
                 markerController = CartesianMarkerController.rememberShowOnHover(),
             ),
             modelProducer = producer,
@@ -226,35 +233,45 @@ private fun niceStep(raw: Double): Double {
 private fun rememberNiceAxis(values: List<Double>, includeZero: Boolean, formatY: (Double) -> String): Pair<CartesianLayerRangeProvider, VerticalAxis<Axis.Position.Vertical.Start>> {
     val scale = remember(values, includeZero) { niceScale(values, includeZero) }
     val range = remember(scale) { scale?.let { CartesianLayerRangeProvider.fixed(minY = it.min, maxY = it.max) } ?: CartesianLayerRangeProvider.auto() }
+    val decimals = scale?.step?.takeIf { it < 1.0 }?.let { kotlin.math.ceil(-kotlin.math.log10(it) - STEP_EPSILON).toInt().coerceIn(0, MAX_AXIS_DECIMALS) }
     val axis = VerticalAxis.rememberStart(
-        valueFormatter = CartesianValueFormatter { _, value, _ -> formatY(value) },
+        valueFormatter = CartesianValueFormatter { _, value, _ -> if (decimals != null && decimals > 0) MoneyFormat.formatNumber(value, decimals) else formatY(value) },
         itemPlacer = remember(scale) { VerticalAxis.ItemPlacer.step(step = { scale?.step }) },
     )
     return range to axis
 }
 
 private const val TARGET_TICKS = 4.0
+private const val STEP_EPSILON = 1e-9
+private const val MAX_AXIS_DECIMALS = 6
 private const val FLAT_PADDING = 0.05
 
 @Composable
-private fun rememberHoverMarker(labels: List<String>, formatY: (Double) -> String): CartesianMarker {
+private fun rememberHoverMarker(labels: List<String>, formatY: (Double) -> String, names: List<String>): CartesianMarker {
+    val ring = MaterialTheme.colorScheme.surface
     val label = rememberTextComponent(
         style = TextStyle(color = MaterialTheme.colorScheme.inverseOnSurface, fontSize = 12.sp),
-        padding = Insets(8.dp, 4.dp),
-        background = rememberShapeComponent(fill = Fill(MaterialTheme.colorScheme.inverseSurface), shape = RoundedCornerShape(6.dp)),
+        padding = Insets(10.dp, 6.dp),
+        background = rememberShapeComponent(fill = Fill(MaterialTheme.colorScheme.inverseSurface), shape = RoundedCornerShape(8.dp)),
     )
+    val guideline = rememberLineComponent(fill = Fill(MaterialTheme.colorScheme.outline), thickness = 1.dp)
     return rememberDefaultCartesianMarker(
         label = label,
         valueFormatter = DefaultCartesianMarker.ValueFormatter { _, targets ->
             val x = targets.firstOrNull()?.x?.toInt()
             val values = targets.flatMap { target ->
                 when (target) {
-                    is LineCartesianLayerMarkerTarget -> target.points.map { formatY(it.entry.y) }
-                    is ColumnCartesianLayerMarkerTarget -> target.columns.map { formatY(it.entry.y) }
+                    is LineCartesianLayerMarkerTarget -> target.points.map { it.entry.y }
+                    is ColumnCartesianLayerMarkerTarget -> target.columns.map { it.entry.y }
                     else -> emptyList()
                 }
             }
-            listOfNotNull(x?.let { labels.getOrNull(it) }, values.joinToString(" · ")).joinToString(": ")
+            val lines = values.mapIndexed { index, value -> names.getOrNull(index)?.let { "$it: ${formatY(value)}" } ?: formatY(value) }
+            (listOfNotNull(x?.let { labels.getOrNull(it) }) + lines).joinToString("  ·  ")
         },
+        indicator = { color -> ShapeComponent(fill = Fill(color), shape = CircleShape, strokeFill = Fill(ring), strokeThickness = 2.dp) },
+        indicatorSize = 10.dp,
+        guideline = guideline,
     )
 }
+
