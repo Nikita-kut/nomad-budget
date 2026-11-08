@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.Ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -135,30 +136,9 @@ fun PlanningScreen(
             CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
         }
     }
-    if (twoColumns) {
-        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            LazyColumn(
-                modifier = Modifier.width(420.dp).fillMaxHeight(),
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = summaryItems,
-            )
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                contentPadding = PaddingValues(end = 16.dp, top = 16.dp, bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = sectionItems,
-            )
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            summaryItems()
-            sectionItems()
-        }
+    CenteredLazyColumn() {
+        summaryItems()
+        sectionItems()
     }
 
     editing?.let { category ->
