@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.exchange
 
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -147,7 +147,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Button(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
+            PrimaryButton(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
                 Text(if (state.saving) "Сохранение…" else "Записать обмен")
             }
         }

@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.settings
 
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -97,7 +97,7 @@ fun SettingsScreen(
                     IncomeDaysEditor(days = incomeDays, onChange = { incomeDays = it })
                     Text("Подсказка для планирования, месяц не делит.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (incomeDays != settings.incomeDays.toSet()) {
-                        Button(onClick = { onSetIncomeDays(incomeDays.toList()) }, enabled = !state.saving) { Text("Сохранить дни дохода") }
+                        PrimaryButton(onClick = { onSetIncomeDays(incomeDays.toList()) }, enabled = !state.saving) { Text("Сохранить дни дохода") }
                     }
                 }
             }
@@ -110,7 +110,7 @@ fun SettingsScreen(
                     CapitalSettingsFields(settings = settings.capital, onChange = { capitalDraft = it })
                     val draft = capitalDraft
                     if (draft != null && draft != settings.capital) {
-                        Button(onClick = { onSaveCapital(draft) }, enabled = !state.saving) { Text("Сохранить") }
+                        PrimaryButton(onClick = { onSaveCapital(draft) }, enabled = !state.saving) { Text("Сохранить") }
                     }
                 }
             }
@@ -176,7 +176,7 @@ fun SettingsScreen(
             title = { Text("Начинать месяц $day числа?") },
             text = { Text("Новые месяцы будут считаться с $day числа. План прошлых месяцев останется на старых датах, итоги прошлых месяцев пересчитаются по новым границам.") },
             confirmButton = {
-                Button(onClick = {
+                PrimaryButton(onClick = {
                     onSetPeriodStartDay(day)
                     pendingStartDay = null
                 }) { Text("Сменить") }
@@ -270,7 +270,7 @@ private fun PasswordDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
                 Text("Не короче $MIN_PASSWORD символов. После смены текущая сессия остаётся активной.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(password) }, enabled = valid) { Text("Сменить пароль") } },
+        confirmButton = { PrimaryButton(onClick = { onConfirm(password) }, enabled = valid) { Text("Сменить пароль") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -288,7 +288,7 @@ private fun DeleteConfirmDialog(busy: Boolean, onDismiss: () -> Unit, onConfirm:
             }
         },
         confirmButton = {
-            Button(onClick = onConfirm, enabled = typed.trim() == DELETE_WORD && !busy) { Text(if (busy) "Удаление…" else "Удалить навсегда") }
+            PrimaryButton(onClick = onConfirm, enabled = typed.trim() == DELETE_WORD && !busy) { Text(if (busy) "Удаление…" else "Удалить навсегда") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )

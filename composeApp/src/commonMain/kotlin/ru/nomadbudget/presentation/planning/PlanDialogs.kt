@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -246,7 +246,7 @@ fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Mone
                 )
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(monthlyMoney, goalMoney, dayValue) }, enabled = valid) { Text("Сохранить") } },
+        confirmButton = { PrimaryButton(onClick = { onConfirm(monthlyMoney, goalMoney, dayValue) }, enabled = valid) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

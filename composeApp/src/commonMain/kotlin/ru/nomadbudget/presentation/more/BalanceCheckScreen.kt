@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +29,6 @@ import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.presentation.components.DateField
-import androidx.compose.material3.OutlinedButton
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
@@ -122,11 +122,11 @@ fun BalanceCheckScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     if (difference != null && !difference.isZero && account != null) {
-                        OutlinedButton(onClick = { account?.let { onAddMissed(it.id, date) } }, modifier = Modifier.fillMaxWidth()) {
+                        SecondaryButton(onClick = { account?.let { onAddMissed(it.id, date) } }, modifier = Modifier.fillMaxWidth()) {
                             Text("Сначала внести пропущенную трату")
                         }
                     }
-                    Button(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
+                    PrimaryButton(onClick = ::submit, enabled = canSubmit, modifier = Modifier.fillMaxWidth()) {
                         Text(
                             when {
                                 state.saving -> "Сохранение…"

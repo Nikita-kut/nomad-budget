@@ -31,6 +31,21 @@ One rule, one component. A fix to a visual problem goes into the shared componen
 - Every row is separated by `HorizontalDivider()` in the default `outlineVariant` color. Do not lower its alpha.
 - Long lists show 5 rows collapsed with «Показать все N».
 
+## Buttons
+
+Four kinds, all in `presentation/components/Buttons.kt`. Raw Material buttons are not used on screens (checked by `tools/check_rules.sh`).
+
+- `PrimaryButton` — the one main action of a screen, card or dialog: «Внести платёж», «Записать», «Сохранить», dialog confirm. Filled accent, radius 10, height 44.
+- `SecondaryButton` — other actions next to content: «Скопировать план», «Сверить остаток», «Назад» in a wizard. Accent at 12 % opacity with accent text, no outline.
+- `AddTile` — creating a new item in a list or grid: «Добавить кредит», «Добавить счёт», «Добавить категорию». Dashed tile with «+», sits where the new card will appear.
+- `TextButton` — minor actions inside cards and dialogs: «Отмена», «Показать все», «Изменить».
+
+No outlined buttons. No more than one `PrimaryButton` per card.
+
+## Forms
+
+- Creating an entity asks for everything it needs in one dialog: fields depend on the chosen type (a fund asks for monthly contribution, next payment and day; every account asks for the current balance). No «create, then find and edit».
+
 ## Transaction types
 
 - Expense: `colors.bad`, income: `colors.good`, transfer: `colors.save`, exchange: `colors.warning`.

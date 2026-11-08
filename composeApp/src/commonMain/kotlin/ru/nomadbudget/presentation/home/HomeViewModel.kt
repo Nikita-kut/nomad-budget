@@ -229,8 +229,8 @@ class HomeViewModel(
         categories.moveCategory(id, up)
     }
 
-    fun addAccount(name: String, currency: Currency, role: AccountRole) {
-        accounts.addAccount(name, currency, role)
+    fun addAccount(draft: NewAccountDraft) {
+        accounts.addAccount(draft)
     }
 
     fun renameAccount(id: String, name: String) {

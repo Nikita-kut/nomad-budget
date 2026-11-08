@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,12 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -63,7 +63,6 @@ import ru.nomadbudget.domain.model.Draft
 import ru.nomadbudget.presentation.home.EntryPrefill
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Surface
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Checkbox
 import ru.nomadbudget.domain.model.DebtCalculator
@@ -269,7 +268,7 @@ fun EntryScreen(
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 6.dp,
         ) {
-        Button(
+        PrimaryButton(
             onClick = ::trySubmit,
             enabled = canSubmit,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp).height(52.dp),
@@ -297,7 +296,7 @@ fun EntryScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = {
+                PrimaryButton(onClick = {
                     confirmLarge = false
                     submit()
                 }) { Text("Записать") }
@@ -484,7 +483,7 @@ private fun EntryForm(
                     Text("Нет второго счёта в этой валюте. Другая валюта — это обмен.", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(
+                    SecondaryButton(
                         onClick = {
                             val from = form.account
                             form.account = selectedTo
@@ -494,10 +493,10 @@ private fun EntryForm(
                         enabled = selectedTo != null,
                     ) { Text("Поменять местами") }
                     state.activeAccounts.firstOrNull { it.role == AccountRole.CUSHION && it.currency == currency && it.id != account?.id }?.let { savings ->
-                        OutlinedButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В подушку") }
+                        SecondaryButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В подушку") }
                     }
                     state.activeAccounts.filter { it.role == AccountRole.FUND && it.currency == currency && it.id != account?.id }.forEach { fund ->
-                        OutlinedButton(onClick = { form.toAccount = fund }, enabled = fund.id != selectedTo?.id) { Text("В «${fund.name}»") }
+                        SecondaryButton(onClick = { form.toAccount = fund }, enabled = fund.id != selectedTo?.id) { Text("В «${fund.name}»") }
                     }
                 }
             }
@@ -571,7 +570,7 @@ private fun InboxCard(
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
-                FilledTonalButton(
+                SecondaryButton(
                     onClick = {
                         onAdd(text)
                         text = ""

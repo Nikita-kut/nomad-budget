@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.auth
 
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -76,7 +76,7 @@ fun LoginScreen(auth: AuthRepository, notice: String? = null) {
                 modifier = Modifier.fillMaxWidth(),
             )
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            Button(
+            PrimaryButton(
                 onClick = ::submit,
                 enabled = !busy && email.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),

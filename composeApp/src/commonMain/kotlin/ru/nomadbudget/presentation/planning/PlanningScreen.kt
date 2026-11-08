@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.Ui
 import androidx.compose.foundation.background
@@ -20,11 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -107,9 +107,9 @@ fun PlanningScreen(
         item { AllocationCard(month) }
         item {
             if (!month.hasPlan) {
-                Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) { Text("Скопировать план с прошлого месяца") }
+                PrimaryButton(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) { Text("Скопировать план с прошлого месяца") }
             } else {
-                OutlinedButton(onClick = { confirmCopy = true }, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
+                SecondaryButton(onClick = { confirmCopy = true }, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
                     Text("Скопировать план с прошлого месяца")
                 }
             }
@@ -191,7 +191,7 @@ fun PlanningScreen(
             title = { Text("Скопировать план?") },
             text = { Text(Hints.PLAN_COPY) },
             confirmButton = {
-                Button(onClick = {
+                PrimaryButton(onClick = {
                     onCopyPlan()
                     confirmCopy = false
                 }) { Text("Скопировать") }
@@ -474,7 +474,7 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
                 }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(parsed) }, enabled = text.isBlank() || parsed != null) { Text("Сохранить") } },
+        confirmButton = { PrimaryButton(onClick = { onConfirm(parsed) }, enabled = text.isBlank() || parsed != null) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

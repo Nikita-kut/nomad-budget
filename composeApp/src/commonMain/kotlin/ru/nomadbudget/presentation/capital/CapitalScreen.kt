@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.capital
 
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -438,7 +438,7 @@ private fun GoalDialog(today: LocalDate, onDismiss: () -> Unit, onConfirm: (Stri
                 DateField(date = date, today = today, onChange = { date = it }, allowFuture = true)
             }
         },
-        confirmButton = { Button(onClick = { money?.let { onConfirm(name, it, date) } }, enabled = name.isNotBlank() && money != null && date > today) { Text("Добавить") } },
+        confirmButton = { PrimaryButton(onClick = { money?.let { onConfirm(name, it, date) } }, enabled = name.isNotBlank() && money != null && date > today) { Text("Добавить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -456,7 +456,7 @@ private fun SettingsDialog(settings: CapitalSettings, onDismiss: () -> Unit, onC
             }
         },
         confirmButton = {
-            Button(onClick = { draft?.let(onConfirm) }, enabled = draft != null) { Text("Сохранить") }
+            PrimaryButton(onClick = { draft?.let(onConfirm) }, enabled = draft != null) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )

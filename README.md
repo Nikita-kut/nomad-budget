@@ -1,12 +1,12 @@
 # Nomad Budget
 
 Личный мультивалютный бюджет на Kotlin Multiplatform + Compose Multiplatform, бэкенд Supabase.
-Базовая валюта отчётов RUB, набор валют задаётся в таблице `currencies` и подхватывается приложением.
+Базовая валюта отчётов RUB, остальные валюты пользователь добавляет сам по коду ISO 4217.
 
 ## Модули
 
 - `composeApp` — общий код: UI, домен, данные. Таргеты Android и Web (Kotlin/Wasm).
-- `androidApp` — Android-приложение, тонкая обёртка над `composeApp`, плюс виджет «Быстрая заметка» (Glance): текст с рабочего стола попадает во «Входящие» на вкладке Ввод и одним нажатием превращается в операцию.
+- `androidApp` — Android-приложение, тонкая обёртка над `composeApp`, плюс виджет «Быстрая заметка» (Glance): текст с рабочего стола попадает во «Входящие» в форме новой операции и одним нажатием превращается в операцию.
 
 ## Запуск
 
@@ -26,9 +26,16 @@
 
 Как планировать месяц, накопления и траты из накоплений: [docs/PLANNING.md](docs/PLANNING.md).
 
+## Документы
+
+- [docs/DECISIONS.md](docs/DECISIONS.md) — принятые решения: месяц, остаток, честные цифры, доступ, публичность.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — слои и где что лежит.
+- [docs/UI_RULES.md](docs/UI_RULES.md) — дизайн-система, тексты, валюты, кнопки.
+
 ## Проверки
 
 ```bash
+bash tools/check_rules.sh
 ./gradlew :composeApp:testAndroidHostTest :composeApp:wasmJsBrowserTest
 ```
 

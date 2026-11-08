@@ -1,5 +1,8 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.components.AddTile
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,13 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -111,9 +112,7 @@ fun CategoriesScreen(
                 )
             }
             item {
-                OutlinedButton(onClick = { dialog = Dialog.AddCategory(kind) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Добавить категорию")
-                }
+                AddTile("Добавить категорию", onClick = { dialog = Dialog.AddCategory(kind) })
             }
         }
         val system = state.categories.filter { it.isSystem && !it.isArchived }
@@ -209,7 +208,7 @@ private fun MergeDialog(subcategory: Subcategory, targets: List<Subcategory>, on
                 }
             }
         },
-        confirmButton = { Button(onClick = { target?.let(onConfirm) }, enabled = target != null) { Text("Объединить") } },
+        confirmButton = { PrimaryButton(onClick = { target?.let(onConfirm) }, enabled = target != null) { Text("Объединить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -322,7 +321,7 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(name, planned) }, enabled = name.isNotBlank() && (amount.isBlank() || planned != null)) { Text("Сохранить") }
+            PrimaryButton(onClick = { onConfirm(name, planned) }, enabled = name.isNotBlank() && (amount.isBlank() || planned != null)) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )

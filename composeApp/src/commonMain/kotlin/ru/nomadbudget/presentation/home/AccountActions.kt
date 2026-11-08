@@ -12,16 +12,33 @@ internal class AccountActions(
     private val accountRepository: AccountRepository,
 ) {
 
-    fun addAccount(name: String, currency: Currency, role: AccountRole) = runner.run("Не удалось добавить счёт") {
+    fun addAccount(draft: NewAccountDraft) = runner.run("Не удалось добавить счёт") {
+        val name = draft.name
+        val currency = draft.currency
+        val role = draft.role
         val trimmed = name.trim()
         require(trimmed.isNotEmpty()) { "Введи название счёта" }
         require(store.value.activeAccounts.none { it.name.equals(trimmed, ignoreCase = true) }) { "Счёт с таким именем уже есть" }
         val order = (store.value.accounts.maxOfOrNull { it.sortOrder } ?: 0) + HomeDefaults.SORT_STEP
         val isSavings = role == AccountRole.CUSHION
         val kind = if (isSavings) AccountKind.SAVINGS else AccountKind.ACCOUNT
-        val created = accountRepository.add(trimmed, currency, kind, isSavings, role == AccountRole.FUND, order)
+        require(draft.fundDay == null || draft.fundDay in HomeDefaults.DAYS_OF_MONTH) { "День от 1 до 31" }
+        val opening = draft.openingBalance ?: Money.zero(currency)
+        var created = accountRepository.add(trimmed, currency, kind, isSavings, role == AccountRole.FUND, order, opening)
+        if (role == AccountRole.FUND && (draft.fundMonthly != null || draft.fundGoal != null || draft.fundDay != null)) {
+            val monthly = draft.fundMonthly?.takeIf { it.minor > 0L }
+            val goal = draft.fundGoal?.takeIf { it.minor > 0L }
+            accountRepository.setFund(created.id, monthly, goal, draft.fundDay)
+            created = created.copy(fundMonthly = monthly, fundGoal = goal, fundDay = draft.fundDay)
+        }
         store.update { it.copy(accounts = it.accounts + created) }
-        store.message("Счёт добавлен")
+        store.message(
+            when (role) {
+                AccountRole.LIFE -> "Счёт добавлен"
+                AccountRole.FUND -> "Копилка добавлена"
+                AccountRole.CUSHION -> "Подушка добавлена"
+            },
+        )
     }
 
     fun renameAccount(id: String, name: String) = runner.run("Не удалось переименовать счёт") {
@@ -83,3 +100,13 @@ internal class AccountActions(
         store.message("Счёт убран в архив")
     }
 }
+
+data class NewAccountDraft(
+    val name: String,
+    val currency: Currency,
+    val role: AccountRole,
+    val openingBalance: Money? = null,
+    val fundMonthly: Money? = null,
+    val fundGoal: Money? = null,
+    val fundDay: Int? = null,
+)
