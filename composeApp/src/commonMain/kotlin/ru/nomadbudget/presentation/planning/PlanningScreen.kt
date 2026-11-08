@@ -63,6 +63,11 @@ import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
+import kotlin.math.abs
+import ru.nomadbudget.presentation.components.StatTile
+import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.AmountCell
+import ru.nomadbudget.domain.model.Period
 
 @Composable
 fun PlanningScreen(
@@ -97,7 +102,9 @@ fun PlanningScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { UnallocatedCard(month) }
+        item { PlanSummaryTiles(month, state.period, twoColumns) }
+        item { SectionTitle("Куда распределено", hint = "от ${MoneyFormat.format(month.available, false)} на месяц") }
+        item { AllocationCard(month) }
         item {
             if (!month.hasPlan) {
                 Button(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) { Text("Скопировать план с прошлого месяца") }
@@ -195,47 +202,67 @@ fun PlanningScreen(
 }
 
 @Composable
-private fun UnallocatedCard(month: MonthModel) {
+private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean) {
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
-        Column(modifier = Modifier.padding(Ui.CardPadding + 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (negative) "Не хватает" else "Не распределено", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                InfoHint("Не распределено", Hints.UNALLOCATED)
-            }
-            Text(
-                MoneyFormat.format(if (negative) -month.unallocated else month.unallocated, false),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (negative) colors.bad else colors.good,
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                SourceRow("Доход по плану", MoneyFormat.format(month.incomePlanned, false))
-                SourceRow("Остаток с прошлого месяца", MoneyFormat.formatSigned(month.carryOver, false))
-                SourceRow(
-                    "Всего на месяц" + (month.allocatedShare?.let { ", распределено ${MoneyFormat.formatShare(it)}" } ?: ""),
-                    MoneyFormat.format(month.available, false),
-                    bold = true,
+    TileRow(
+        wide,
+        listOf(
+            { m ->
+                StatTile(
+                    if (negative) "Не хватает" else "Не распределено",
+                    MoneyFormat.format(if (negative) -month.unallocated else month.unallocated, false),
+                    month.available.takeIf { it.minor > 0L }?.let { "${MoneyFormat.formatShare(month.unallocated.minor.coerceAtLeast(0L).toDouble() / it.minor)} из ${MoneyFormat.format(it, false)} на месяц" }
+                        ?: "задай доход в плане",
+                    modifier = m,
+                    accent = !negative,
+                    valueColor = if (negative) colors.bad else null,
+                    info = Hints.UNALLOCATED,
                 )
-            }
-            val parts = listOf(
-                Triple("Кредиты", month.debtsPlanned, MaterialTheme.colorScheme.outline),
-                Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
-                Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
-                Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
-                Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
-            )
+            },
+            { m -> StatTile("Доход по плану", MoneyFormat.format(month.incomePlanned, false), "регулярный доход этого месяца", modifier = m) },
+            { m ->
+                StatTile(
+                    "Остаток с прошлого месяца",
+                    MoneyFormat.formatSigned(month.carryOver, false),
+                    "было на картах и наличных ${DateFormat.dayMonth(period.start)}",
+                    modifier = m,
+                    valueColor = if (month.carryOver.isNegative) colors.bad else null,
+                    info = Hints.CARRY_OVER,
+                )
+            },
+        ),
+    )
+}
+
+@Composable
+private fun AllocationCard(month: MonthModel) {
+    val colors = AppTheme.colors
+    val negative = month.unallocated.isNegative
+    val parts = listOf(
+        Triple("Кредиты", month.debtsPlanned, MaterialTheme.colorScheme.outline),
+        Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
+        Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
+        Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
+        Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
+    ).filter { it.second.minor > 0L }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (month.available.minor > 0L) {
-                SegmentBar(parts.filterNot { it.first == "Не хватает" }.map { it.second to it.third })
+                SegmentBar(parts.filterNot { negative && it.first == "Не хватает" }.map { it.second to it.third })
             }
-            parts.filter { it.second.minor > 0L }.forEach { (label, money, color) ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
-                    Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Text(MoneyFormat.format(money, false), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    month.available.takeIf { it.minor > 0L }?.let {
-                        Text(MoneyFormat.formatShare(money.shareOf(it)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(SHARE_WIDTH), textAlign = TextAlign.End)
+            Column {
+                parts.forEachIndexed { index, (label, money, color) ->
+                    if (index > 0) HorizontalDivider()
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
+                        Text(label, modifier = Modifier.weight(1f))
+                        AmountCell(MoneyFormat.format(money, false), bold = true)
+                        AmountCell(
+                            month.available.takeIf { it.minor > 0L }?.let { MoneyFormat.formatShare(money.shareOf(it)) } ?: "",
+                            muted = true,
+                            width = SHARE_WIDTH,
+                        )
                     }
                 }
             }
@@ -243,13 +270,8 @@ private fun UnallocatedCard(month: MonthModel) {
     }
 }
 
-@Composable
-private fun SourceRow(label: String, value: String, bold: Boolean = false) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (bold) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Medium)
-    }
-}
+private val SHARE_WIDTH = 56.dp
+
 
 @Composable
 private fun SegmentBar(parts: List<Pair<Money, Color>>) {
@@ -420,7 +442,6 @@ private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, 
     }
 }
 
-private val SHARE_WIDTH = 44.dp
 private val SAVINGS_SHARES = listOf(10, 20, 30)
 private const val PERCENT = 100L
 
