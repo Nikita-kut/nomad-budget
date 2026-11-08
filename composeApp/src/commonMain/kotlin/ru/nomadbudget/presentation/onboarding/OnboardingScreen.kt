@@ -1,5 +1,8 @@
 package ru.nomadbudget.presentation.onboarding
 
+import ru.nomadbudget.presentation.components.AddTile
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -15,7 +17,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -160,11 +161,11 @@ fun OnboardingScreen(state: HomeState, messages: Flow<String>, onFinish: (Onboar
             }
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (form.step > 0) OutlinedButton(onClick = { goTo(form.step - 1) }, enabled = !state.saving) { Text("Назад") }
+                    if (form.step > 0) SecondaryButton(onClick = { goTo(form.step - 1) }, enabled = !state.saving) { Text("Назад") }
                     Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.End)  {
                         if (!last) TextButton(onClick = { goTo(form.step + 1) }, enabled = !state.saving) { Text("Пропустить") }
                     }
-                    Button(onClick = { if (last) onFinish(form.result()) else goTo(form.step + 1) }, enabled = !state.saving) {
+                    PrimaryButton(onClick = { if (last) onFinish(form.result()) else goTo(form.step + 1) }, enabled = !state.saving) {
                         Text(
                             when {
                                 state.saving -> "Создание…"
@@ -225,7 +226,7 @@ private fun AccountsStep(form: OnboardingState) {
             }
         }
     }
-    OutlinedButton(onClick = form::addAccount, modifier = Modifier.fillMaxWidth()) { Text("Добавить счёт") }
+    AddTile("Добавить счёт", onClick = form::addAccount)
 }
 
 @Composable

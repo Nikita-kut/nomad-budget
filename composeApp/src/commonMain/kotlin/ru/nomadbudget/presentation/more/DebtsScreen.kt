@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.components.AddTile
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,7 +27,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -117,7 +117,7 @@ fun DebtsScreen(
             item { EmptyHint("Кредитов пока нет. Добавь первый: его платёж сам попадёт в обязательные платежи месяца.") }
         }
         item {
-            OutlinedButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить кредит") }
+            AddTile("Добавить кредит", onClick = { creating = true })
         }
         val closed = state.debts.filter { it.isClosed }
         if (closed.isNotEmpty()) {
@@ -307,7 +307,7 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
                     color = if (forecast == null) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (obligation.status != ObligationStatus.PAID) {
-                    Button(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                    PrimaryButton(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                         Text("Внести платёж ${MoneyFormat.format(debt.plannedPayment, false)}")
                     }
                 } else if (obligation.paid > obligation.planned) {
@@ -395,7 +395,7 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
             }
         },
         confirmButton = {
-            Button(
+            PrimaryButton(
                 onClick = {
                     onConfirm(
                         Debt(

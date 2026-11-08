@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.month
 
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,11 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -160,8 +160,8 @@ private fun SpendCard(month: MonthModel, saving: Boolean, onCopyPlan: () -> Unit
             )
             Spacer(Modifier.weight(1f, fill = false))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onCopyPlan, enabled = !saving, modifier = Modifier.weight(1f)) { Text("Скопировать") }
-                OutlinedButton(onClick = onOpenPlanning, modifier = Modifier.weight(1f)) { Text("Планировать") }
+                PrimaryButton(onClick = onCopyPlan, enabled = !saving, modifier = Modifier.weight(1f)) { Text("Скопировать") }
+                SecondaryButton(onClick = onOpenPlanning, modifier = Modifier.weight(1f)) { Text("Планировать") }
             }
         }
     }
@@ -381,7 +381,7 @@ private fun FirstRunStep(number: String, title: String, hint: String, action: St
             Text(title, fontWeight = FontWeight.Medium)
             Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        OutlinedButton(onClick = onClick) { Text(action) }
+        SecondaryButton(onClick = onClick) { Text(action) }
     }
 }
 

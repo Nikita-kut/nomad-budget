@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.components.StatTile
 import androidx.compose.foundation.layout.Arrangement
@@ -8,13 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,11 +54,19 @@ import ru.nomadbudget.domain.logic.ExchangeAnalyzer
 import ru.nomadbudget.presentation.components.TextDialog
 import androidx.compose.foundation.layout.height
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.home.NewAccountDraft
+import ru.nomadbudget.presentation.components.AddTile
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import ru.nomadbudget.presentation.components.Ui
 
 @Composable
 fun AccountsScreen(
     state: HomeState,
-    onAdd: (String, Currency, AccountRole) -> Unit,
+    onAdd: (NewAccountDraft) -> Unit,
     onRename: (String, String) -> Unit,
     onMove: (String, Boolean) -> Unit,
     onArchive: (String) -> Unit,
@@ -83,8 +91,8 @@ fun AccountsScreen(
         item { TotalsCard(state, twoColumns) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenExchange, modifier = Modifier.weight(1f)) { Text("Обменять валюту") }
-                OutlinedButton(onClick = onOpenDebts, modifier = Modifier.weight(1f)) {
+                SecondaryButton(onClick = onOpenExchange, modifier = Modifier.weight(1f)) { Text("Обменять валюту") }
+                SecondaryButton(onClick = onOpenDebts, modifier = Modifier.weight(1f)) {
                     Text(if (state.openDebts.isEmpty()) "Кредиты" else "Кредиты: ${state.openDebts.size}")
                 }
             }
@@ -113,9 +121,9 @@ fun AccountsScreen(
             item { cushionCard() }
         }
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { adding = true }, modifier = Modifier.weight(1f)) { Text("Добавить счёт") }
-                OutlinedButton(onClick = onCheckBalance, modifier = Modifier.weight(1f)) { Text("Сверить остаток") }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Ui.Gap), verticalAlignment = Alignment.CenterVertically) {
+                AddTile("Добавить счёт", onClick = { adding = true }, modifier = Modifier.weight(1f))
+                SecondaryButton(onClick = onCheckBalance, modifier = Modifier.weight(1f)) { Text("Сверить остаток") }
             }
         }
         item { SectionTitle("Курсы", hint = rateHint(state), info = Hints.RATES) }
@@ -123,8 +131,8 @@ fun AccountsScreen(
     }
 
     if (adding) {
-        AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { name, currency, role ->
-            onAdd(name, currency, role)
+        AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { draft ->
+            onAdd(draft)
             adding = false
         }
     }
@@ -162,7 +170,7 @@ fun AccountsScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = { onArchive(account.id); archiving = null }, enabled = balance?.isZero != false) { Text("В архив") }
+                PrimaryButton(onClick = { onArchive(account.id); archiving = null }, enabled = balance?.isZero != false) { Text("В архив") }
             },
             dismissButton = { TextButton(onClick = { archiving = null }) { Text("Отмена") } },
         )
@@ -295,33 +303,106 @@ private fun AccountRow(
 }
 
 @Composable
-private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (String, Currency, AccountRole) -> Unit) {
+private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (NewAccountDraft) -> Unit) {
     var name by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf(Currency.BASE) }
     var role by remember { mutableStateOf(AccountRole.LIFE) }
+    var opening by remember { mutableStateOf("") }
+    var monthly by remember { mutableStateOf("") }
+    var goal by remember { mutableStateOf("") }
+    var day by remember { mutableStateOf("") }
+    val transformation = remember { ThousandsVisualTransformation() }
+    val openingMoney = opening.takeIf { it.isNotBlank() }?.let { MoneyFormat.parse(it, currency) }
+    val monthlyMoney = monthly.takeIf { it.isNotBlank() }?.let { MoneyFormat.parse(it, currency) }
+    val goalMoney = goal.takeIf { it.isNotBlank() }?.let { MoneyFormat.parse(it, currency) }
+    val dayValue = day.toIntOrNull()
+    val valid = name.isNotBlank() &&
+        (opening.isBlank() || openingMoney != null) &&
+        (monthly.isBlank() || monthlyMoney != null) &&
+        (goal.isBlank() || goalMoney != null) &&
+        (day.isBlank() || dayValue in 1..31)
+    @Composable
+    fun MoneyField(value: String, onChange: (String) -> Unit, label: String, hint: String? = null) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { onChange(ThousandsVisualTransformation.sanitize(it, currency.minorUnits)) },
+            label = { Text(label) },
+            placeholder = hint?.let { { Text(it) } },
+            singleLine = true,
+            visualTransformation = transformation,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новый счёт") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                RolePicker(role) { role = it }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Название") },
-                    placeholder = { Text("карта, наличные, вклад…") },
+                    placeholder = {
+                        Text(
+                            when (role) {
+                                AccountRole.LIFE -> "карта, наличные…"
+                                AccountRole.FUND -> "на аренду, на отпуск…"
+                                AccountRole.CUSHION -> "накопительный счёт, вклад…"
+                            },
+                        )
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Dropdown("Валюта", currencies, currency, Currency::code, { currency = it })
-                RolePicker(role) { role = it }
-                Text(
-                    "Начальный остаток задай сверкой: кнопка «Сверить остаток» на экране счетов, введи фактическую сумму.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                MoneyField(opening, { opening = it }, "Сейчас на счёте, ${currency.code}", "0")
+                if (role == AccountRole.FUND) {
+                    MoneyField(monthly, { monthly = it }, "Взнос в месяц, ${currency.code}", "необязательно")
+                    MoneyField(goal, { goal = it }, "Ближайшая оплата, ${currency.code}", "необязательно")
+                    OutlinedTextField(
+                        value = day,
+                        onValueChange = { day = it.filter(Char::isDigit).take(2) },
+                        label = { Text("День оплаты") },
+                        placeholder = { Text("необязательно") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "Взнос попадёт в план каждого месяца, к дню оплаты в копилке должно набраться столько, сколько указано в «Ближайшей оплате».",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (role == AccountRole.CUSHION) {
+                    Text(
+                        "Сколько откладывать в подушку каждый месяц, задаётся в «Плане», строка «Себе».",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(name, currency, role) }, enabled = name.isNotBlank()) { Text("Добавить") } },
+        confirmButton = {
+            PrimaryButton(
+                onClick = {
+                    onConfirm(
+                        NewAccountDraft(
+                            name = name,
+                            currency = currency,
+                            role = role,
+                            openingBalance = openingMoney,
+                            fundMonthly = monthlyMoney.takeIf { role == AccountRole.FUND },
+                            fundGoal = goalMoney.takeIf { role == AccountRole.FUND },
+                            fundDay = dayValue.takeIf { role == AccountRole.FUND },
+                        ),
+                    )
+                },
+                enabled = valid,
+            ) { Text("Добавить") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -401,7 +482,7 @@ private fun RoleDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Acco
         onDismissRequest = onDismiss,
         title = { Text("Тип счёта «${account.name}»") },
         text = { RolePicker(role) { role = it } },
-        confirmButton = { Button(onClick = { onConfirm(role) }, enabled = role != account.role) { Text("Сохранить") } },
+        confirmButton = { PrimaryButton(onClick = { onConfirm(role) }, enabled = role != account.role) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

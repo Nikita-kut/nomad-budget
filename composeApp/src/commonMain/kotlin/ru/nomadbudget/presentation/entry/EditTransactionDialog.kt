@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -10,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -198,7 +198,7 @@ fun EditTransactionDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { build()?.let { onSave(it, (tx as? Transaction.Expense)?.let { subcategory }) } }, enabled = valid && !state.saving) {
+            PrimaryButton(onClick = { build()?.let { onSave(it, (tx as? Transaction.Expense)?.let { subcategory }) } }, enabled = valid && !state.saving) {
                 Text("Сохранить")
             }
         },

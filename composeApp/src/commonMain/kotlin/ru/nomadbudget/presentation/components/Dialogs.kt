@@ -2,7 +2,6 @@ package ru.nomadbudget.presentation.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,7 +27,7 @@ fun TextDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm:
                 modifier = Modifier.fillMaxWidth(),
             )
         },
-        confirmButton = { Button(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Сохранить") } },
+        confirmButton = { PrimaryButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -39,7 +38,7 @@ fun ConfirmDialog(title: String, text: String, confirmText: String, onDismiss: (
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(text) },
-        confirmButton = { Button(onClick = onConfirm) { Text(confirmText) } },
+        confirmButton = { PrimaryButton(onClick = onConfirm) { Text(confirmText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
