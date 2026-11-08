@@ -23,6 +23,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,17 +76,25 @@ fun StatTile(
         colors = if (accent) CardDefaults.cardColors(containerColor = Color.Transparent, contentColor = hero.onHero) else CardDefaults.cardColors(),
     ) {
         val labelColor = if (accent) hero.heroMuted else MaterialTheme.colorScheme.onSurfaceVariant
-        Column(modifier = Modifier.padding(Ui.CardPadding + 2.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val compact = LocalCompactTiles.current
+        Column(modifier = Modifier.padding(if (compact) Ui.CardPadding - 2.dp else Ui.CardPadding + 2.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, color = labelColor, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Text(label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge, color = labelColor, maxLines = if (compact) 2 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     info?.let { InfoHint(label, it) }
                 }
                 badge?.invoke()
             }
-            Text(value, style = MaterialTheme.typography.headlineSmall, color = if (accent) hero.onHero else valueColor ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)
-            TileTrack(progress, if (accent) hero.onHero else progressColor, marker, onHero = accent)
-            Text(sub, style = MaterialTheme.typography.bodySmall, color = if (accent) hero.heroMuted else subColor ?: MaterialTheme.colorScheme.onSurfaceVariant, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(value, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall, color = if (accent) hero.onHero else valueColor ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)
+            if (!compact || progress != null) TileTrack(progress, if (accent) hero.onHero else progressColor, marker, onHero = accent)
+            Text(
+                sub,
+                style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall,
+                color = if (accent) hero.heroMuted else subColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                minLines = if (compact) 1 else 2,
+                maxLines = if (compact) 3 else 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -112,9 +122,22 @@ fun TileRow(wide: Boolean, tiles: List<@Composable (Modifier) -> Unit>) {
             tiles.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
         }
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(Ui.Gap)) { tiles.forEach { it(Modifier.fillMaxWidth()) } }
+        CompositionLocalProvider(LocalCompactTiles provides true) {
+            Column(verticalArrangement = Arrangement.spacedBy(COMPACT_GAP)) {
+                CompositionLocalProvider(LocalCompactTiles provides false) { tiles.firstOrNull()?.invoke(Modifier.fillMaxWidth()) }
+                tiles.drop(1).chunked(2).forEach { pair ->
+                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(COMPACT_GAP)) {
+                        pair.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
+                    }
+                }
+            }
+        }
     }
 }
+
+private val LocalCompactTiles = staticCompositionLocalOf { false }
+
+private val COMPACT_GAP = 8.dp
 
 @Composable
 fun EqualRow(wide: Boolean, cells: List<@Composable ColumnScope.() -> Unit>) {
