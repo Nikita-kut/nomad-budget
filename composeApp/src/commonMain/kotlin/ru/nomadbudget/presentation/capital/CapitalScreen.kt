@@ -95,11 +95,11 @@ fun CapitalScreen(
         item {
             ForecastCard(capital, horizon, horizonIndex, onHorizon = { horizonIndex = it })
         }
-        item { SectionTitle("Как копилось «Себе»", hint = "по зарплатным месяцам", info = Hints.CAPITAL_MONTHS) }
+        item { SectionTitle("Подушка по месяцам", hint = "по зарплатным месяцам", info = Hints.CAPITAL_MONTHS) }
         item { MonthsTable(capital, wide) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("Цели", hint = "из подушки", info = Hints.CAPITAL_GOALS, modifier = Modifier.weight(1f))
+                SectionTitle("Цели", hint = "копятся в подушке", info = Hints.CAPITAL_GOALS, modifier = Modifier.weight(1f))
                 TextButton(onClick = { addingGoal = true }) { Text("+ цель") }
             }
         }
@@ -130,7 +130,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
     val tiles: List<@Composable (Modifier) -> Unit> = listOf(
         { m ->
             StatTile(
-                "Капитал чистыми",
+                "Капитал",
                 MoneyFormat.format(capital.netWorth, false),
                 "счета ${MoneyFormat.format(capital.assets, false)} − долги ${MoneyFormat.format(capital.debt, false)}",
                 modifier = m,
@@ -158,7 +158,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
             StatTile(
                 "Долги",
                 MoneyFormat.format(capital.debt, false),
-                capital.debtFreeInMonths?.let { "закроются к ${monthYear(capital.dateAfterMonths(it))}, через $it мес." } ?: if (capital.debt.isZero) "долгов нет" else "платежи не покрывают проценты",
+                capital.debtFreeInMonths?.let { "закроются ${DateFormat.byMonthYear(capital.dateAfterMonths(it))}, через $it мес." } ?: if (capital.debt.isZero) "долгов нет" else "платежи не покрывают проценты",
                 modifier = m,
             )
         },
@@ -205,8 +205,8 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text("Сценарий", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(2.2f))
                 HeaderCell("В подушку в месяц")
-                HeaderCell("Подушка к ${monthYear(capital.dateAfterMonths(horizon))}")
-                HeaderCell("Капитал к ${monthYear(capital.dateAfterMonths(horizon))}")
+                HeaderCell("Подушка ${DateFormat.byMonthYear(capital.dateAfterMonths(horizon))}")
+                HeaderCell("Капитал ${DateFormat.byMonthYear(capital.dateAfterMonths(horizon))}")
             }
             scenarios.forEachIndexed { index, scenario ->
                 if (index > 0) HorizontalDivider()
@@ -275,9 +275,9 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text("Месяц", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1.2f))
-                HeaderCell("Положил")
-                HeaderCell("Забрал")
-                HeaderCell("Потратил из подушки")
+                HeaderCell("Внесено")
+                HeaderCell("Снято")
+                HeaderCell("Потрачено")
                 HeaderCell("Итого «Себе»")
                 if (wide) {
                     HeaderCell("Тело кредитов")
@@ -338,10 +338,10 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
                         "обычные расходы (медиана за полгода) ≈ ${MoneyFormat.format(capital.averageExpense ?: Money.zero(Currency.BASE), false)} в месяц",
                         when {
                             byFact == 0 -> "уже собрана"
-                            byFact != null -> "как сейчас: к ${monthYear(capital.dateAfterMonths(byFact))}, через $byFact мес."
+                            byFact != null -> "как сейчас: ${DateFormat.byMonthYear(capital.dateAfterMonths(byFact))}, через $byFact мес."
                             else -> "как сейчас: не наберётся"
                         },
-                        byPlan?.takeIf { it > 0 }?.let { "по плану «Себе»: к ${monthYear(capital.dateAfterMonths(it))}, через $it мес." },
+                        byPlan?.takeIf { it > 0 }?.let { "по плану «Себе»: ${DateFormat.byMonthYear(capital.dateAfterMonths(it))}, через $it мес." },
                     ).filterNotNull(),
                     onDelete = null,
                 )
@@ -354,7 +354,7 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
                     current = capital.cushion,
                     target = goal.amount,
                     lines = listOf(
-                        if (progress.overdue) "срок прошёл" else if (progress.requiredMonthly.isZero) "уже хватает" else "нужно откладывать ${MoneyFormat.format(progress.requiredMonthly, false)} в месяц, ${progress.monthsLeft} мес.",
+                        if (progress.overdue) "срок прошёл" else if (progress.requiredMonthly.isZero) "уже хватает" else "нужно откладывать ${MoneyFormat.format(progress.requiredMonthly, false)} в месяц в течение ${progress.monthsLeft} мес.",
                         if (progress.reachableByPace) "как сейчас — успеваешь" else "как сейчас — не успеваешь",
                     ),
                     lineColor = if (progress.reachableByPace) colors.good else colors.warning,
@@ -406,12 +406,12 @@ private fun DebtCard(capital: CapitalModel, horizon: Int) {
                     Text(MoneyFormat.format(capital.debt, false), fontWeight = FontWeight.SemiBold)
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("К ${monthYear(capital.dateAfterMonths(horizon))}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(DateFormat.byMonthYear(capital.dateAfterMonths(horizon)).replaceFirstChar(Char::uppercaseChar), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(MoneyFormat.format(capital.debtSchedule.getOrElse(horizon) { capital.debtSchedule.last() }, false), fontWeight = FontWeight.SemiBold)
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Всё закроется", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(capital.debtFreeInMonths?.let { monthYear(capital.dateAfterMonths(it)) } ?: "—", fontWeight = FontWeight.SemiBold)
+                    Text(capital.debtFreeInMonths?.let { DateFormat.monthYear(capital.dateAfterMonths(it)) } ?: "—", fontWeight = FontWeight.SemiBold)
                 }
             }
             ChartLegend(listOf(LegendEntry("Остаток долга по графику", AppTheme.colors.bad)))
@@ -472,7 +472,7 @@ private fun SettingsDialog(settings: CapitalSettings, onDismiss: () -> Unit, onC
                 OutlinedTextField(
                     value = months,
                     onValueChange = { months = it.filter(Char::isDigit).take(2) },
-                    label = { Text("Подушка на сколько месяцев расходов") },
+                    label = { Text("Размер подушки, месяцев расходов") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -504,8 +504,6 @@ private fun SettingsDialog(settings: CapitalSettings, onDismiss: () -> Unit, onC
 }
 
 private const val COLLAPSED_MONTHS = 6
-
-private fun monthYear(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${date.year}"
 
 private fun shortMonth(date: LocalDate): String = "${date.month.number.toString().padStart(2, '0')}.${(date.year % 100).toString().padStart(2, '0')}"
 

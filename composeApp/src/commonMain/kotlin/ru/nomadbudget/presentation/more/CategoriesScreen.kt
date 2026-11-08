@@ -39,6 +39,8 @@ import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.operations
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.format.DateFormat
@@ -166,7 +168,7 @@ fun CategoriesScreen(
         is Dialog.DeleteSubcategory -> ConfirmDialog(
             title = "Убрать «${d.subcategory.name}»?",
             text = usage[d.subcategory.id]?.let { (count, last) ->
-                "Использована $count раз, последний — ${DateFormat.dayMonth(last)}. Подкатегория уйдёт в архив: пропадёт из формы и плана, история останется. Вернуть можно здесь же."
+                "Использована ${plural(count, "раз", "раза", "раз")}, последний — ${DateFormat.dayMonth(last)}. Подкатегория уйдёт в архив: пропадёт из формы и плана, история останется. Вернуть можно здесь же."
             } ?: "Подкатегория не использовалась и будет удалена.",
             confirmText = "Убрать",
             onDismiss = { dialog = null },
@@ -193,18 +195,18 @@ private fun MergeDialog(subcategory: Subcategory, targets: List<Subcategory>, on
     var target by remember { mutableStateOf(targets.firstOrNull()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Слить «${subcategory.name}»") },
+        title = { Text("Объединить «${subcategory.name}»") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (targets.isEmpty()) {
-                    Text("В этой категории нет другой подкатегории, с которой можно слить.")
+                    Text("В этой категории нет другой подкатегории, с которой можно объединить.")
                 } else {
                     Text("Все операции и строки плана перейдут в выбранную подкатегорию, «${subcategory.name}» удалится.")
                     ru.nomadbudget.presentation.components.Dropdown("Куда", targets, target, Subcategory::name, { target = it })
                 }
             }
         },
-        confirmButton = { Button(onClick = { target?.let(onConfirm) }, enabled = target != null) { Text("Слить") } },
+        confirmButton = { Button(onClick = { target?.let(onConfirm) }, enabled = target != null) { Text("Объединить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -237,7 +239,7 @@ private fun CategoryCard(
                 Text(category.name, fontWeight = FontWeight.Medium)
                 val active = subcategories.count { !it.isArchived }
                 Text(
-                    if (active == 0) "без подкатегорий" else "$active подкат.",
+                    if (active == 0) "без подкатегорий" else plural(active, "подкатегория", "подкатегории", "подкатегорий"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -254,13 +256,13 @@ private fun CategoryCard(
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(sub.name, style = MaterialTheme.typography.bodyMedium)
-                            usage[sub.id]?.let { (count, _) -> Text("$count операций", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            usage[sub.id]?.let { (count, _) -> Text(operations(count), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                         IconButton(onClick = { onRenameSubcategory(sub) }) {
                             Icon(AppIcons.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onMergeSubcategory(sub) }) {
-                            Icon(AppIcons.Merge, contentDescription = "Слить с другой", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(AppIcons.Merge, contentDescription = "Объединить с другой", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onDeleteSubcategory(sub) }) {
                             Icon(AppIcons.Close, contentDescription = "Убрать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -306,7 +308,8 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
-                        label = { Text("План на $periodTitle, ₽ (необязательно)") },
+                        label = { Text("План на месяц, ₽") },
+                        supportingText = { Text("$periodTitle · необязательно") },
                         singleLine = true,
                         visualTransformation = transformation,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

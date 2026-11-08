@@ -79,7 +79,7 @@ fun LoginScreen(auth: AuthRepository) {
                 enabled = !busy && email.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (busy) "Входим…" else "Войти")
+                Text(if (busy) "Вход…" else "Войти")
             }
         }
     }

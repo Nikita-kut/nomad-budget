@@ -26,6 +26,8 @@ import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.operations
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.sumIn
@@ -62,7 +64,7 @@ fun MoreScreen(
                     HorizontalDivider()
                     MenuRow(
                         "Кредиты",
-                        if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · должен ${MoneyFormat.format(state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE), false)}",
+                        if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · остаток ${MoneyFormat.format(state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE), false)}",
                         onDebts,
                     )
                 }
@@ -70,9 +72,9 @@ fun MoreScreen(
             item { SectionTitle("Аналитика") }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    MenuRow("Капитал", "капитал чистыми, прогноз, цели", onCapital)
+                    MenuRow("Капитал", "счета минус долги, прогноз, цели", onCapital)
                     HorizontalDivider()
-                    MenuRow("Графики", "доходы, расходы, накопления по месяцам", onCharts)
+                    MenuRow("Графики", "доходы, расходы, подушка по месяцам", onCharts)
                     HorizontalDivider()
                     MenuRow(
                         "Курсы валют",
@@ -85,15 +87,15 @@ fun MoreScreen(
         item { SectionTitle("Настройки") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                MenuRow("Категории и подкатегории", "${state.activeCategories.size} категорий, ${state.subcategories.size} подкатегорий", onCategories)
+                MenuRow("Категории и подкатегории", "${plural(state.activeCategories.size, "категория", "категории", "категорий")}, ${plural(state.subcategories.size, "подкатегория", "подкатегории", "подкатегорий")}", onCategories)
                 HorizontalDivider()
                 MenuRow(
                     "Сверка остатков",
-                    state.balanceChecks.firstOrNull()?.let { "последняя ${DateFormat.dayMonth(it.date)}" } ?: "ещё не сверялись",
+                    state.balanceChecks.firstOrNull()?.let { "последняя ${DateFormat.dayMonth(it.date)}" } ?: "сверок ещё не было",
                     onBalanceCheck,
                 )
                 HorizontalDivider()
-                MenuRow("Выгрузить операции в CSV", "${state.transactions.size} операций, открывается в Excel и Google Таблицах", onExport)
+                MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
             }
         }
         item { SectionTitle("Горячие клавиши", hint = "в вебе") }
@@ -128,7 +130,7 @@ fun MoreScreen(
                 Text(
                     buildString {
                         append("С этого устройства удалятся сохранённые копии данных и заметки из «Входящих». В облаке всё останется.")
-                        if (state.pendingCount > 0) append("\n\n${state.pendingCount} операций ещё не отправлены и пропадут. Сначала нажми «Обновить» при сети.")
+                        if (state.pendingCount > 0) append("\n\nЕщё не отправлено и пропадёт: ${operations(state.pendingCount)}. Сначала нажми «Обновить» при сети.")
                     },
                 )
             },

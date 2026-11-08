@@ -112,7 +112,7 @@ fun AccountsScreen(
             item { lifeCard() }
             item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
             item { fundsCard() }
-            item { SectionTitle("Подушка", hint = "неприкосновенный запас") }
+            item { SectionTitle("Подушка", hint = "запас на чёрный день") }
             item { cushionCard() }
         }
         item {
@@ -173,7 +173,7 @@ fun AccountsScreen(
 }
 
 private fun rateHint(state: HomeState): String {
-    val fromApi = state.rates.all.firstOrNull { it.source == RateSource.API } ?: return "по умолчанию, таблица пуста"
+    val fromApi = state.rates.all.firstOrNull { it.source == RateSource.API } ?: return "ещё не загружены"
     return buildString {
         append("${fromApi.sourceName} · за ${DateFormat.dayMonth(fromApi.date)}")
         fromApi.fetchedAt?.let { append(" · получен ${DateFormat.dayMonthTime(it)}") }
@@ -254,7 +254,7 @@ private fun AccountRow(
             if (account.isFund) {
                 val parts = listOfNotNull(
                     account.fundMonthly?.let { "взнос ${MoneyFormat.format(it, false)} в месяц" },
-                    account.fundGoal?.let { goal -> account.fundDay?.let { d -> "к оплате ${MoneyFormat.format(goal, false)} к $d-му" } ?: "цель ${MoneyFormat.format(goal, false)}" },
+                    account.fundGoal?.let { goal -> account.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} $d-го" } ?: "цель ${MoneyFormat.format(goal, false)}" },
                 )
                 Text(
                     parts.joinToString(" · ").ifEmpty { "нажми, чтобы задать взнос" },
@@ -332,7 +332,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                 Dropdown("Валюта", currencies, currency, { "${it.code} · ${it.symbol}" }, { currency = it })
                 RolePicker(role) { role = it }
                 Text(
-                    "Начальный остаток задаётся сверкой: «Ещё», раздел «Сверка остатков», введи фактическую сумму.",
+                    "Начальный остаток задай сверкой: кнопка «Сверить остаток» на экране счетов, введи фактическую сумму.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -347,7 +347,7 @@ private fun kindLabel(kind: AccountKind): String = when (kind) {
     AccountKind.CARD -> "карта"
     AccountKind.ACCOUNT -> "счёт"
     AccountKind.CASH -> "наличные"
-    AccountKind.SAVINGS -> "накопления"
+    AccountKind.SAVINGS -> "накопительный"
     AccountKind.INVESTMENT -> "инвестиции"
 }
 
@@ -384,7 +384,7 @@ private fun TotalsCard(state: HomeState, wide: Boolean) {
             { m -> StatTile("Всего", MoneyFormat.format(state.totalBase, false), if (others.isEmpty()) "все счета по текущему курсу" else "≈ " + others.joinToString(" · "), modifier = m, accent = true) },
             { m -> StatTile("На жизнь", MoneyFormat.format(state.operationalBase, false), "карты и наличные для обычных трат", modifier = m) },
             { m -> StatTile("Копилки", MoneyFormat.format(state.fundsBalance, false), "на крупные регулярные траты", modifier = m) },
-            { m -> StatTile("Подушка", MoneyFormat.format(state.savingsBalance, false), "неприкосновенный запас", modifier = m) },
+            { m -> StatTile("Подушка", MoneyFormat.format(state.savingsBalance, false), "запас на чёрный день", modifier = m) },
         ),
     )
 }
@@ -395,7 +395,7 @@ private fun RolePicker(selected: AccountRole, onSelect: (AccountRole) -> Unit) {
         listOf(
             AccountRole.LIFE to ("На жизнь" to "карты и наличные, из них идут обычные траты"),
             AccountRole.FUND to ("Копилка" to "копишь на крупную регулярную трату и платишь её отсюда"),
-            AccountRole.CUSHION to ("Подушка" to "неприкосновенный запас, переводы сюда — «Себе»"),
+            AccountRole.CUSHION to ("Подушка" to "запас на чёрный день, переводы сюда — «Себе»"),
         ).forEach { (role, texts) ->
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onSelect(role) }.padding(vertical = 4.dp),
