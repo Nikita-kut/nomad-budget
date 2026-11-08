@@ -21,6 +21,14 @@ class MoneyTest {
     }
 
     @Test
+    fun shareOf_zeroWholeIsZero() {
+        assertEquals(0.25, Money.rub(250L).shareOf(Money.rub(1_000L)), absoluteTolerance = 1e-9)
+        assertEquals(0.0, Money.rub(250L).shareOf(Money.rub(0L)))
+        assertEquals(Money.rub(0L), Money.rub(-5L).coerceAtLeastZero())
+        assertEquals(Money.rub(10L), Money.rub(50L).coerceAtMost(Money.rub(10L)))
+    }
+
+    @Test
     fun ofMajor_rub_convertsToKopecks() {
         assertEquals(Money(26_348_000L, Currency.RUB), Money.ofMajor(263_480.0, Currency.RUB))
     }

@@ -25,7 +25,27 @@ data class MonthPoint(
 
 data class CategoryTotal(val category: Category, val total: Money, val share: Double)
 
+data class HistoryTotals(
+    val months: Int,
+    val income: Money,
+    val expense: Money,
+    val netSaved: Money,
+) {
+    val averageIncome: Money get() = Money(if (months > 0) income.minor / months else 0L, Currency.BASE)
+
+    val averageExpense: Money get() = Money(if (months > 0) expense.minor / months else 0L, Currency.BASE)
+
+    val savingsShare: Double? get() = if (income.minor > 0L) netSaved.minor.toDouble() / income.minor else null
+}
+
 object HistoryCalculator {
+
+    fun totals(points: List<MonthPoint>): HistoryTotals = HistoryTotals(
+        months = points.size,
+        income = points.map { it.income }.sumIn(Currency.BASE),
+        expense = points.map { it.expense }.sumIn(Currency.BASE),
+        netSaved = points.map { it.netSaved }.sumIn(Currency.BASE),
+    )
 
     fun monthly(
         transactions: List<Transaction>,
@@ -74,7 +94,7 @@ object HistoryCalculator {
 
     fun trackingStart(accounts: List<Account>, transactions: List<Transaction>): LocalDate? {
         val active = accounts.filterNot { it.isArchived }.map { it.id }.toSet()
-        return transactions.filter { tx -> tx.touches(active) }.minOfOrNull { it.date }
+        return transactions.filter { tx -> tx.touchesAny(active) }.minOfOrNull { it.date }
     }
 
     fun netWorth(
@@ -98,13 +118,6 @@ object HistoryCalculator {
         }
     }
 
-    private fun Transaction.touches(ids: Set<String>): Boolean = when (this) {
-        is Transaction.Expense -> accountId in ids
-        is Transaction.Income -> accountId in ids
-        is Transaction.Transfer -> fromAccountId in ids || toAccountId in ids
-        is Transaction.Exchange -> fromAccountId in ids || toAccountId in ids
-    }
-
     fun plannedExpenseByPeriod(lines: List<PeriodBudgetLine>, categories: List<Category>): Map<LocalDate, Money> {
         val expenseIds = categories.filter { it.kind == CategoryKind.EXPENSE }.map { it.id }.toSet()
         return lines
@@ -112,36 +125,6 @@ object HistoryCalculator {
             .groupBy { it.periodStart }
             .mapValues { (_, list) -> list.map { it.line.planned }.sumIn(Currency.BASE) }
     }
-
-    fun savingsForecast(
-        points: List<MonthPoint>,
-        currentPeriodOpen: Boolean,
-        savingsBalance: Money,
-        monthlyTarget: Money?,
-    ): SavingsForecast? {
-        val closed = if (currentPeriodOpen) points.dropLast(1) else points
-        val recent = closed.takeLast(FORECAST_MONTHS)
-        val target = monthlyTarget?.takeIf { it.minor > 0L }
-        if (recent.isEmpty() && target == null) return null
-        val actualPerMonth = if (recent.isEmpty()) null else Money(recent.map { it.netSaved.minor }.sum() / recent.size, Currency.BASE)
-        return SavingsForecast(
-            balance = savingsBalance,
-            monthsUsed = recent.size,
-            actualPerMonth = actualPerMonth,
-            targetPerMonth = target,
-            byTargetInYear = target?.let { inYear(savingsBalance, it) },
-            byActualInYear = actualPerMonth?.let { inYear(savingsBalance, it) },
-        )
-    }
-
-    private fun inYear(balance: Money, perMonth: Money): Money? {
-        val limit = Long.MAX_VALUE / (MONTHS_IN_YEAR * 2)
-        if (perMonth.minor > limit || perMonth.minor < -limit || balance.minor > limit || balance.minor < -limit) return null
-        return balance + Money(perMonth.minor * MONTHS_IN_YEAR, Currency.BASE)
-    }
-
-    private const val FORECAST_MONTHS = 3
-    private const val MONTHS_IN_YEAR = 12L
 
     fun cumulative(points: List<MonthPoint>, selector: (MonthPoint) -> Money): List<Money> {
         var acc = Money.zero(Currency.BASE)
@@ -153,12 +136,3 @@ object HistoryCalculator {
 }
 
 data class PeriodBudgetLine(val periodStart: LocalDate, val line: BudgetLine)
-
-data class SavingsForecast(
-    val balance: Money,
-    val monthsUsed: Int,
-    val actualPerMonth: Money?,
-    val targetPerMonth: Money?,
-    val byTargetInYear: Money?,
-    val byActualInYear: Money?,
-)

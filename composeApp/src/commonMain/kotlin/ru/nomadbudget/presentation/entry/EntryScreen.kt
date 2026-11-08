@@ -5,17 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,21 +38,16 @@ import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.presentation.components.CategoryChoice
 import ru.nomadbudget.presentation.components.CategoryPicker
-import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
-import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.DateField
-import ru.nomadbudget.presentation.components.Dropdown
-import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.InfoHint
 import ru.nomadbudget.presentation.components.SectionTitle
-import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.plural
@@ -64,7 +55,9 @@ import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.EntryDraft
 import ru.nomadbudget.presentation.home.EntryType
 import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.presentation.home.JournalDay
+import ru.nomadbudget.domain.logic.EntryDefaults
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.home.transactionKind
 import ru.nomadbudget.presentation.theme.AppTheme
 import ru.nomadbudget.domain.model.Draft
 import ru.nomadbudget.presentation.home.EntryPrefill
@@ -75,25 +68,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Checkbox
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.presentation.components.AccountsLine
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import ru.nomadbudget.domain.model.sumIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
-import ru.nomadbudget.domain.model.CorrectionCategory
-import ru.nomadbudget.presentation.more.SubScreenHeader
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -192,7 +173,8 @@ fun EntryScreen(
 
     LaunchedEffect(form.type, state.activeAccounts) {
         if (!form.accountTouched || form.account == null) {
-            form.account = preferredAccount(state, form.type, null) ?: form.account ?: state.activeAccounts.firstOrNull()
+            val lastUsed = EntryDefaults.lastUsedAccountId(state.transactions, state.activeAccounts.map { it.id }.toSet(), form.type.transactionKind)
+            form.account = lastUsed?.let(state.accountsById::get) ?: form.account ?: state.activeAccounts.firstOrNull()
         }
     }
 
@@ -244,7 +226,7 @@ fun EntryScreen(
         form.type != EntryType.TRANSFER && selectedCategory == null -> "выбери категорию"
         else -> null
     }
-    val largeThreshold = largeAmountThreshold(state, form.type)
+    val largeThreshold = EntryDefaults.largeAmountThreshold(state.transactions, state.today, form.type.transactionKind)
     fun trySubmit() {
         if (!canSubmit) {
             form.showErrors = true
@@ -255,11 +237,7 @@ fun EntryScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        CenteredLazyColumn(top = 4.dp) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(AppIcons.ArrowLeft, contentDescription = "Назад") }
@@ -328,22 +306,6 @@ fun EntryScreen(
         )
     }
 }
-
-private fun preferredAccount(state: HomeState, type: EntryType, categoryId: String?): Account? {
-    val active = state.activeAccounts.associateBy { it.id }
-    val sorted = state.transactions.sortedByDescending { it.date }
-    val accountId = when (type) {
-        EntryType.EXPENSE -> sorted.filterIsInstance<Transaction.Expense>().let { list ->
-            list.firstOrNull { it.categoryId == categoryId && it.accountId in active }?.accountId ?: list.firstOrNull { it.accountId in active }?.accountId
-        }
-        EntryType.INCOME -> sorted.filterIsInstance<Transaction.Income>().let { list ->
-            list.firstOrNull { it.categoryId == categoryId && it.accountId in active }?.accountId ?: list.firstOrNull { it.accountId in active }?.accountId
-        }
-        EntryType.TRANSFER -> sorted.filterIsInstance<Transaction.Transfer>().firstOrNull { it.fromAccountId in active }?.fromAccountId
-    }
-    return accountId?.let(active::get)
-}
-
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -486,7 +448,7 @@ private fun EntryForm(
                         if (choice.debt == null) form.debtEarly = false
                         choice.debt?.let { d ->
                             if (form.amountText.isBlank() && account?.currency == d.currency) {
-                                form.amountText = MoneyFormat.format(d.plannedPayment).filter { it.isDigit() || it == ',' }
+                                form.amountText = MoneyFormat.editText(d.plannedPayment)
                             }
                         }
                     },
@@ -552,7 +514,7 @@ private fun EntryForm(
 }
 
 @Composable
-private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Money?) {
+private fun AmountHint(state: HomeState, amount: Money?) {
     val text = when {
         amount == null -> "В рублях по курсу на сегодня: —"
         amount.currency == Currency.BASE -> "Счёт в рублях, курс не нужен"
@@ -674,25 +636,6 @@ private fun Modifier.submitOnEnter(onSubmit: () -> Unit): Modifier = onPreviewKe
         false
     }
 }
-
-internal fun largeAmountThreshold(state: HomeState, type: EntryType): Money {
-    val since = state.today.plus(-LARGE_LOOKBACK_DAYS, DateTimeUnit.DAY)
-    val largest = state.transactions
-        .filter { it.date >= since }
-        .filter {
-            when (type) {
-                EntryType.EXPENSE -> it is Transaction.Expense
-                EntryType.INCOME -> it is Transaction.Income
-                EntryType.TRANSFER -> it is Transaction.Transfer
-            }
-        }
-        .maxOfOrNull { it.amountBase.minor } ?: 0L
-    return Money.rub(maxOf(largest * LARGE_FACTOR, LARGE_FLOOR_MINOR))
-}
-
-private const val LARGE_LOOKBACK_DAYS = 180
-private const val LARGE_FACTOR = 5L
-private const val LARGE_FLOOR_MINOR = 10_000_000L
 
 private fun categoryChoices(state: HomeState, categories: List<Category>, type: EntryType): List<CategoryChoice> = buildList {
     categories.forEach { category ->

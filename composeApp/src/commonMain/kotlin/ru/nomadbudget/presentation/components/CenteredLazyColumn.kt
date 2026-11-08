@@ -12,19 +12,18 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CenteredLazyColumn(
     maxContentWidth: Dp = Ui.ContentMaxWidth,
-    top: Dp = 12.dp,
-    bottom: Dp = 96.dp,
+    top: Dp = Ui.Gap,
+    bottom: Dp = Ui.ScrollBottomPadding,
     content: LazyListScope.() -> Unit,
 ) {
     val state = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(aheadFraction = CACHE_FRACTION, behindFraction = CACHE_FRACTION))
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val side = maxOf(12.dp, (maxWidth - maxContentWidth) / 2)
+        val side = centeredSide(maxWidth, maxContentWidth)
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = state,
@@ -35,6 +34,6 @@ fun CenteredLazyColumn(
     }
 }
 
-fun centeredSide(maxWidth: Dp, maxContentWidth: Dp): Dp = maxOf(12.dp, (maxWidth - maxContentWidth) / 2)
+private fun centeredSide(maxWidth: Dp, maxContentWidth: Dp): Dp = maxOf(Ui.SideGutter, (maxWidth - maxContentWidth) / 2)
 
 private const val CACHE_FRACTION = 1f

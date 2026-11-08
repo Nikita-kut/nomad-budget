@@ -143,8 +143,13 @@ data class CapitalModel(
         const val PACE_MONTHS = 6
         const val MAX_HORIZON = 600
         const val HISTORY_MONTHS = 12
+        const val YEAR_MONTHS = 12
         private const val PERCENT = 100.0
         private const val MONTHS = 12.0
+        private const val COARSE_HORIZON = 24
+        private const val COARSE_STEP = 3
+
+        fun forecastIndices(horizon: Int): List<Int> = (0..horizon step (if (horizon > COARSE_HORIZON) COARSE_STEP else 1)).toList()
 
         fun build(
             today: LocalDate,

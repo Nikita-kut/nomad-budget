@@ -1,6 +1,5 @@
 package ru.nomadbudget.presentation.home
 
-import ru.nomadbudget.data.local.LocalStore
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,24 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -54,7 +47,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.serialization.Serializable
+import org.koin.compose.getKoin
 import org.koin.compose.viewmodel.koinViewModel
+import ru.nomadbudget.di.DEVICE_STORE
+import ru.nomadbudget.domain.repository.KeyValueStore
+import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.presentation.capital.CapitalScreen
+import ru.nomadbudget.presentation.more.BalanceCheckForm
 import ru.nomadbudget.demo.DemoMode
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
@@ -62,7 +61,6 @@ import ru.nomadbudget.presentation.accounts.AccountsScreen
 import ru.nomadbudget.presentation.charts.ChartsScreen
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.InfoHint
-import ru.nomadbudget.presentation.components.currencyColor
 import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
 import ru.nomadbudget.presentation.format.DateFormat
@@ -81,7 +79,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.FloatingActionButton
-import androidx.navigation.NavDestination.Companion.hierarchy
 import ru.nomadbudget.presentation.journal.JournalScreen
 import ru.nomadbudget.presentation.entry.EntryFormState
 import ru.nomadbudget.shareTextFile
@@ -162,10 +159,8 @@ private data class Tab(
 
 private const val LAST_ROUTE_KEY = "last_route"
 private val WIDE_LAYOUT_MIN_WIDTH = 840.dp
-private val CONTENT_MAX_WIDTH = 760.dp
 private val WIDE_SINGLE_MAX_WIDTH = 960.dp
 private val ENTRY_PANEL_WIDTH = 460.dp
-private val WIDE_CONTENT_MAX_WIDTH = Ui.ContentMaxWidth
 private val TWO_COLUMN_MIN_WIDTH = 1100.dp
 
 @Composable
@@ -178,11 +173,12 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val snackbar = remember { SnackbarHostState() }
     val navController = rememberNavController()
     val entryForm = remember { EntryFormState(state.today) }
-    val balanceForm = remember { ru.nomadbudget.presentation.more.BalanceCheckForm(state.today) }
+    val balanceForm = remember { BalanceCheckForm(state.today) }
     var entryPanel by remember { mutableStateOf(false) }
     var isWide by remember { mutableStateOf(false) }
     var sidebarCollapsed by remember { mutableStateOf<Boolean?>(null) }
-    val uiStore = remember { LocalStore() }
+    val koin = getKoin()
+    val uiStore = remember { koin.getOrNull<KeyValueStore>(DEVICE_STORE) ?: koin.get<KeyValueStore>() }
     val savedRoute = remember { uiStore.get(LAST_ROUTE_KEY) }
 
     LaunchedEffect(viewModel) {
@@ -290,9 +286,9 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             )
         val contentMaxWidth = when {
             selfCentered -> Dp.Infinity
-            twoColumns && backStack != null && (navController.isOn<PlanningRoute>() || navController.isOn<JournalRoute>()) -> WIDE_CONTENT_MAX_WIDTH
+            twoColumns && backStack != null && (navController.isOn<PlanningRoute>() || navController.isOn<JournalRoute>()) -> Ui.ContentMaxWidth
             wide -> WIDE_SINGLE_MAX_WIDTH
-            else -> CONTENT_MAX_WIDTH
+            else -> Ui.NarrowContentMaxWidth
         }
 
         Scaffold(
@@ -417,7 +413,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                             composable<RatesRoute> { RatesScreen(state = state, wide = wide) }
                             composable<ChartsRoute> { ChartsScreen(state = state, wide = wide) }
                             composable<CapitalRoute> {
-                                ru.nomadbudget.presentation.capital.CapitalScreen(
+                                CapitalScreen(
                                     state = state,
                                     onAddGoal = viewModel::addCapitalGoal,
                                     onDeleteGoal = viewModel::deleteCapitalGoal,
@@ -704,7 +700,7 @@ private fun DemoBadge() {
 }
 
 @Composable
-private fun HeaderAmount(label: String, money: ru.nomadbudget.domain.model.Money, emphasize: Boolean = false) {
+private fun HeaderAmount(label: String, money: Money, emphasize: Boolean = false) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(

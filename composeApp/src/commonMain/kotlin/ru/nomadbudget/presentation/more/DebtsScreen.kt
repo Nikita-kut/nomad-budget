@@ -6,16 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +20,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -46,10 +42,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import ru.nomadbudget.domain.logic.DebtObligation
 import ru.nomadbudget.domain.logic.ObligationStatus
@@ -58,7 +54,7 @@ import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
-import ru.nomadbudget.domain.model.sumIn
+import ru.nomadbudget.presentation.components.ConfirmDialog
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
@@ -91,7 +87,7 @@ fun DebtsScreen(
     val month = state.month
     val obligations = month.debts.sortedWith(compareBy<DebtObligation> { it.status == ObligationStatus.PAID }.thenBy(nullsLast()) { it.due })
 
-    CenteredLazyColumn(bottom = 96.dp) {
+    CenteredLazyColumn {
         if (onBack != null) {
             item { SubScreenHeader("Кредиты", onBack) }
         }
@@ -163,10 +159,10 @@ fun DebtsScreen(
 @Composable
 private fun DebtsSummary(state: HomeState, wide: Boolean) {
     val month = state.month
-    val owed = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE)
+    val owed = state.capital.debt
     val forecasts = state.openDebts.map { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }
     val lastClose = if (forecasts.any { it == null }) null else forecasts.filterNotNull().maxOrNull()
-    val paid = month.debts.count { it.status == ObligationStatus.PAID }
+    val paid = month.debtsPaid
     TileRow(
         wide,
         listOf(
@@ -212,7 +208,7 @@ private fun PaymentsTimeline(obligations: List<DebtObligation>, period: Period, 
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 val width = maxWidth
-                fun x(date: LocalDate): androidx.compose.ui.unit.Dp {
+                fun x(date: LocalDate): Dp {
                     val index = (period.dayNumber(date) - 1).coerceIn(0, length - 1)
                     return width * (index.toFloat() / (length - 1).coerceAtLeast(1))
                 }
@@ -322,6 +318,8 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
     }
 }
 
+private val DAYS_OF_MONTH = 1..31
+
 private fun statusText(o: DebtObligation): String = when (o.status) {
     ObligationStatus.PAID -> "оплачен"
     ObligationStatus.OVERDUE -> "просрочен"
@@ -339,9 +337,9 @@ private fun statusTone(status: ObligationStatus): PillTone = when (status) {
 private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (Debt) -> Unit) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var currency by remember { mutableStateOf(initial?.currency ?: Currency.BASE) }
-    var remaining by remember { mutableStateOf(initial?.principalRemaining?.let(::majorText).orEmpty()) }
-    var payment by remember { mutableStateOf(initial?.monthlyPayment?.let(::majorText).orEmpty()) }
-    var extra by remember { mutableStateOf(initial?.extraPayment?.takeUnless { it.isZero }?.let(::majorText).orEmpty()) }
+    var remaining by remember { mutableStateOf(initial?.principalRemaining?.let(MoneyFormat::editText).orEmpty()) }
+    var payment by remember { mutableStateOf(initial?.monthlyPayment?.let(MoneyFormat::editText).orEmpty()) }
+    var extra by remember { mutableStateOf(initial?.extraPayment?.takeUnless { it.isZero }?.let(MoneyFormat::editText).orEmpty()) }
     var rate by remember { mutableStateOf(initial?.ratePercent?.toString().orEmpty()) }
     var payDay by remember { mutableStateOf(initial?.payDay?.toString().orEmpty()) }
     val transformation = remember { ThousandsVisualTransformation() }
@@ -417,10 +415,4 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
-}
-
-private fun majorText(money: Money): String {
-    val major = money.minor / money.currency.minorFactor
-    val fraction = money.minor % money.currency.minorFactor
-    return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
 }

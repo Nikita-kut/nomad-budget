@@ -35,6 +35,7 @@ import ru.nomadbudget.data.dto.SubcategoryDto
 import ru.nomadbudget.data.dto.SubcategoryInsertDto
 import ru.nomadbudget.data.dto.TransactionDto
 import ru.nomadbudget.data.mapper.AccountMapper
+import ru.nomadbudget.data.mapper.PeriodMapper
 import ru.nomadbudget.data.mapper.BalanceCheckMapper
 import ru.nomadbudget.data.mapper.CategoryMapper
 import ru.nomadbudget.data.mapper.CurrencyMapper
@@ -309,7 +310,7 @@ class PeriodRepositoryImpl(private val client: SupabaseClient, private val cache
                     PeriodInsertDto(
                         startDate = period.start.toString(),
                         endDate = period.endExclusive.toString(),
-                        title = period.title(),
+                        title = PeriodMapper.title(period),
                     ),
                 ) { select() }
                 .decodeSingle<PeriodDto>()
@@ -328,21 +329,6 @@ class TransactionRepositoryImpl(
     private val cache: OfflineCache,
     private val queue: PendingQueue,
 ) : TransactionRepository {
-
-    override suspend fun getInPeriod(period: Period, accounts: List<Account>): List<Transaction> {
-        val byId = accounts.associateBy { it.id }
-        return client.from(Tables.TRANSACTIONS)
-            .select {
-                filter {
-                    gte("tx_date", period.start.toString())
-                    lt("tx_date", period.endExclusive.toString())
-                }
-                order("tx_date", Order.DESCENDING)
-                order("created_at", Order.DESCENDING)
-            }
-            .decodeList<TransactionDto>()
-            .map { TransactionMapper.toDomain(it, byId) }
-    }
 
     override suspend fun getAll(accounts: List<Account>): List<Transaction> {
         val byId = accounts.associateBy { it.id }

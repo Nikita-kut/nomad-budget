@@ -17,6 +17,12 @@ data class CategoryHistory(
 object PlanCalculator {
 
     const val HISTORY_MONTHS: Int = 3
+    const val USUAL_DIFF_THRESHOLD: Double = 0.2
+
+    fun differsFromUsual(planned: Money, history: CategoryHistory): Boolean {
+        if (history.average.minor <= 0L) return false
+        return kotlin.math.abs(history.average.minor - planned.minor).toDouble() / history.average.minor > USUAL_DIFF_THRESHOLD
+    }
 
     fun history(
         transactions: List<Transaction>,

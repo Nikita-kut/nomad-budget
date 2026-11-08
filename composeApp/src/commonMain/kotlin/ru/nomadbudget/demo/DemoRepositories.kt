@@ -5,11 +5,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.LocalDate
 import org.koin.core.module.dsl.viewModelOf
+import org.koin.dsl.bind
 import org.koin.dsl.module
+import ru.nomadbudget.domain.repository.OfflineStatus
 import ru.nomadbudget.core.TodayProvider
 import ru.nomadbudget.data.local.DraftsStore
 import ru.nomadbudget.data.local.InMemoryStore
-import ru.nomadbudget.data.local.KeyValueStore
+import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.UserScopedStore
 import ru.nomadbudget.domain.model.IsoCurrencies
@@ -35,6 +37,7 @@ import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
+import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.DebtRepository
@@ -49,7 +52,7 @@ val demoModule = module {
     single { DemoDatabase(DemoDatabase.anchorToday()) }
     single<KeyValueStore> { UserScopedStore(InMemoryStore()) { DemoAuthRepository.USER_ID } }
     single<TodayProvider> { TodayProvider { get<DemoDatabase>().today } }
-    single { OfflineCache(get()) }
+    single { OfflineCache(get()) } bind OfflineStatus::class
     single<UserSettingsRepository> { DemoUserSettingsRepository(get()) }
     single<DraftRepository> {
         DraftsStore(get()).apply {
@@ -67,7 +70,7 @@ val demoModule = module {
     single<ExchangeRateRepository> { DemoExchangeRateRepository(get()) }
     single<BalanceCheckRepository> { DemoBalanceCheckRepository(get()) }
     single<DebtRepository> { DemoDebtRepository(get()) }
-    single<ru.nomadbudget.domain.repository.CapitalRepository> { DemoCapitalRepository(get()) }
+    single<CapitalRepository> { DemoCapitalRepository(get()) }
     viewModelOf(::HomeViewModel)
 }
 
@@ -203,8 +206,6 @@ private class DemoPeriodRepository(private val db: DemoDatabase) : PeriodReposit
 }
 
 private class DemoTransactionRepository(private val db: DemoDatabase) : TransactionRepository {
-    override suspend fun getInPeriod(period: Period, accounts: List<Account>): List<Transaction> = db.transactions.filter { it.date in period }
-
     override suspend fun getAll(accounts: List<Account>): List<Transaction> = db.transactions.sortedByDescending { it.date }
 
     override suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction {

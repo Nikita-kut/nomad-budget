@@ -21,8 +21,6 @@ enum class ObligationStatus { PAID, OVERDUE, SOON, UPCOMING }
 
 enum class SavingsProgress { NONE, DONE, PENDING, MISSED }
 
-enum class MonthLevel { GOOD, WARNING, BAD }
-
 data class DebtObligation(
     val debt: Debt,
     val due: LocalDate?,
@@ -87,11 +85,11 @@ data class MonthModel(
     val debtsPlanned: Money = debts.map { it.planned }.sumIn(Currency.BASE)
     val fundsPlanned: Money = funds.mapNotNull { it.monthlyPlanned }.sumIn(Currency.BASE)
     val obligationsPlanned: Money = debtsPlanned + fundsPlanned
-    val obligationsLeft: Money = debts.map { it.left }.sumIn(Currency.BASE) + funds.map { it.contributionLeft }.sumIn(Currency.BASE)
     val obligationsCount: Int = debts.size + funds.count { it.monthlyPlanned != null }
-    val obligationsPaid: Int = debts.count { it.status == ObligationStatus.PAID } + funds.count { it.status == ObligationStatus.PAID }
+    val debtsLeft: Money = debts.map { it.left }.sumIn(Currency.BASE)
+    val debtsPaid: Int = debts.count { it.status == ObligationStatus.PAID }
+    val debtsOverdue: Boolean = debts.any { it.status == ObligationStatus.OVERDUE }
     val nextObligation: DebtObligation? = debts.filter { it.status != ObligationStatus.PAID }.sortedWith(compareBy(nullsLast()) { it.due }).firstOrNull()
-    val hasOverdue: Boolean = debts.any { it.status == ObligationStatus.OVERDUE } || funds.any { it.status == ObligationStatus.OVERDUE }
 
     val saved: Money = savedIn - savedOut - spentFromCushion
     val takenFromCushion: Money = savedOut + spentFromCushion
@@ -113,16 +111,6 @@ data class MonthModel(
         if (available.minor > 0L) (available - unallocated).minor.toDouble() / available.minor else null
 
     val hasPlan: Boolean = !flexiblePlanned.isZero || !incomePlanned.isZero || (savingsTarget?.isZero == false) || obligationsCount > 0
-
-    val flexibleOk: Boolean = flexibleFactWhole <= flexiblePlannedWhole
-
-    val level: MonthLevel?
-        get() = when {
-            flexiblePlanned.isZero && savingsProgress == SavingsProgress.NONE -> null
-            !flexibleOk || hasOverdue || savingsProgress == SavingsProgress.MISSED -> MonthLevel.BAD
-            savingsProgress == SavingsProgress.PENDING || envelopes.any { it.status == BudgetStatus.OVER || it.status == BudgetStatus.OVER_SLIGHTLY } -> MonthLevel.WARNING
-            else -> MonthLevel.GOOD
-        }
 
     companion object {
         const val SOON_DAYS = 3
@@ -146,7 +134,7 @@ data class MonthModel(
                 .sumIn(Currency.BASE)
             val inPeriod = transactions.filter { it.date in period }
             val systemIds = categories.filter { it.isSystem }.map { it.id }.toSet()
-            val visible = categories.filter { !it.isSystem && (!it.isArchived || inPeriod.any { tx -> tx.categoryIdOrNull() == it.id }) }
+            val visible = categories.filter { !it.isSystem && (!it.isArchived || inPeriod.any { tx -> tx.categoryIdOrNull == it.id }) }
             val budgets = BudgetCalculator.categoryBudgets(visible, lines, inPeriod, period, subcategories, accounts)
             val cushionIds = accounts.filter { it.role == AccountRole.CUSHION }.map { it.id }.toSet()
             val corrections = inPeriod.mapNotNull {
@@ -227,13 +215,5 @@ data class MonthModel(
                 status = monthly?.let { status(contributed.wholeUnits >= it.wholeUnits, null, today, period) },
             )
         }
-
-        private fun Transaction.categoryIdOrNull(): String? = when (this) {
-            is Transaction.Expense -> categoryId
-            is Transaction.Income -> categoryId
-            is Transaction.Transfer, is Transaction.Exchange -> null
-        }
     }
 }
-
-private fun Money.coerceAtLeastZero(): Money = if (isNegative) Money.zero(currency) else this

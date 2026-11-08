@@ -104,7 +104,6 @@ class SalaryCycleTest {
         val period = SalaryCycle.periodContaining(LocalDate(2026, 9, 5), startDay = 5)
         assertEquals(30, period.lengthDays)
         assertEquals(16, period.dayNumber(LocalDate(2026, 9, 20)))
-        assertEquals("05.09 → 05.10", period.title())
     }
 
     @Test

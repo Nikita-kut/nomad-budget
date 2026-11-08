@@ -135,7 +135,7 @@ fun OnboardingScreen(state: HomeState, messages: Flow<String>, onFinish: (Onboar
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        CenteredLazyColumn(maxContentWidth = CONTENT_WIDTH, top = 24.dp, bottom = 32.dp) {
+        CenteredLazyColumn(maxContentWidth = Ui.FormMaxWidth, top = 24.dp, bottom = 32.dp) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(padding)) {
                     Text("Nomad Budget · настройка", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -288,6 +288,5 @@ private fun roleLabel(role: AccountRole): String = when (role) {
     AccountRole.CUSHION -> "Подушка"
 }
 
-private val CONTENT_WIDTH = 640.dp
 private val CURRENCY_WIDTH = 128.dp
 private val KIND_WIDTH = 132.dp

@@ -22,8 +22,6 @@ data class Period(val start: LocalDate, val endExclusive: LocalDate) {
         require(date in this) { "Дата $date вне периода $this" }
         return start.daysUntil(date) + 1
     }
-
-    fun title(): String = "${start.shortDayMonth()} → ${endExclusive.shortDayMonth()}"
 }
 
 object SalaryCycle {
@@ -63,6 +61,3 @@ object SalaryCycle {
         return LocalDate(year, month, startDay.coerceIn(1, daysInMonth))
     }
 }
-
-private fun LocalDate.shortDayMonth(): String =
-    "${day.toString().padStart(2, '0')}.${month.number.toString().padStart(2, '0')}"

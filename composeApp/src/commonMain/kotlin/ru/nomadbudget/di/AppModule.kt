@@ -2,11 +2,13 @@ package ru.nomadbudget.di
 
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.core.qualifier.named
+import org.koin.dsl.bind
 import org.koin.dsl.module
+import ru.nomadbudget.domain.repository.OfflineStatus
 import ru.nomadbudget.data.local.DraftsStore
 import ru.nomadbudget.core.SystemToday
 import ru.nomadbudget.core.TodayProvider
-import ru.nomadbudget.data.local.KeyValueStore
+import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.data.local.LocalStore
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.PendingQueue
@@ -50,7 +52,7 @@ val appModule = module {
         UserScopedStore(get(DEVICE_STORE)) { auth.currentUserId }
     }
     single<TodayProvider> { SystemToday }
-    single { OfflineCache(get()) }
+    single { OfflineCache(get()) } bind OfflineStatus::class
     single { PendingQueue(get()) }
     single<DraftRepository> { DraftsStore(get(), inbox = get(DEVICE_STORE)) }
 

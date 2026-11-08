@@ -43,6 +43,7 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.presentation.components.TagChip
+import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.CategoryPlanDraft
@@ -70,9 +71,9 @@ fun PlanEditorDialog(
     val initialRows = remember(categoryId) {
         budget.items
             .filter { it.planned != null && it.subcategory != null }
-            .mapIndexed { index, item -> PlanRowInput(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), majorText(item.planned ?: Money.zero(Currency.BASE))) }
+            .mapIndexed { index, item -> PlanRowInput(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), MoneyFormat.editText(item.planned ?: Money.zero(Currency.BASE))) }
     }
-    val initialFree = remember(categoryId) { budget.freePlanned.takeIf { it.minor > 0L }?.let(::majorText).orEmpty() }
+    val initialFree = remember(categoryId) { budget.freePlanned.takeIf { it.minor > 0L }?.let(MoneyFormat::editText).orEmpty() }
     var rows by remember(categoryId) { mutableStateOf(initialRows) }
     var nextKey by remember(categoryId) { mutableIntStateOf(initialRows.size) }
     var freeText by remember(categoryId) { mutableStateOf(initialFree) }
@@ -110,7 +111,7 @@ fun PlanEditorDialog(
                     TextButton(onClick = { draft()?.let(onSave) }, enabled = dirty && error == null && !state.saving) { Text("Сохранить") }
                 }
                 Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).widthIn(max = 640.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).widthIn(max = Ui.FormMaxWidth),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text("План на месяц", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -197,8 +198,8 @@ fun PlanEditorDialog(
 @Composable
 fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Money?, Money?, Int?) -> Unit) {
     val currency = account.currency
-    var monthly by remember { mutableStateOf(account.fundMonthly?.let(::majorText).orEmpty()) }
-    var goal by remember { mutableStateOf(account.fundGoal?.let(::majorText).orEmpty()) }
+    var monthly by remember { mutableStateOf(account.fundMonthly?.let(MoneyFormat::editText).orEmpty()) }
+    var goal by remember { mutableStateOf(account.fundGoal?.let(MoneyFormat::editText).orEmpty()) }
     var day by remember { mutableStateOf(account.fundDay?.toString().orEmpty()) }
     val transformation = remember { ThousandsVisualTransformation() }
     val monthlyMoney = if (monthly.isBlank()) null else MoneyFormat.parse(monthly, currency)
@@ -266,10 +267,4 @@ internal fun PlanLine(label: String, value: String, bold: Boolean = false, highl
             color = highlight ?: MaterialTheme.colorScheme.onSurface,
         )
     }
-}
-
-internal fun majorText(money: Money): String {
-    val major = money.minor / money.currency.minorFactor
-    val fraction = money.minor % money.currency.minorFactor
-    return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
 }

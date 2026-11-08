@@ -25,6 +25,12 @@ data class Money(val minor: Long, val currency: Currency) : Comparable<Money> {
 
     fun withoutFraction(): Money = copy(minor = wholeUnits * currency.minorFactor)
 
+    fun coerceAtLeastZero(): Money = if (isNegative) zero(currency) else this
+
+    fun coerceAtMost(other: Money): Money = if (this > other) other else this
+
+    fun shareOf(whole: Money): Double = if (whole.minor <= 0L) 0.0 else minor.toDouble() / whole.minor
+
     override fun compareTo(other: Money): Int {
         requireSameCurrency(other)
         return minor.compareTo(other.minor)

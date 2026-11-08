@@ -23,7 +23,7 @@ import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import org.koin.compose.getKoin
-import ru.nomadbudget.data.local.KeyValueStore
+import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.presentation.theme.LocalThemeSettings
 import ru.nomadbudget.presentation.theme.ThemeSettings
 

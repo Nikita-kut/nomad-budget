@@ -25,7 +25,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
-import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.DateField
@@ -66,25 +65,15 @@ fun EditTransactionDialog(
     }
     var account by remember { mutableStateOf(state.accountsById[firstAccountId]) }
     var toAccount by remember { mutableStateOf(secondAccountId?.let { state.accountsById[it] }) }
-    val firstAmount = when (tx) {
-        is Transaction.Expense -> tx.amount
-        is Transaction.Income -> tx.amount
-        is Transaction.Transfer -> tx.amount
-        is Transaction.Exchange -> tx.given
-    }
-    var amountText by remember { mutableStateOf(majorText(firstAmount)) }
-    var receivedText by remember { mutableStateOf((tx as? Transaction.Exchange)?.received?.let(::majorText).orEmpty()) }
+    var amountText by remember { mutableStateOf(MoneyFormat.editText(tx.ownAmount)) }
+    var receivedText by remember { mutableStateOf((tx as? Transaction.Exchange)?.received?.let(MoneyFormat::editText).orEmpty()) }
 
     val kind = when (tx) {
         is Transaction.Expense -> CategoryKind.EXPENSE
         is Transaction.Income -> CategoryKind.INCOME
         is Transaction.Transfer, is Transaction.Exchange -> null
     }
-    val categoryId = when (tx) {
-        is Transaction.Expense -> tx.categoryId
-        is Transaction.Income -> tx.categoryId
-        is Transaction.Transfer, is Transaction.Exchange -> null
-    }
+    val categoryId = tx.categoryIdOrNull
     val categories = kind?.let { k -> state.categories.filter { it.kind == k && (!it.isArchived || it.id == categoryId) } }.orEmpty()
     var category by remember { mutableStateOf(categoryId?.let { state.categoriesById[it] }) }
     var subcategory by remember { mutableStateOf((tx as? Transaction.Expense)?.let { state.subcategoryName(it.subcategoryId) }.orEmpty()) }
@@ -223,10 +212,4 @@ fun EditTransactionDialog(
             }
         },
     )
-}
-
-private fun majorText(money: Money): String {
-    val major = money.minor / money.currency.minorFactor
-    val fraction = money.minor % money.currency.minorFactor
-    return if (fraction == 0L) major.toString() else "$major,${fraction.toString().padStart(money.currency.minorUnits, '0')}"
 }

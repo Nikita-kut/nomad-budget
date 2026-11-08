@@ -1,5 +1,7 @@
 package ru.nomadbudget.data.local
 
+import ru.nomadbudget.domain.repository.KeyValueStore
+
 import android.content.Context
 import android.content.SharedPreferences
 

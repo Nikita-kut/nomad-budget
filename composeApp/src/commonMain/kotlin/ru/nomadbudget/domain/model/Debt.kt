@@ -76,7 +76,4 @@ object DebtCalculator {
         early -> earlyPrincipalPart(debt, payment)
         else -> principalPart(debt, payment)
     }
-
-    fun afterPayment(debt: Debt, payment: Money): Debt =
-        debt.copy(principalRemaining = debt.principalRemaining - principalPart(debt, payment))
 }
