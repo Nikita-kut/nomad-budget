@@ -25,8 +25,6 @@ object ExchangeAnalyzer {
     fun baseQuote(currency: Currency, basePerUnit: Double): RateQuote =
         if (basePerUnit >= 1.0) RateQuote(currency, Currency.BASE, basePerUnit) else RateQuote(Currency.BASE, currency, 1.0 / basePerUnit)
 
-    fun quoteText(quote: RateQuote, format: (Double) -> String): String = "1 ${quote.unit.symbol} = ${format(quote.value)} ${quote.price.symbol}"
-
     fun analyze(exchange: Transaction.Exchange, rates: RateTable): ExchangeAnalysis {
         val reference = rates.cross(exchange.given.currency, exchange.received.currency)
         val effective = exchange.effectiveRate

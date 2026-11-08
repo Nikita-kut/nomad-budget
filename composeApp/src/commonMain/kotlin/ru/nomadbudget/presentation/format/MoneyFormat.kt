@@ -5,6 +5,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
+import ru.nomadbudget.domain.logic.RateQuote
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import kotlin.math.abs
@@ -77,7 +78,14 @@ object MoneyFormat {
         return unit
     }
 
-    fun unitLabel(unit: Long, symbol: String): String = "${groupThousands(unit)}$THIN_SPACE$symbol"
+    fun unitLabel(unit: Long, currency: Currency): String = "${groupThousands(unit)}$THIN_SPACE${currency.code}"
+
+    fun rateText(from: Currency, to: Currency, value: Double, unit: Long = 1L): String =
+        "${unitLabel(unit, from)} = ${formatQuote(value)}$THIN_SPACE${to.code}"
+
+    fun quoteText(quote: RateQuote): String = rateText(quote.unit, quote.price, quote.value)
+
+    fun perUnitLabel(unit: Long, from: Currency, to: Currency): String = "${to.code} за ${unitLabel(unit, from)}"
 
     fun formatNumber(value: Double, decimals: Int): String {
         val factor = 10.0.pow(decimals)

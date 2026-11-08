@@ -204,7 +204,7 @@ fun EditTransactionDialog(
                     EarlyPaymentToggle(checked = debtEarly, onChange = { debtEarly = it }, preview = null, differentCurrency = debt != null && account?.currency != debt.currency)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Если сумма изменилась, сумма в ₽ пересчитается по сегодняшнему курсу.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Если сумма изменилась, сумма в рублях пересчитается по сегодняшнему курсу.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },

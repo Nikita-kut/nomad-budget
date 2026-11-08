@@ -420,7 +420,7 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                    label = { Text("Отложить в подушку, ₽") },
+                    label = { Text("Отложить в подушку, ${Currency.BASE.code}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

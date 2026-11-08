@@ -443,7 +443,7 @@ private fun GoalDialog(today: LocalDate, onDismiss: () -> Unit, onConfirm: (Stri
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                    label = { Text("Сколько, ₽") },
+                    label = { Text("Сколько, ${Currency.BASE.code}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

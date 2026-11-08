@@ -179,12 +179,12 @@ private fun RateHints(
         else -> {
             val reference = state.rates.cross(from.currency, to.currency)
             val referenceQuote = ExchangeAnalyzer.pairQuote(from.currency, to.currency, reference)
-            KeyValueRow("Курс по таблице", ExchangeAnalyzer.quoteText(referenceQuote, MoneyFormat::formatQuote))
+            KeyValueRow("Курс по таблице", MoneyFormat.quoteText(referenceQuote))
             if (given != null && received != null) {
                 val effective = received.toMajor() / given.toMajor()
                 val spread = (reference - effective) / reference * 100
                 val effectiveQuote = if (referenceQuote.unit == from.currency) ru.nomadbudget.domain.logic.RateQuote(from.currency, to.currency, effective) else ru.nomadbudget.domain.logic.RateQuote(to.currency, from.currency, 1.0 / effective)
-                KeyValueRow("Твой курс", ExchangeAnalyzer.quoteText(effectiveQuote, MoneyFormat::formatQuote), emphasize = true)
+                KeyValueRow("Твой курс", MoneyFormat.quoteText(effectiveQuote), emphasize = true)
                 Text(
                     spreadText(spread),
                     style = MaterialTheme.typography.bodySmall,
@@ -223,7 +223,7 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
             }
             Column(horizontalAlignment = Alignment.End) {
                 val quote = ExchangeAnalyzer.quote(exchange)
-                Text(ExchangeAnalyzer.quoteText(quote, MoneyFormat::formatQuote), fontWeight = FontWeight.SemiBold)
+                Text(MoneyFormat.quoteText(quote), fontWeight = FontWeight.SemiBold)
                 if (analysis != null) {
                     Text(
                         spreadText(analysis.spreadPercent),
@@ -274,8 +274,8 @@ private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
     val tableColor = MaterialTheme.colorScheme.outline
     val withTable = data.points.all { it.table != null }
     ChartPanel(
-        title = "1 ${data.unit.symbol} → ${data.price.symbol}: твой курс в обменах",
-        hint = "сколько ${data.price.code} давали за 1 ${data.unit.code}" + if (withTable) "; выше линии таблицы — обмен выгодный" else "",
+        title = "${data.unit.code} → ${data.price.code}: твой курс в обменах",
+        hint = "сколько ${data.price.code} давали за ${MoneyFormat.unitLabel(1L, data.unit)}" + if (withTable) "; выше линии таблицы — обмен выгодный" else "",
         legend = listOfNotNull(LegendEntry("твой курс", mineColor), LegendEntry("по таблице в тот день", tableColor).takeIf { withTable }),
         totalPoints = data.points.size,
         periods = EXCHANGE_PERIODS,
@@ -301,7 +301,7 @@ private fun SingleExchangeCard(data: ExchangeChartData) {
     val point = data.points.single()
     androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("1 ${data.unit.symbol} → ${data.price.symbol}: один обмен", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text("${data.unit.code} → ${data.price.code}: один обмен", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
                 "${DateFormat.dayMonth(point.date)}: твой курс ${MoneyFormat.formatQuote(point.mine)}" +
                     (point.table?.let { " · по таблице ${MoneyFormat.formatQuote(it)}" } ?: "") +

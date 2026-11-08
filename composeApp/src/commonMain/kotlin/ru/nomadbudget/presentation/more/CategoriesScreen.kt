@@ -308,7 +308,7 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, ru.nomadbudget.domain.model.Currency.BASE.minorUnits) },
-                        label = { Text("План на месяц, ₽") },
+                        label = { Text("План на месяц, ${Currency.BASE.code}") },
                         supportingText = { Text("$periodTitle · необязательно") },
                         singleLine = true,
                         visualTransformation = transformation,

@@ -83,4 +83,28 @@ class MoneyFormatTest {
         assertEquals("149", MoneyFormat.formatQuote(149.2))
         assertEquals("0,0108", MoneyFormat.formatQuote(0.0108))
     }
+
+    @Test
+    fun unitLabel_usesCode_notSymbol() {
+        assertEquals("1 USD", MoneyFormat.unitLabel(1L, Currency.USD))
+        assertEquals("1 000 RUB", MoneyFormat.unitLabel(1_000L, Currency.RUB))
+    }
+
+    @Test
+    fun rateText_codesOnBothSides_withScaledUnit() {
+        assertEquals("1 USD = 92,46 RUB", MoneyFormat.rateText(Currency.USD, Currency.RUB, 92.46))
+        assertEquals("1 000 RUB = 10,82 USD", MoneyFormat.rateText(Currency.RUB, Currency.USD, 10.82, unit = 1_000L))
+    }
+
+    @Test
+    fun quoteText_followsQuoteOrientation() {
+        val quote = ru.nomadbudget.domain.logic.ExchangeAnalyzer.baseQuote(Currency.USD, 92.8)
+        assertEquals("1 USD = 92,80 RUB", MoneyFormat.quoteText(quote))
+    }
+
+    @Test
+    fun perUnitLabel_namesPriceThenUnit() {
+        assertEquals("RUB за 1 USD", MoneyFormat.perUnitLabel(1L, Currency.USD, Currency.RUB))
+        assertEquals("USD за 1 000 RUB", MoneyFormat.perUnitLabel(1_000L, Currency.RUB, Currency.USD))
+    }
 }
