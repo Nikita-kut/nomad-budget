@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#1F4E5F">
+    <meta name="theme-color" content="#4673FF">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Nomad Budget">
@@ -11,22 +11,46 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
+    <script>
+        (function () {
+            var saved = null;
+            try { saved = localStorage.getItem('nomad_budget:theme'); } catch (e) {}
+            var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        })();
+    </script>
     <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #F3F5F2; }
-        @media (prefers-color-scheme: dark) { html, body { background: #131716; } }
+        :root { --bg: #F0F4F9; --card: #FFFFFF; --b: #EAEFF6; --h: #FFFFFF; --line: #DEE5F0; --accent: #4673FF; }
+        :root[data-theme="dark"] { --bg: #14161C; --card: #1D2028; --b: #2C313C; --h: #3E4454; --line: #353B48; --accent: #6E8FFF; }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
         #root { width: 100%; height: 100%; }
-        #boot { position: fixed; inset: 0; display: flex; flex-direction: column; --b: #E3E8E4; --h: #F4F7F5; --card: #FFFFFF; transition: opacity .12s linear; font-family: system-ui, -apple-system, sans-serif; }
-        @media (prefers-color-scheme: dark) { #boot { --b: #252B29; --h: #323A37; --card: #1B201E; } }
+        #boot { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); transition: opacity .12s linear; }
         #boot.done { opacity: 0; pointer-events: none; }
-        #boot .bar { height: 64px; display: flex; align-items: center; gap: 24px; padding: 0 16px; background: var(--card); }
-        #boot .main { flex: 1; display: flex; }
-        #boot .rail { width: 92px; background: var(--card); display: none; flex-direction: column; align-items: center; gap: 22px; padding-top: 20px; }
-        #boot .content { flex: 1; max-width: 1240px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; }
-        #boot .tiles { display: grid; grid-template-columns: 1fr; gap: 12px; }
-        #boot .card { background: var(--card); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-        #boot .tile { min-height: 104px; }
+        #boot .bar { height: 80px; flex: none; display: flex; align-items: center; gap: 20px; padding: 0 12px; background: var(--card); border-bottom: 1px solid var(--line); box-sizing: border-box; }
+        #boot .main { flex: 1; display: flex; min-height: 0; }
+        #boot .side { display: none; flex: none; background: var(--card); border-right: 1px solid var(--line); flex-direction: column; gap: 10px; padding: 12px 10px; box-sizing: border-box; }
+        #boot .side .row { display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 12px; }
+        #boot .side .cap { height: 10px; width: 54px; margin: 10px 12px 2px; }
+        #boot .content { flex: 1; max-width: 1240px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; width: 100%; }
+        #boot .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        #boot .tiles .card:first-child { grid-column: 1 / -1; }
+        #boot .card { background: var(--card); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+        #boot .table { border-radius: 16px; }
+        #boot .tile { min-height: 96px; }
+        #boot .nav { height: 80px; flex: none; background: var(--card); display: flex; justify-content: space-around; align-items: center; }
         #boot .s { border-radius: 6px; height: 14px; background: linear-gradient(100deg, var(--b) 30%, var(--h) 50%, var(--b) 70%); background-size: 300% 100%; animation: shimmer 1.3s linear infinite; }
-        @media (min-width: 840px) { #boot .rail { display: flex; } #boot .tiles { grid-template-columns: repeat(3, 1fr); } }
+        #boot .btn { height: 40px; border-radius: 10px; background: var(--accent); opacity: .85; }
+        #boot .label { display: none; }
+        @media (min-width: 840px) {
+            #boot .side { display: flex; width: 68px; }
+            #boot .nav { display: none; }
+            #boot .tiles { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+            #boot .tiles .card:first-child { grid-column: auto; }
+        }
+        @media (min-width: 1100px) {
+            #boot .side { width: 216px; }
+            #boot .label { display: block; }
+        }
         @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
         @media (prefers-reduced-motion: reduce) { #boot .s { animation: none; } }
     </style>
@@ -56,19 +80,17 @@
 <body>
 <div id="root"></div>
 <div id="boot" aria-label="Загрузка">
-    <div class="bar"><div class="s" style="width:130px;height:18px"></div><div class="s" style="width:100px;height:18px"></div><div class="s" style="width:80px;height:18px"></div><div class="s" style="width:80px;height:18px"></div></div>
+    <div class="bar"><div class="s" style="width:120px;height:18px"></div><div class="s" style="width:96px;height:18px"></div><div class="s" style="width:80px;height:18px"></div><div style="flex:1"></div><div class="s" style="width:140px;height:18px"></div></div>
     <div class="main">
-        <div class="rail"><div class="s" style="width:56px;height:56px;border-radius:16px"></div><div class="s" style="width:40px;height:32px"></div><div class="s" style="width:40px;height:32px"></div><div class="s" style="width:40px;height:32px"></div><div class="s" style="width:40px;height:32px"></div></div>
+        <div class="side"><div class="btn"></div><div class="s cap label"></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="s cap label"></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="s cap label"></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div><div class="row"><div class="s" style="width:20px;height:20px"></div><div class="s label" style="width:90px"></div></div></div>
         <div class="content">
-            <div class="s" style="width:180px;height:18px"></div>
-            <div class="tiles">
-                <div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:26px"></div><div class="s" style="height:8px"></div><div class="s" style="width:70%;height:12px"></div></div>
-                <div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:26px"></div><div class="s" style="height:8px"></div><div class="s" style="width:70%;height:12px"></div></div>
-                <div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:26px"></div><div class="s" style="height:8px"></div><div class="s" style="width:70%;height:12px"></div></div>
-            </div>
-            <div class="card"><div class="s"></div><div class="s" style="width:80%"></div><div class="s"></div><div class="s" style="width:60%"></div><div class="s"></div></div>
+            <div class="s" style="width:180px;height:16px"></div>
+            <div class="tiles"><div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:24px"></div><div class="s" style="width:70%;height:10px"></div></div><div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:24px"></div><div class="s" style="width:70%;height:10px"></div></div><div class="card tile"><div class="s" style="width:110px;height:12px"></div><div class="s" style="width:150px;height:24px"></div><div class="s" style="width:70%;height:10px"></div></div></div>
+            <div class="s" style="width:140px;height:16px"></div>
+            <div class="card table"><div style="display:flex;gap:24px;align-items:center;height:28px"><div class="s" style="width:160px"></div><div style="flex:1"></div><div class="s" style="width:90px"></div><div class="s" style="width:90px"></div></div><div style="display:flex;gap:24px;align-items:center;height:28px"><div class="s" style="width:160px"></div><div style="flex:1"></div><div class="s" style="width:90px"></div><div class="s" style="width:90px"></div></div><div style="display:flex;gap:24px;align-items:center;height:28px"><div class="s" style="width:160px"></div><div style="flex:1"></div><div class="s" style="width:90px"></div><div class="s" style="width:90px"></div></div><div style="display:flex;gap:24px;align-items:center;height:28px"><div class="s" style="width:160px"></div><div style="flex:1"></div><div class="s" style="width:90px"></div><div class="s" style="width:90px"></div></div><div style="display:flex;gap:24px;align-items:center;height:28px"><div class="s" style="width:160px"></div><div style="flex:1"></div><div class="s" style="width:90px"></div><div class="s" style="width:90px"></div></div><div style="display:flex;gap:24px;align-items:center;height:28px"><div class="s" style="width:160px"></div><div style="flex:1"></div><div class="s" style="width:90px"></div><div class="s" style="width:90px"></div></div></div>
         </div>
     </div>
+    <div class="nav"><div class="s" style="width:28px;height:28px"></div><div class="s" style="width:28px;height:28px"></div><div class="s" style="width:28px;height:28px"></div><div class="s" style="width:28px;height:28px"></div><div class="s" style="width:28px;height:28px"></div></div>
 </div>
 <script>
     (function () {

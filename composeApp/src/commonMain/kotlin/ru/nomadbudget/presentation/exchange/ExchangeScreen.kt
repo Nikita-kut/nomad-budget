@@ -286,6 +286,7 @@ private fun ExchangeRateChart(data: ExchangeChartData, state: HomeState) {
         MultiLineChart(
             series = series,
             colors = listOf(mineColor, tableColor).take(series.size),
+            names = listOf("твой курс", "по таблице").take(series.size),
             labels = slice.map { DateFormat.dayMonth(it.date) },
             formatY = MoneyFormat::formatQuote,
             visibleCount = visible,
