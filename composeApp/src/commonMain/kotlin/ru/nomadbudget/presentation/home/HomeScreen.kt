@@ -101,6 +101,9 @@ import ru.nomadbudget.presentation.theme.LocalThemeSettings
 import ru.nomadbudget.presentation.components.LoadingSkeleton
 import ru.nomadbudget.presentation.components.HeaderSkeleton
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.Sidebar
+import ru.nomadbudget.presentation.components.SidebarEntry
+import ru.nomadbudget.presentation.components.SidebarGroup
 
 @Serializable
 object MonthRoute
@@ -146,6 +149,7 @@ private data class Tab(
     val title: String,
     val icon: ImageVector,
     val primary: Boolean,
+    val group: String? = null,
     val isSelected: (NavHostController) -> Boolean,
 )
 
@@ -165,6 +169,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val balanceForm = remember { ru.nomadbudget.presentation.more.BalanceCheckForm(state.today) }
     var entryPanel by remember { mutableStateOf(false) }
     var isWide by remember { mutableStateOf(false) }
+    var sidebarCollapsed by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -187,15 +192,15 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
 
     val tabs = remember {
         listOf(
-            Tab(MonthRoute, "Месяц", AppIcons.Calendar, primary = true) { it.isOn<MonthRoute>() },
-            Tab(JournalRoute, "Журнал", AppIcons.Receipt, primary = true) { it.isOn<JournalRoute>() },
-            Tab(PlanningRoute, "План", AppIcons.Plan, primary = true) { it.isOn<PlanningRoute>() },
-            Tab(AccountsRoute, "Счета", AppIcons.Wallet, primary = true) { it.isOn<AccountsRoute>() },
-            Tab(ExchangeRoute, "Обмен", AppIcons.Swap, primary = false) { it.isOn<ExchangeRoute>() },
-            Tab(DebtsRoute, "Кредиты", AppIcons.CreditCard, primary = false) { it.isOn<DebtsRoute>() },
-            Tab(RatesRoute, "Курсы", AppIcons.ChartLine, primary = false) { it.isOn<RatesRoute>() },
-            Tab(CapitalRoute, "Капитал", AppIcons.PiggyBank, primary = false) { it.isOn<CapitalRoute>() },
-            Tab(ChartsRoute, "Графики", AppIcons.ChartColumn, primary = false) { it.isOn<ChartsRoute>() },
+            Tab(MonthRoute, "Месяц", AppIcons.Calendar, primary = true, group = "Бюджет") { it.isOn<MonthRoute>() },
+            Tab(PlanningRoute, "План", AppIcons.Plan, primary = true, group = "Бюджет") { it.isOn<PlanningRoute>() },
+            Tab(JournalRoute, "Журнал", AppIcons.Receipt, primary = true, group = "Бюджет") { it.isOn<JournalRoute>() },
+            Tab(AccountsRoute, "Счета", AppIcons.Wallet, primary = true, group = "Деньги") { it.isOn<AccountsRoute>() },
+            Tab(DebtsRoute, "Кредиты", AppIcons.CreditCard, primary = false, group = "Деньги") { it.isOn<DebtsRoute>() },
+            Tab(ExchangeRoute, "Обмен", AppIcons.Swap, primary = false, group = "Деньги") { it.isOn<ExchangeRoute>() },
+            Tab(CapitalRoute, "Капитал", AppIcons.PiggyBank, primary = false, group = "Анализ") { it.isOn<CapitalRoute>() },
+            Tab(ChartsRoute, "Графики", AppIcons.ChartColumn, primary = false, group = "Анализ") { it.isOn<ChartsRoute>() },
+            Tab(RatesRoute, "Курсы", AppIcons.ChartLine, primary = false, group = "Анализ") { it.isOn<RatesRoute>() },
             Tab(MoreRoute, "Ещё", AppIcons.More, primary = true) {
                 it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() ||
                     it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<CapitalRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
@@ -288,22 +293,21 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Row(modifier = Modifier.fillMaxSize()) {
                 if (wide) {
-                    NavigationRail(
-                        header = {
-                            FloatingActionButton(onClick = openEntry, modifier = Modifier.padding(vertical = 8.dp), containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
-                                Icon(AppIcons.Add, contentDescription = "Новая запись")
-                            }
-                        },
-                    ) {
-                        tabs.forEach { tab ->
-                            NavigationRailItem(
-                                selected = backStack != null && (if (tab.route == MoreRoute) navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() else tab.isSelected(navController)),
-                                onClick = { navController.switchTo(tab.route) },
-                                icon = { Icon(tab.icon, contentDescription = tab.title) },
-                                label = { Text(tab.title) },
-                            )
-                        }
+                    val entryOf = { tab: Tab ->
+                        SidebarEntry(
+                            title = tab.title,
+                            icon = tab.icon,
+                            selected = backStack != null && (if (tab.route == MoreRoute) navController.isOn<MoreRoute>() || navController.isOn<CategoriesRoute>() || navController.isOn<BalanceCheckRoute>() else tab.isSelected(navController)),
+                            onClick = { navController.switchTo(tab.route) },
+                        )
                     }
+                    Sidebar(
+                        collapsed = sidebarCollapsed ?: !twoColumns,
+                        onToggle = { sidebarCollapsed = !(sidebarCollapsed ?: !twoColumns) },
+                        onCreate = openEntry,
+                        groups = tabs.filter { it.group != null }.groupBy { it.group }.map { (title, list) -> SidebarGroup(title, list.map(entryOf)) },
+                        footer = tabs.filter { it.group == null }.map(entryOf),
+                    )
                 }
                 Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     Box(modifier = Modifier.widthIn(max = contentMaxWidth).fillMaxSize()) {
