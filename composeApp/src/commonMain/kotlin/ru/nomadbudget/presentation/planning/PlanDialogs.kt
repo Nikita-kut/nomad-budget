@@ -144,7 +144,7 @@ fun PlanEditorDialog(
                                 OutlinedTextField(
                                     value = row.amount,
                                     onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(amount = ThousandsVisualTransformation.sanitize(v, Currency.BASE.minorUnits)) else it } },
-                                    label = { Text("₽") },
+                                    label = { Text(Currency.BASE.code) },
                                     singleLine = true,
                                     visualTransformation = transformation,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -180,7 +180,7 @@ fun PlanEditorDialog(
                     OutlinedTextField(
                         value = freeText,
                         onValueChange = { freeText = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                        label = { Text(if (isIncome) "Сумма на месяц, ₽" else "Прочее, ₽") },
+                        label = { Text(if (isIncome) "Сумма на месяц, ${Currency.BASE.code}" else "Прочее, ${Currency.BASE.code}") },
                         supportingText = { if (!isIncome) Text("на всё в категории, что не попало в подкатегории") },
                         singleLine = true,
                         visualTransformation = transformation,

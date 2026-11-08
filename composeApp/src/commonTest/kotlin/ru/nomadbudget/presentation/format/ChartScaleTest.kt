@@ -63,7 +63,7 @@ class ChartScaleTest {
         assertEquals(1_000L, MoneyFormat.quoteUnit(0.0032))
         assertEquals(1L, MoneyFormat.quoteUnit(314.0))
         assertEquals(10L, MoneyFormat.quoteUnit(0.5))
-        assertEquals("1\u00A0000\u00A0₽", MoneyFormat.unitLabel(1_000L, "₽"))
+        assertEquals("1\u00A0000\u00A0RUB", MoneyFormat.unitLabel(1_000L, ru.nomadbudget.domain.model.Currency.RUB))
     }
 
     @Test

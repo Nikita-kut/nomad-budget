@@ -105,8 +105,8 @@ private fun DirectionChart(from: Currency, to: Currency, points: List<RatePoint>
     val unit = MoneyFormat.quoteUnit(points.map { it.value }.sorted()[points.size / 2])
     val scaled = points.map { it.value * unit }
     ChartPanel(
-        title = "${MoneyFormat.unitLabel(unit, from.symbol)} = ${MoneyFormat.formatQuote(scaled.last())} ${to.symbol}",
-        hint = "сколько ${to.code} за ${MoneyFormat.unitLabel(unit, from.code)}",
+        title = MoneyFormat.rateText(from, to, scaled.last(), unit),
+        hint = "сколько ${MoneyFormat.perUnitLabel(unit, from, to)}",
         legend = listOf(LegendEntry("по дням", color)),
         totalPoints = points.size,
         periods = RATE_PERIODS,
@@ -135,9 +135,9 @@ private fun HistoryTable(a: Currency, b: Currency, points: List<RatePoint>) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 8.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("Дата", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                HeaderCell("${MoneyFormat.unitLabel(unitA, a.symbol)} в ${b.code}", width = WIDE_CELL)
+                HeaderCell(MoneyFormat.perUnitLabel(unitA, a, b), width = WIDE_CELL)
                 HeaderCell("за день, %")
-                HeaderCell("${MoneyFormat.unitLabel(unitB, b.symbol)} в ${a.code}", width = WIDE_CELL)
+                HeaderCell(MoneyFormat.perUnitLabel(unitB, b, a), width = WIDE_CELL)
                 HeaderCell("за день, %")
             }
             HorizontalDivider()

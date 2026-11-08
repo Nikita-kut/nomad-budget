@@ -560,7 +560,7 @@ private fun AmountHint(state: HomeState, amount: ru.nomadbudget.domain.model.Mon
         else -> {
             val perUnit = state.rates.basePerUnit(amount.currency)
             val unit = MoneyFormat.quoteUnit(perUnit)
-            "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.formatQuote(perUnit * unit)} ₽ за ${MoneyFormat.unitLabel(unit, amount.currency.code)}"
+            "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.rateText(amount.currency, Currency.BASE, perUnit * unit, unit)}"
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -329,7 +329,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Dropdown("Валюта", currencies, currency, { "${it.code} · ${it.symbol}" }, { currency = it })
+                Dropdown("Валюта", currencies, currency, Currency::code, { currency = it })
                 RolePicker(role) { role = it }
                 Text(
                     "Начальный остаток задай сверкой: кнопка «Сверить остаток» на экране счетов, введи фактическую сумму.",
@@ -357,7 +357,7 @@ private fun RatesCard(state: HomeState) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             state.foreignCurrencies.forEach { currency ->
                 if (state.rates.hasRate(currency)) {
-                    KeyValueRow(currency.code, ExchangeAnalyzer.quoteText(ExchangeAnalyzer.baseQuote(currency, state.rates.basePerUnit(currency)), MoneyFormat::formatQuote))
+                    KeyValueRow(currency.code, MoneyFormat.quoteText(ExchangeAnalyzer.baseQuote(currency, state.rates.basePerUnit(currency))))
                 } else {
                     KeyValueRow(currency.code, "нет курса")
                 }
@@ -367,7 +367,7 @@ private fun RatesCard(state: HomeState) {
                 .forEach { currency ->
                     KeyValueRow(
                         "${Currency.USD.code} → ${currency.code}, кросс-курс",
-                        ExchangeAnalyzer.quoteText(ExchangeAnalyzer.pairQuote(Currency.USD, currency, state.rates.cross(Currency.USD, currency)), MoneyFormat::formatQuote),
+                        MoneyFormat.quoteText(ExchangeAnalyzer.pairQuote(Currency.USD, currency, state.rates.cross(Currency.USD, currency))),
                     )
                 }
         }
