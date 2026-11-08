@@ -10,7 +10,6 @@ ktor = "3.6.0"
 koin = "4.2.2"
 androidx-lifecycle = "2.11.0"
 androidx-navigation = "2.9.2"
-compose-materialIcons = "1.7.3"
 vico = "2.5.2"
 androidx-glance = "1.2.0"
 android-compileSdk = "37"
@@ -31,8 +30,6 @@ koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
 androidx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
 androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
-compose-material-icons-core = { module = "org.jetbrains.compose.material:material-icons-core", version.ref = "compose-materialIcons" }
-compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-materialIcons" }
 vico-multiplatform = { module = "com.patrykandpatrick.vico:multiplatform", version.ref = "vico" }
 androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "androidx-glance" }

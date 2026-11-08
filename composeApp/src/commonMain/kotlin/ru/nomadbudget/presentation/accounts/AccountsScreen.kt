@@ -8,11 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -40,7 +35,6 @@ import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.presentation.planning.FundSettingsDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.RadioButton
-import androidx.compose.material.icons.filled.SwapHoriz
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.domain.model.sumIn
@@ -60,6 +54,7 @@ import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.domain.logic.ExchangeAnalyzer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import ru.nomadbudget.presentation.components.AppIcons
 
 @Composable
 fun AccountsScreen(
@@ -248,8 +243,8 @@ private fun AccountRow(
     ) {
         if (editMode) {
             Column {
-                IconButton(onClick = onMoveUp, enabled = canMoveUp) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Выше") }
-                IconButton(onClick = onMoveDown, enabled = canMoveDown) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Ниже") }
+                IconButton(onClick = onMoveUp, enabled = canMoveUp) { Icon(AppIcons.ChevronUp, contentDescription = "Выше") }
+                IconButton(onClick = onMoveDown, enabled = canMoveDown) { Icon(AppIcons.ChevronDown, contentDescription = "Ниже") }
             }
         }
         Column(modifier = Modifier.weight(1f)) {
@@ -288,13 +283,13 @@ private fun AccountRow(
         }
         if (editMode) {
             IconButton(onClick = onRename) {
-                Icon(Icons.Filled.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(AppIcons.Edit, contentDescription = "Переименовать", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onRole) {
-                Icon(Icons.Filled.SwapHoriz, contentDescription = "Тип счёта", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(AppIcons.Swap, contentDescription = "Тип счёта", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onArchive) {
-                Icon(Icons.Filled.Delete, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(AppIcons.Trash, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

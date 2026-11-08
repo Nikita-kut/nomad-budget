@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -27,7 +25,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,7 +71,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Surface
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Checkbox
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
@@ -103,6 +99,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import ru.nomadbudget.presentation.components.AppIcons
 
 private const val MAX_QUICK_CATEGORIES = 8
 
@@ -264,7 +261,7 @@ fun EntryScreen(
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                    IconButton(onClick = onBack) { Icon(AppIcons.ArrowLeft, contentDescription = "Назад") }
                     Text("Новая запись", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     TextButton(onClick = onOpenExchange) { Text("Обмен валюты") }
                     if (form.isDirty) TextButton(onClick = form::clear) { Text("Очистить") }
@@ -634,7 +631,7 @@ private fun InboxCard(
                     }
                     TextButton(onClick = { onUse(draft) }) { Text("Внести") }
                     IconButton(onClick = { onRemove(draft.id) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Удалить заметку")
+                        Icon(AppIcons.Trash, contentDescription = "Удалить заметку")
                     }
                 }
             }

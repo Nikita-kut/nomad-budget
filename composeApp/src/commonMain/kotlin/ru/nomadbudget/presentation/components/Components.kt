@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -43,7 +41,6 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
 @Composable
 fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modifier, info: String? = null) {
@@ -72,7 +69,7 @@ fun InfoHint(title: String, text: String, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     IconButton(onClick = { open = true }, modifier = modifier.size(32.dp)) {
         Icon(
-            Icons.Outlined.Info,
+            AppIcons.Info,
             contentDescription = "Что это",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp),
@@ -318,7 +315,7 @@ fun AccountsLine(
 
 @Composable
 fun ArrowGlyph(color: Color = MaterialTheme.colorScheme.onSurfaceVariant, size: androidx.compose.ui.unit.Dp = 14.dp) {
-    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = color, modifier = Modifier.size(size))
+    Icon(AppIcons.ArrowRight, contentDescription = null, tint = color, modifier = Modifier.size(size))
 }
 
 @Composable
