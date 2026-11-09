@@ -204,6 +204,9 @@ def in_quiet_hours(hour: int, quiet_from: int, quiet_to: int) -> bool:
     return hour >= quiet_from or hour < quiet_to
 
 
+RATE_EPSILON = 1e-9
+
+
 # ---------- Сигналы ----------
 
 def evaluate(watch: dict, rate: float, state: dict, local: dt.datetime) -> tuple[dict, list[dict]]:
@@ -216,7 +219,8 @@ def evaluate(watch: dict, rate: float, state: dict, local: dt.datetime) -> tuple
     last = _float_or_none(state.get("last"))
     above_before = bool(state.get("above_target"))
     above_now = target is not None and rate >= target
-    reached = above_now and not above_before
+    changed = last is None or abs(rate - last) > RATE_EPSILON * max(abs(last), 1e-12)
+    reached = above_now and (not above_before or changed)
     jump = None
     if last is not None and last > 0:
         change = rate / last - 1.0
@@ -237,7 +241,7 @@ def evaluate(watch: dict, rate: float, state: dict, local: dt.datetime) -> tuple
             events.append({"kind": "quiet_summary", "pending": pending})
             pending = {}
         if reached:
-            events.append({"kind": "target", "target": target})
+            events.append({"kind": "target", "target": target, "previous": last if above_before else None})
         elif jump:
             events.append({"kind": "jump", **jump})
 
@@ -335,11 +339,12 @@ def cbr_line(from_code: str, to_code: str, bank: float, cbr: float | None, unit:
     return f"ЦБ: {rate_text(from_code, to_code, cbr, unit)} · разница {format_percent(spread(bank, cbr) or 0.0)}"
 
 
-def message_target(watch: dict, rate: float, cbr: float | None, target: float) -> str:
+def message_target(watch: dict, rate: float, cbr: float | None, target: float, previous: float | None = None) -> str:
     f, t = watch["from_currency"], watch["to_currency"]
     unit = quote_unit(rate)
+    headline = "цель достигнута" if previous is None else f"курс выше цели, было {format_quote(previous * unit)}"
     return (
-        f"🎯 <b>{pair_title(watch)}</b>: цель достигнута\n"
+        f"🎯 <b>{pair_title(watch)}</b>: {headline}\n"
         f"{rate_text(f, t, rate, unit)} · цель {format_quote(target * unit)}\n"
         f"{cbr_line(f, t, rate, cbr, unit)}"
     )
@@ -542,7 +547,7 @@ def process_watch(db: Supabase, tg: Telegram, watch: dict, pair: dict, chats: li
     for event in events:
         kind = event["kind"]
         if kind == "target":
-            text = message_target(watch, rate, cbr, event["target"])
+            text = message_target(watch, rate, cbr, event["target"], event.get("previous"))
         elif kind == "jump":
             text = message_jump(watch, rate, cbr, event["from"], event["change"])
         elif kind == "quiet_summary":
