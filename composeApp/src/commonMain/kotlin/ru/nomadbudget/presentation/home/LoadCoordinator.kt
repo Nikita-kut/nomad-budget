@@ -25,7 +25,9 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.UserSettings
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
+import ru.nomadbudget.domain.model.BankWatchData
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
+import ru.nomadbudget.domain.repository.BankRateWatchRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -58,6 +60,7 @@ internal class LoadCoordinator(
     private val debtRepository: DebtRepository,
     private val capitalRepository: CapitalRepository,
     private val userSettingsRepository: UserSettingsRepository,
+    private val bankRateWatchRepository: BankRateWatchRepository,
     private val draftRepository: DraftRepository,
     private val offline: OfflineStatus,
     private val today: LocalDate,
@@ -150,6 +153,7 @@ internal class LoadCoordinator(
                         allPlanLines = loaded.allPlanLines,
                         capitalGoals = loaded.capitalGoals,
                         settings = loaded.settings,
+                        bankWatch = loaded.bankWatch,
                     )
                 }
                 if (flush.sent > 0) store.message("Отправлено: ${operations(flush.sent)}")
@@ -175,6 +179,7 @@ internal class LoadCoordinator(
         val rateHistory = async { rateRepository.history() }
         val allPlanLines = async { runCatching { budgetRepository.getAllLines() }.getOrDefault(previous.allPlanLines) }
         val capitalGoals = async { runCatching { capitalRepository.getGoals() }.getOrDefault(previous.capitalGoals) }
+        val bankWatch = async { runCatching { bankRateWatchRepository.load(currencies.await()) }.getOrDefault(previous.bankWatch) }
         val plan = async {
             val period = periodFor(previous, settingsAsync.await())
             val id = periodRepository.ensure(period)
@@ -203,6 +208,7 @@ internal class LoadCoordinator(
             allPlanLines = allPlanLines.await(),
             capitalGoals = capitalGoals.await(),
             settings = settingsAsync.await(),
+            bankWatch = bankWatch.await(),
         )
     }
 
@@ -225,5 +231,6 @@ internal class LoadCoordinator(
         val allPlanLines: List<PeriodBudgetLine>,
         val capitalGoals: List<CapitalGoal>,
         val settings: UserSettings,
+        val bankWatch: BankWatchData,
     )
 }

@@ -22,6 +22,10 @@ import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.BankRateWatch
+import ru.nomadbudget.domain.model.BankRateWatchDraft
+import ru.nomadbudget.domain.model.BankWatchData
+import ru.nomadbudget.domain.repository.BankRateWatchRepository
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
@@ -71,7 +75,47 @@ val demoModule = module {
     single<BalanceCheckRepository> { DemoBalanceCheckRepository(get()) }
     single<DebtRepository> { DemoDebtRepository(get()) }
     single<CapitalRepository> { DemoCapitalRepository(get()) }
+    single<BankRateWatchRepository> { DemoBankRateWatchRepository(get()) }
     viewModelOf(::HomeViewModel)
+}
+
+private class DemoBankRateWatchRepository(private val db: DemoDatabase) : BankRateWatchRepository {
+    override suspend fun load(currencies: List<Currency>): BankWatchData {
+        val watch = db.bankWatch ?: return BankWatchData(botUsername = BOT)
+        val history = db.bankSnapshots.filter { it.category == watch.category }.sortedBy { it.takenAt }
+        val latest = db.bankSnapshots.groupBy { it.category }.mapValues { (_, list) -> list.maxBy { it.takenAt } }
+        return BankWatchData(watch, history, latest, db.telegramSubscribers.toList(), BOT)
+    }
+
+    override suspend fun create(draft: BankRateWatchDraft): BankRateWatch = fromDraft(db.newId("watch"), draft, "demo-${db.newId("code")}").also { db.bankWatch = it }
+
+    override suspend fun update(id: String, draft: BankRateWatchDraft): BankRateWatch {
+        val current = requireNotNull(db.bankWatch) { "Слежение не найдено" }
+        return fromDraft(current.id, draft, current.linkCode).copy(enabled = current.enabled, lastRate = current.lastRate, lastCheckedAt = current.lastCheckedAt).also { db.bankWatch = it }
+    }
+
+    override suspend fun setEnabled(id: String, enabled: Boolean) {
+        db.bankWatch = db.bankWatch?.copy(enabled = enabled)
+    }
+
+    override suspend fun delete(id: String) {
+        db.bankWatch = null
+        db.telegramSubscribers.clear()
+    }
+
+    override suspend fun removeSubscriber(id: String) {
+        db.telegramSubscribers.removeAll { it.id == id }
+    }
+
+    private fun fromDraft(id: String, draft: BankRateWatchDraft, linkCode: String) = BankRateWatch(
+        id = id, provider = draft.provider, from = draft.from, to = draft.to, category = draft.category, target = draft.target,
+        jumpPercent = draft.jumpPercent, digestHour = draft.digestHour, quietFrom = draft.quietFrom, quietTo = draft.quietTo,
+        timezone = draft.timezone, enabled = true, linkCode = linkCode,
+    )
+
+    private companion object {
+        const val BOT = "nomad_budget_demo_bot"
+    }
 }
 
 private class DemoAuthRepository : AuthRepository {

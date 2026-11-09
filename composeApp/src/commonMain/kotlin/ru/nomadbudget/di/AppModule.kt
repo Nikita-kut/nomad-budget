@@ -16,6 +16,7 @@ import ru.nomadbudget.data.local.UserScopedStore
 import ru.nomadbudget.data.repository.AccountRepositoryImpl
 import ru.nomadbudget.data.repository.AuthRepositoryImpl
 import ru.nomadbudget.data.repository.BalanceCheckRepositoryImpl
+import ru.nomadbudget.data.repository.BankRateWatchRepositoryImpl
 import ru.nomadbudget.data.repository.BudgetRepositoryImpl
 import ru.nomadbudget.data.repository.CapitalRepositoryImpl
 import ru.nomadbudget.data.repository.CategoryRepositoryImpl
@@ -29,6 +30,7 @@ import ru.nomadbudget.data.supabase.SupabaseClientFactory
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
+import ru.nomadbudget.domain.repository.BankRateWatchRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -67,6 +69,7 @@ val appModule = module {
     single<BalanceCheckRepository> { BalanceCheckRepositoryImpl(get(), get()) }
     single<DebtRepository> { DebtRepositoryImpl(get(), get(), get()) }
     single<CapitalRepository> { CapitalRepositoryImpl(get(), get()) }
+    single<BankRateWatchRepository> { BankRateWatchRepositoryImpl(get(), get(), get()) }
 
     viewModelOf(::HomeViewModel)
 }

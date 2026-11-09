@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import ru.nomadbudget.domain.logic.BankRateAnalyzer
 import ru.nomadbudget.domain.logic.RatePairs
 import ru.nomadbudget.domain.logic.RatePoint
 import ru.nomadbudget.domain.model.Currency
@@ -43,22 +44,39 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import kotlin.time.Clock
 
 private val RATE_PERIODS = listOf(ChartPeriod("30 дн.", 30), ChartPeriod("90 дн.", 90), ChartPeriod("всё", null))
 
 @Composable
-fun RatesScreen(state: HomeState, wide: Boolean = false) {
+fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCallbacks) {
     val pairs = remember(state.currencies) { RatePairs.pairs(state.currencies) }
     val series = remember(state.rateHistory, pairs) {
         pairs.associateWith { (a, b) -> RatePairs.series(a, b, state.rateHistory) }
     }
+    var editingWatch by remember { mutableStateOf(false) }
     CenteredLazyColumn(bottom = 24.dp) {
+        bankRateWatchItems(state, wide, bankWatch, onEdit = { editingWatch = true })
+        item(key = "rates-title") { SectionTitle("Курсы по дням", hint = "обновляются раз в сутки") }
         item { SourceLine(state) }
         if (pairs.isEmpty()) item { EmptyHint("Кроме рубля валют нет") }
         pairs.forEach { pair ->
             val points = series.getValue(pair)
             item(key = "pair-${pair.first.code}-${pair.second.code}") { PairBlock(pair.first, pair.second, points, state, wide) }
         }
+    }
+    if (editingWatch) {
+        val watch = state.bankWatch.watch
+        BankRateWatchDialog(
+            initial = watch,
+            currencies = state.currencies,
+            suggestedTarget = BankRateAnalyzer.suggestedTarget(state.bankWatch.history, Clock.System.now()),
+            onDismiss = { editingWatch = false },
+            onConfirm = { draft ->
+                if (watch == null) bankWatch.onCreate(draft) else bankWatch.onUpdate(draft)
+                editingWatch = false
+            },
+        )
     }
 }
 
