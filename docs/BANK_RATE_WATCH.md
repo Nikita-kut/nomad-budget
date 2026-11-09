@@ -95,3 +95,19 @@ python3 tools/rates/bank_watch.py --dry-run RUB USD
 | `rate_watches` | владелец (настройки), воркер (`state`, `link_code`) | владелец |
 | `telegram_subscribers` | воркер | владелец слежения читает и удаляет |
 | `bot_info` | воркер (`getMe`, offset `getUpdates`) | все залогиненные |
+
+## Точный запуск по расписанию
+
+Расписание GitHub Actions в этом репозитории опаздывает на несколько часов, поэтому проверку запускает Supabase: задача pg_cron `bank-watch-dispatch` раз в 15 минут вызывает `public.dispatch_bank_watch()`, а та — `workflow_dispatch` для `bank-watch.yml` через API GitHub (миграция `0014_watch_trigger.sql`). Cron в workflow остаётся запасным.
+
+Настройка (один раз, токен вводит владелец):
+
+1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate: доступ только к этому репозиторию, Repository permissions → Actions: Read and write. Срок — по выбору; при истечении запуски тихо прекращаются.
+2. Supabase → SQL Editor:
+   ```sql
+   select vault.create_secret('<токен>', 'github_dispatch_token');
+   ```
+   Заменить токен: `select vault.update_secret((select id from vault.secrets where name = 'github_dispatch_token'), '<новый токен>');`
+3. Проверить: в GitHub → Actions → Bank rate watch появляются запуски с событием `workflow_dispatch` каждые 15 минут.
+
+Без токена функция ничего не делает.
