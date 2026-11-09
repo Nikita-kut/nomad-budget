@@ -17,6 +17,7 @@ import ru.nomadbudget.domain.logic.PlanCalculator
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.BankWatchData
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
@@ -114,6 +115,7 @@ data class HomeState(
     val rateHistory: List<ExchangeRate> = emptyList(),
     val capitalGoals: List<CapitalGoal> = emptyList(),
     val settings: UserSettings = UserSettings(),
+    val bankWatch: BankWatchData = BankWatchData(),
     private val memo: Memo = Memo(),
 ) {
     val periodStartDay: Int = settings.periodStartDay

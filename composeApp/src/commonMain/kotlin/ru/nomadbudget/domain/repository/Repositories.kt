@@ -7,6 +7,9 @@ import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.BankRateWatch
+import ru.nomadbudget.domain.model.BankRateWatchDraft
+import ru.nomadbudget.domain.model.BankWatchData
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
@@ -133,6 +136,15 @@ interface CapitalRepository {
     suspend fun getGoals(): List<CapitalGoal>
     suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): CapitalGoal
     suspend fun deleteGoal(id: String)
+}
+
+interface BankRateWatchRepository {
+    suspend fun load(currencies: List<Currency>): BankWatchData
+    suspend fun create(draft: BankRateWatchDraft): BankRateWatch
+    suspend fun update(id: String, draft: BankRateWatchDraft): BankRateWatch
+    suspend fun setEnabled(id: String, enabled: Boolean)
+    suspend fun delete(id: String)
+    suspend fun removeSubscriber(id: String)
 }
 
 data class FlushResult(val sent: Int, val rejected: Int)

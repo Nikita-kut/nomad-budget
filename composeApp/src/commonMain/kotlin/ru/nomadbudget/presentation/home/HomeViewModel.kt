@@ -9,6 +9,7 @@ import kotlinx.datetime.LocalDate
 import ru.nomadbudget.core.TodayProvider
 import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.model.BankRateWatchDraft
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
@@ -19,6 +20,7 @@ import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
+import ru.nomadbudget.domain.repository.BankRateWatchRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -50,6 +52,7 @@ class HomeViewModel(
     localStore: KeyValueStore,
     capitalRepository: CapitalRepository,
     userSettingsRepository: UserSettingsRepository,
+    bankRateWatchRepository: BankRateWatchRepository,
 ) : ViewModel() {
 
     private val today: LocalDate = todayProvider.today()
@@ -63,6 +66,7 @@ class HomeViewModel(
     private val inbox: InboxActions
     private val debtsActions: DebtActions
     private val settings: SettingsActions
+    private val bankWatch: BankWatchActions
 
     private var activeUserId: String? = null
 
@@ -92,6 +96,7 @@ class HomeViewModel(
             debtRepository = debtRepository,
             capitalRepository = capitalRepository,
             userSettingsRepository = userSettingsRepository,
+            bankRateWatchRepository = bankRateWatchRepository,
             draftRepository = draftRepository,
             offline = offlineStatus,
             today = today,
@@ -114,6 +119,7 @@ class HomeViewModel(
             loader = loader,
             today = today,
         )
+        bankWatch = BankWatchActions(store, runner, bankRateWatchRepository)
         state = store.state
         messages = store.messages
         undoRequests = transactions.undoRequests
@@ -319,5 +325,25 @@ class HomeViewModel(
 
     fun completeOnboarding(result: OnboardingResult) {
         settings.completeOnboarding(result)
+    }
+
+    fun createBankWatch(draft: BankRateWatchDraft) {
+        bankWatch.create(draft)
+    }
+
+    fun updateBankWatch(draft: BankRateWatchDraft) {
+        bankWatch.update(draft)
+    }
+
+    fun setBankWatchEnabled(enabled: Boolean) {
+        bankWatch.setEnabled(enabled)
+    }
+
+    fun deleteBankWatch() {
+        bankWatch.delete()
+    }
+
+    fun removeTelegramSubscriber(id: String) {
+        bankWatch.removeSubscriber(id)
     }
 }

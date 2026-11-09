@@ -71,6 +71,7 @@ import ru.nomadbudget.presentation.more.CategoriesScreen
 import ru.nomadbudget.presentation.more.DebtsScreen
 import ru.nomadbudget.presentation.more.MoreScreen
 import ru.nomadbudget.presentation.planning.PlanningScreen
+import ru.nomadbudget.presentation.rates.BankWatchCallbacks
 import ru.nomadbudget.presentation.rates.RatesScreen
 import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.material3.SnackbarDuration
@@ -410,7 +411,19 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onOpenExchange = { navController.navigate(ExchangeRoute) },
                                 )
                             }
-                            composable<RatesRoute> { RatesScreen(state = state, wide = wide) }
+                            composable<RatesRoute> {
+                                RatesScreen(
+                                    state = state,
+                                    wide = wide,
+                                    bankWatch = BankWatchCallbacks(
+                                        onCreate = viewModel::createBankWatch,
+                                        onUpdate = viewModel::updateBankWatch,
+                                        onSetEnabled = viewModel::setBankWatchEnabled,
+                                        onDelete = viewModel::deleteBankWatch,
+                                        onRemoveSubscriber = viewModel::removeTelegramSubscriber,
+                                    ),
+                                )
+                            }
                             composable<ChartsRoute> { ChartsScreen(state = state, wide = wide) }
                             composable<CapitalRoute> {
                                 CapitalScreen(

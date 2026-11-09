@@ -31,11 +31,17 @@
 - [docs/DECISIONS.md](docs/DECISIONS.md) — принятые решения: месяц, остаток, честные цифры, доступ, публичность.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — слои и где что лежит.
 - [docs/UI_RULES.md](docs/UI_RULES.md) — дизайн-система, тексты, валюты, кнопки.
+- [docs/BANK_RATE_WATCH.md](docs/BANK_RATE_WATCH.md) — слежение за курсом банка и уведомления в Telegram.
+
+## Слежение за курсом банка
+
+На экране «Курсы» можно следить за курсом банка по одной паре валют: цель, резкие скачки, ежедневная сводка — в Telegram, вместе с курсом ЦБ и разницей с ним. Проверка каждые 15 минут из GitHub Actions. Настройка бота — [docs/BANK_RATE_WATCH.md](docs/BANK_RATE_WATCH.md).
 
 ## Проверки
 
 ```bash
 bash tools/check_rules.sh
+python3 -m unittest tools/rates/test_bank_watch.py
 ./gradlew :composeApp:testAndroidHostTest :composeApp:wasmJsBrowserTest
 ```
 
@@ -43,4 +49,5 @@ bash tools/check_rules.sh
 
 - `supabase/` — схема БД как миграции, см. `supabase/README.md`.
 - `tools/rates/fetch_rates.py` — обновление курсов, запускается по cron из GitHub Actions.
-- `.github/workflows/` — проверка PR, деплой веба на GitHub Pages, курсы.
+- `tools/rates/bank_watch.py` — слежение за курсом банка и Telegram-бот, cron каждые 15 минут; секрет `TELEGRAM_BOT_TOKEN`.
+- `.github/workflows/` — проверка PR, деплой веба на GitHub Pages, курсы, слежение за курсом банка.

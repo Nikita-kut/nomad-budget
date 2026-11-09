@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Project rules
         run: bash tools/check_rules.sh
+      - name: Worker unit tests
+        run: python3 -m unittest tools/rates/test_bank_watch.py
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
