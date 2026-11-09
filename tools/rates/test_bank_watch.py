@@ -90,13 +90,17 @@ class QuietHoursTest(unittest.TestCase):
 
 
 class EvaluateTest(unittest.TestCase):
-    def test_target_fires_once_per_crossing_and_rearms_below(self):
+    def test_target_repeats_on_every_change_above_and_rearms_below(self):
         w = watch(target=0.012, jump_percent=50)
         state, events = bw.evaluate(w, 0.0121, {}, at(12))
         self.assertEqual(["target"], [e["kind"] for e in events])
+        self.assertIsNone(events[0]["previous"])
         self.assertTrue(state["above_target"])
-        state, events = bw.evaluate(w, 0.0122, state, at(12, 15))
+        state, events = bw.evaluate(w, 0.0121, state, at(12, 10))
         self.assertEqual([], events)
+        state, events = bw.evaluate(w, 0.0122, state, at(12, 15))
+        self.assertEqual(["target"], [e["kind"] for e in events])
+        self.assertAlmostEqual(0.0121, events[0]["previous"])
         state, events = bw.evaluate(w, 0.0119, state, at(12, 30))
         self.assertEqual([], events)
         self.assertFalse(state["above_target"])
