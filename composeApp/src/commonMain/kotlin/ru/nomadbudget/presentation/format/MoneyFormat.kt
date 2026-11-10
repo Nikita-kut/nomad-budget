@@ -91,6 +91,8 @@ object MoneyFormat {
 
     fun quoteText(quote: RateQuote): String = rateText(quote.unit, quote.price, quote.value)
 
+    fun averageCostText(quote: RateQuote): String = "в среднем по ${quoteText(quote)}"
+
     fun perUnitLabel(unit: Long, from: Currency, to: Currency): String = "${to.code} за ${unitLabel(unit, from)}"
 
     fun formatNumber(value: Double, decimals: Int): String {

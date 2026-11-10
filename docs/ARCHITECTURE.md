@@ -10,7 +10,8 @@ ru.nomadbudget
 │   │                  BankRateWatch (+Draft, Snapshot, TelegramSubscriber, BankWatchData)
 │   ├── logic/         калькуляторы без состояния: MonthModel, BudgetCalculator, PlanCalculator, HistoryCalculator,
 │   │                  CapitalModel, BalanceCalculator, JournalCalculator, DebtCategories, EntryDefaults,
-│   │                  RatePairs, ExchangeAnalyzer, BankRateAnalyzer, CsvExporter
+│   │                  RatePairs, ExchangeAnalyzer, BankRateAnalyzer, CsvExporter,
+│   │                  CostBasisCalculator (средняя стоимость валюты и рублёвая сумма трат, D-31), MarketRates (курс на дату)
 │   └── repository/    порты: *Repository, AuthRepository, BankRateWatchRepository, KeyValueStore, OfflineStatus, FlushResult
 ├── data/              реализации портов; знает про Supabase и локальное хранилище
 │   ├── dto/ mapper/   DTO ↔ domain
@@ -42,6 +43,7 @@ tools/rates/           fetch_rates.py (курсы раз в сутки), bank_wa
 - `data` не импортирует `presentation`.
 - Связывают слои только `di`, `demo` и `App.kt`.
 - Любая формула — в `domain/logic` с тестом; экран только показывает.
+- Рублёвая сумма операции для экранов и калькуляторов — `HomeState.transactions` (после `CostBasisCalculator`); `HomeState.rawTransactions` — то, что сохранено, его читают и меняют только `*Actions`.
 - Текст с числами, датами, валютами собирается только в `presentation/format`.
 - Ошибки действий — через `ActionRunner.run`: `CancellationException` не глотается, флаг «сохраняется» снимается в `finally`.
 

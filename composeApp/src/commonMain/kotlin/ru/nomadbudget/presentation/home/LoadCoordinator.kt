@@ -141,7 +141,7 @@ internal class LoadCoordinator(
                         accounts = loaded.accounts,
                         categories = loaded.categories,
                         subcategories = loaded.subcategories,
-                        transactions = transactions,
+                        rawTransactions = transactions,
                         rates = loaded.rates,
                         balanceChecks = loaded.checks,
                         debts = loaded.debts,
