@@ -63,7 +63,7 @@ internal class TransactionActions(
                 amount = draft.amount,
                 categoryId = requireNotNull(draft.categoryId) { "Выбери категорию" },
                 subcategoryId = categories.resolveSubcategory(draft.categoryId, draft.subcategoryName),
-                amountBase = rates.toBase(draft.amount),
+                amountBase = current.marketBase(draft.amount, draft.date),
                 rateSource = rateSource,
                 note = draft.note,
                 debtId = debt?.id,
@@ -76,7 +76,7 @@ internal class TransactionActions(
                 accountId = draft.accountId,
                 amount = draft.amount,
                 categoryId = requireNotNull(draft.categoryId) { "Выбери категорию" },
-                amountBase = rates.toBase(draft.amount),
+                amountBase = current.marketBase(draft.amount, draft.date),
                 rateSource = rateSource,
                 note = draft.note,
             )
@@ -86,7 +86,7 @@ internal class TransactionActions(
                 fromAccountId = draft.accountId,
                 toAccountId = requireNotNull(draft.toAccountId) { "Выбери счёт назначения" },
                 amount = draft.amount,
-                amountBase = rates.toBase(draft.amount),
+                amountBase = current.marketBase(draft.amount, draft.date),
                 note = draft.note,
             )
         }
@@ -98,7 +98,7 @@ internal class TransactionActions(
                     id = "",
                     accountId = draft.splitAccountId,
                     amount = draft.splitAmount,
-                    amountBase = rates.toBase(draft.splitAmount),
+                    amountBase = current.marketBase(draft.splitAmount, draft.date),
                     rateSource = rateSourceFor(draft.splitAmount),
                     debtId = null,
                     debtPrincipal = null,
@@ -112,7 +112,7 @@ internal class TransactionActions(
         draft.fromDraftId?.let(draftRepository::remove)
         store.update {
             it.copy(
-                transactions = (listOfNotNull(second, saved) + it.transactions).distinctBy { tx -> tx.id },
+                rawTransactions = (listOfNotNull(second, saved) + it.rawTransactions).distinctBy { tx -> tx.id },
                 pendingCount = transactionRepository.pendingCount(),
                 drafts = draftRepository.all(),
                 entryPrefill = null,
@@ -140,7 +140,7 @@ internal class TransactionActions(
             toAccountId = draft.toAccountId,
             given = draft.given,
             received = draft.received,
-            amountBase = current.rates.toBase(draft.given),
+            amountBase = current.marketBase(draft.given, draft.date),
             note = draft.note,
         )
         val saved = transactionRepository.add(transaction, current.accounts)
@@ -155,14 +155,14 @@ internal class TransactionActions(
             is Transaction.Expense -> {
                 require(source.debtId == null) { "Платёж по кредиту повторяй через форму записи" }
                 require(rates.hasRate(source.amount.currency)) { "Нет курса для ${source.amount.currency.code}" }
-                source.copy(id = "", date = today, amountBase = rates.toBase(source.amount), debtPrincipal = null, debtEarly = false, pending = false)
+                source.copy(id = "", date = today, amountBase = current.marketBase(source.amount, today), debtPrincipal = null, debtEarly = false, pending = false)
             }
             is Transaction.Income -> {
                 require(rates.hasRate(source.amount.currency)) { "Нет курса для ${source.amount.currency.code}" }
-                source.copy(id = "", date = today, amountBase = rates.toBase(source.amount), pending = false)
+                source.copy(id = "", date = today, amountBase = current.marketBase(source.amount, today), pending = false)
             }
-            is Transaction.Transfer -> source.copy(id = "", date = today, amountBase = rates.toBase(source.amount), pending = false)
-            is Transaction.Exchange -> source.copy(id = "", date = today, amountBase = rates.toBase(source.given), pending = false)
+            is Transaction.Transfer -> source.copy(id = "", date = today, amountBase = current.marketBase(source.amount, today), pending = false)
+            is Transaction.Exchange -> source.copy(id = "", date = today, amountBase = current.marketBase(source.given, today), pending = false)
         }
         val saved = transactionRepository.add(copy, current.accounts)
         prepend(saved)
@@ -171,7 +171,7 @@ internal class TransactionActions(
 
     fun updateTransaction(updated: Transaction, subcategoryName: String?) = runner.run("Не удалось обновить операцию", busy = true) {
         val current = store.value
-        val original = current.transactions.firstOrNull { it.id == updated.id }
+        val original = current.rawTransactions.firstOrNull { it.id == updated.id }
         require(original != null) { "Операция не найдена" }
         val withBase = withRecalculatedBase(original, updated)
         val resolved = when (withBase) {
@@ -182,7 +182,7 @@ internal class TransactionActions(
             is Transaction.Income, is Transaction.Transfer, is Transaction.Exchange -> withBase
         }
         val saved = transactionRepository.update(resolved, current.accounts)
-        store.update { state -> state.copy(transactions = state.transactions.map { if (it.id == saved.id) saved else it }) }
+        store.update { state -> state.copy(rawTransactions = state.rawTransactions.map { if (it.id == saved.id) saved else it }) }
         val debtNote = (saved as? Transaction.Expense)?.debtId?.let { debtId ->
             val oldPrincipal = (original as? Transaction.Expense)?.takeIf { it.debtId == debtId }?.debtPrincipal
             val newPrincipal = saved.debtPrincipal
@@ -194,12 +194,12 @@ internal class TransactionActions(
     }
 
     fun deleteTransaction(id: String) {
-        val transactions = store.value.transactions
+        val transactions = store.value.rawTransactions
         val index = transactions.indexOfFirst { it.id == id }
         if (index < 0) return
         val transaction = transactions[index]
         pendingDeletes[id] = index to transaction
-        store.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }) }
+        store.update { state -> state.copy(rawTransactions = state.rawTransactions.filterNot { it.id == id }) }
         scope.launch { _undoRequests.send(UndoRequest(id, "Удалено: ${undoLabel(transaction)}")) }
         deleteTimers.remove(id)?.cancel()
         deleteTimers[id] = scope.launch {
@@ -212,9 +212,9 @@ internal class TransactionActions(
         deleteTimers.remove(id)?.cancel()
         val (index, transaction) = pendingDeletes.remove(id) ?: return
         store.update { state ->
-            val list = state.transactions.toMutableList()
+            val list = state.rawTransactions.toMutableList()
             list.add(index.coerceIn(0, list.size), transaction)
-            state.copy(transactions = list)
+            state.copy(rawTransactions = list)
         }
     }
 
@@ -225,7 +225,7 @@ internal class TransactionActions(
             try {
                 val removed = transaction as? Transaction.Expense
                 transactionRepository.delete(id)
-                store.update { state -> state.copy(transactions = state.transactions.filterNot { it.id == id }, pendingCount = transactionRepository.pendingCount()) }
+                store.update { state -> state.copy(rawTransactions = state.rawTransactions.filterNot { it.id == id }, pendingCount = transactionRepository.pendingCount()) }
                 val debtNote = removed?.debtId?.let { debtId ->
                     removed.debtPrincipal?.let { debtNoteAfter(debtId, it, restored = true) } ?: ", остаток кредита не изменился"
                 }
@@ -233,7 +233,7 @@ internal class TransactionActions(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                store.update { state -> state.copy(transactions = (listOf(transaction) + state.transactions).distinctBy { tx -> tx.id }) }
+                store.update { state -> state.copy(rawTransactions = (listOf(transaction) + state.rawTransactions).distinctBy { tx -> tx.id }) }
                 store.message(e.message ?: "Не удалось удалить")
             }
         }
@@ -253,7 +253,7 @@ internal class TransactionActions(
         store.update { state ->
             state.copy(
                 balanceChecks = listOf(check) + state.balanceChecks,
-                transactions = (listOfNotNull(correction) + state.transactions).distinctBy { tx -> tx.id },
+                rawTransactions = (listOfNotNull(correction) + state.rawTransactions).distinctBy { tx -> tx.id },
             )
         }
         store.message(
@@ -263,7 +263,7 @@ internal class TransactionActions(
     }
 
     private fun prepend(saved: Transaction) {
-        store.update { it.copy(transactions = (listOf(saved) + it.transactions).distinctBy { tx -> tx.id }, pendingCount = transactionRepository.pendingCount()) }
+        store.update { it.copy(rawTransactions = (listOf(saved) + it.rawTransactions).distinctBy { tx -> tx.id }, pendingCount = transactionRepository.pendingCount()) }
     }
 
     private suspend fun createCorrection(accountId: String, difference: Money, computed: Money, actual: Money, date: LocalDate): Transaction {
@@ -276,19 +276,19 @@ internal class TransactionActions(
         val transaction = when (kind) {
             CategoryKind.EXPENSE -> Transaction.Expense(
                 id = "", date = date, accountId = accountId, amount = amount, categoryId = category.id, subcategoryId = null,
-                amountBase = current.rates.toBase(amount), rateSource = rateSourceFor(amount), note = note,
+                amountBase = current.marketBase(amount, date), rateSource = rateSourceFor(amount), note = note,
             )
             CategoryKind.INCOME -> Transaction.Income(
                 id = "", date = date, accountId = accountId, amount = amount, categoryId = category.id,
-                amountBase = current.rates.toBase(amount), rateSource = rateSourceFor(amount), note = note,
+                amountBase = current.marketBase(amount, date), rateSource = rateSourceFor(amount), note = note,
             )
         }
         return transactionRepository.add(transaction, current.accounts)
     }
 
     private fun withRecalculatedBase(original: Transaction, updated: Transaction): Transaction {
-        val rates = store.value.rates
-        val base = if (updated.ownAmount == original.ownAmount && updated.kind == original.kind) original.amountBase else rates.toBase(updated.ownAmount)
+        val unchanged = updated.ownAmount == original.ownAmount && updated.kind == original.kind && updated.date == original.date
+        val base = if (unchanged) original.amountBase else store.value.marketBase(updated.ownAmount, updated.date)
         return when (updated) {
             is Transaction.Expense -> updated.copy(amountBase = base)
             is Transaction.Income -> updated.copy(amountBase = base)

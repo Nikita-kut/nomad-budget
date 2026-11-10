@@ -34,7 +34,7 @@ class DebtCategoryTest {
         categories = listOf(loans, food),
         debts = debts,
         subcategories = subcategories,
-        transactions = transactions,
+        rawTransactions = transactions,
     )
 
     @Test

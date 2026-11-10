@@ -276,6 +276,9 @@ private fun AccountRow(
                     Text("в минусе", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.bad, fontWeight = FontWeight.SemiBold)
                 }
             }
+            state.costBasis.averageCost[account.id]?.let { quote ->
+                Text(MoneyFormat.averageCostText(quote), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Column(horizontalAlignment = Alignment.End) {
             CurrencyAmount(MoneyFormat.format(balance), MaterialTheme.typography.bodyLarge, FontWeight.SemiBold)

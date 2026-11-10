@@ -8,8 +8,11 @@ import ru.nomadbudget.domain.logic.CapitalModel
 import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.logic.CategoryBudget
 import ru.nomadbudget.domain.logic.CategoryHistory
+import ru.nomadbudget.domain.logic.CostBasis
+import ru.nomadbudget.domain.logic.CostBasisCalculator
 import ru.nomadbudget.domain.logic.DebtCategories
 import ru.nomadbudget.domain.logic.HistoryCalculator
+import ru.nomadbudget.domain.logic.MarketRates
 import ru.nomadbudget.domain.logic.MonthModel
 import ru.nomadbudget.domain.logic.MonthPoint
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
@@ -105,7 +108,7 @@ data class HomeState(
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val subcategories: List<Subcategory> = emptyList(),
-    val transactions: List<Transaction> = emptyList(),
+    val rawTransactions: List<Transaction> = emptyList(),
     val budgetLines: List<BudgetLine> = emptyList(),
     val savingsTarget: Money? = null,
     val allPlanLines: List<PeriodBudgetLine> = emptyList(),
@@ -121,6 +124,16 @@ data class HomeState(
     val periodStartDay: Int = settings.periodStartDay
 
     val needsOnboarding: Boolean = !loading && error == null && !offline && !settings.isOnboarded
+
+    val costBasis: CostBasis = memo.get("costBasis", rawTransactions, accounts, rateHistory, rates) {
+        CostBasisCalculator.calculate(accounts, rawTransactions, rateHistory, rates)
+    }
+
+    val transactions: List<Transaction> = memo.get("effectiveTransactions", rawTransactions, costBasis) { costBasis.applyTo(rawTransactions) }
+
+    private val marketRates: MarketRates = memo.get("marketRates", rateHistory, rates) { MarketRates(rateHistory, rates) }
+
+    fun marketBase(money: Money, date: LocalDate): Money = marketRates.toBase(money, date) ?: rates.toBase(money)
 
     val systemCategoryIds: Set<String> = memo.get("system", categories) { categories.filter { it.isSystem }.map { it.id }.toSet() }
 
