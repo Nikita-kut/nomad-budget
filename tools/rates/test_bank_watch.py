@@ -9,12 +9,18 @@ import bank_watch as bw  # noqa: E402
 
 NBSP = " "
 MINUS = "−"
+SATURDAY = 14
+SUNDAY = 15
+HOLIDAYS = {"2026-11-04"}
+WEEK = [{"buy": float(i), "cbr": None} for i in range(1, 101)]
+SMALL_WEEK = [{"buy": 0.0098 + 0.000025 * i - 0.0000125, "cbr": None} for i in range(1, 101)]
 
 
 def watch(**overrides):
     base = {
         "id": "w1", "provider": "tbank", "from_currency": "RUB", "to_currency": "USD", "category": bw.CATEGORY_EXCHANGE,
-        "target": None, "jump_percent": 1.5, "digest_hour": None, "quiet_from": 18, "quiet_to": 10, "timezone": "UTC",
+        "target": None, "good_percentile": 85, "improve_percent": 0.5, "trade_from": 10, "trade_to": 19,
+        "digest_hour": None, "quiet_from": 18, "quiet_to": 10, "timezone": "Europe/Moscow",
     }
     base.update(overrides)
     return base
@@ -22,6 +28,14 @@ def watch(**overrides):
 
 def at(hour: int, minute: int = 0, day: int = 10) -> dt.datetime:
     return dt.datetime(2026, 11, day, hour, minute, tzinfo=dt.timezone.utc)
+
+
+def msk(hour: int, minute: int = 0, day: int = 10) -> dt.datetime:
+    return dt.datetime(2026, 11, day, hour, minute, tzinfo=dt.timezone(dt.timedelta(hours=3))).astimezone(dt.timezone.utc)
+
+
+def local(moment: dt.datetime) -> dt.datetime:
+    return bw.local_now(moment, "Europe/Moscow")
 
 
 class ParsingTest(unittest.TestCase):
@@ -89,81 +103,340 @@ class QuietHoursTest(unittest.TestCase):
         self.assertEqual(15, bw.local_now(at(12), "").hour)
 
 
+class TradingHoursTest(unittest.TestCase):
+    def test_weekdays_ten_to_nineteen_exchange_time(self):
+        self.assertFalse(bw.in_trading_hours(msk(9, 59), 10, 19, set()))
+        self.assertTrue(bw.in_trading_hours(msk(10), 10, 19, set()))
+        self.assertTrue(bw.in_trading_hours(msk(18, 59), 10, 19, set()))
+        self.assertFalse(bw.in_trading_hours(msk(19), 10, 19, set()))
+        self.assertFalse(bw.in_trading_hours(msk(2), 10, 19, set()))
+
+    def test_no_trading_on_weekend_and_holidays(self):
+        self.assertFalse(bw.in_trading_hours(msk(12, day=SATURDAY), 10, 19, set()))
+        self.assertFalse(bw.in_trading_hours(msk(12, day=SUNDAY), 10, 19, set()))
+        self.assertTrue(bw.in_trading_hours(msk(12, day=4), 10, 19, set()))
+        self.assertFalse(bw.in_trading_hours(msk(12, day=4), 10, 19, HOLIDAYS))
+        self.assertTrue(bw.is_trading_day(dt.date(2026, 11, 10), HOLIDAYS))
+        self.assertFalse(bw.is_trading_day(dt.date(2026, 11, 4), HOLIDAYS))
+        self.assertFalse(bw.is_trading_day(dt.date(2026, 11, 14), set()))
+
+    def test_hours_come_from_watch_with_defaults(self):
+        self.assertEqual((10, 19), bw.trade_hours({}))
+        self.assertEqual((9, 24), bw.trade_hours({"trade_from": 9, "trade_to": 24}))
+        self.assertEqual((0, 19), bw.trade_hours({"trade_from": 0, "trade_to": None}))
+        self.assertTrue(bw.in_trading_hours(msk(9, 30), 9, 12, set()))
+        self.assertFalse(bw.in_trading_hours(msk(12), 9, 12, set()))
+
+    def test_warmup_is_two_trading_days_of_checks(self):
+        self.assertEqual(72, bw.warmup_samples(10, 19))
+        self.assertEqual(32, bw.warmup_samples(10, 14))
+
+    def test_pair_hours_cover_every_watch_of_the_pair(self):
+        hours = bw.pair_trade_hours([watch(), watch(trade_from=9, trade_to=15), watch(to_currency="XTS", trade_from=11, trade_to=12)])
+        self.assertEqual((9, 19), hours[("tbank", "RUB", "USD")])
+        self.assertEqual((11, 12), hours[("tbank", "RUB", "XTS")])
+
+    def test_snapshot_rows_carry_in_hours_flag(self):
+        rates = {bw.CATEGORY_EXCHANGE: {"buy": 0.0115, "sell": 0.0122}, bw.CATEGORY_CARD: {"buy": 0.0118, "sell": None}}
+        rows = bw.snapshot_rows(("tbank", "RUB", "USD"), rates, 0.0118, 0.0121, msk(12), True)
+        self.assertEqual([True, True], [row["in_hours"] for row in rows])
+        self.assertEqual([bw.CATEGORY_EXCHANGE, bw.CATEGORY_CARD], [row["category"] for row in rows])
+        rows = bw.snapshot_rows(("tbank", "RUB", "USD"), rates, None, None, msk(20), False)
+        self.assertEqual([False], [row["in_hours"] for row in rows])
+
+
+class AssessTest(unittest.TestCase):
+    def test_median(self):
+        self.assertEqual(2.0, bw.median([3.0, 1.0, 2.0]))
+        self.assertEqual(2.5, bw.median([4.0, 1.0, 2.0, 3.0]))
+        self.assertIsNone(bw.median([]))
+
+    def test_shares_are_strict_so_flat_week_is_neither_good_nor_bad(self):
+        self.assertEqual(0.5, bw.share_below([1.0, 2.0, 3.0, 4.0], 2.5))
+        self.assertEqual(0.25, bw.share_above([1.0, 2.0, 3.0, 4.0], 3.0))
+        flat = [{"buy": 5.0, "cbr": None}] * 100
+        self.assertIsNone(bw.assess(watch(), 5.0, None, flat)["kind"])
+
+    def test_good_is_top_fifteen_percent_of_week(self):
+        self.assertEqual("good", bw.assess(watch(), 85.5, None, WEEK)["kind"])
+        self.assertIsNone(bw.assess(watch(), 84.5, None, WEEK)["kind"])
+        self.assertAlmostEqual(0.85, bw.assess(watch(), 85.5, None, WEEK)["below"])
+
+    def test_bad_is_bottom_fifteen_percent_of_week(self):
+        self.assertEqual("bad", bw.assess(watch(), 15.5, None, WEEK)["kind"])
+        self.assertIsNone(bw.assess(watch(), 16.5, None, WEEK)["kind"])
+
+    def test_strictness_is_configurable(self):
+        self.assertEqual("good", bw.assess(watch(good_percentile=75), 75.5, None, WEEK)["kind"])
+        self.assertIsNone(bw.assess(watch(good_percentile=90), 85.5, None, WEEK)["kind"])
+        self.assertEqual("bad", bw.assess(watch(good_percentile=75), 25.5, None, WEEK)["kind"])
+
+    def test_good_needs_spread_narrower_than_week_median(self):
+        history = [{"buy": float(i), "cbr": i / 0.97} for i in range(1, 101)]
+        self.assertAlmostEqual(-0.03, bw.median_spread(history))
+        self.assertIsNone(bw.assess(watch(), 95.0, 95.0 / 0.95, history)["kind"])
+        self.assertEqual("good", bw.assess(watch(), 95.0, 95.0 / 0.98, history)["kind"])
+        self.assertEqual("good", bw.assess(watch(), 95.0, None, history)["kind"])
+
+    def test_spread_does_not_guard_bad_window(self):
+        history = [{"buy": float(i), "cbr": i / 0.97} for i in range(1, 101)]
+        self.assertEqual("bad", bw.assess(watch(), 5.0, 5.0 / 0.99, history)["kind"])
+
+    def test_warmup_blocks_statistics(self):
+        short = WEEK[:71]
+        result = bw.assess(watch(), 99.0, None, short)
+        self.assertTrue(result["warmup"])
+        self.assertIsNone(result["kind"])
+        self.assertIsNone(bw.assess(watch(), 0.5, None, short)["kind"])
+        self.assertFalse(bw.assess(watch(), 99.0, None, WEEK[:72])["warmup"])
+
+    def test_target_does_not_change_assessment(self):
+        self.assertIsNone(bw.assess(watch(target=40.0), 50.0, None, WEEK)["kind"])
+        self.assertEqual("bad", bw.assess(watch(target=4.0), 5.0, None, WEEK)["kind"])
+
+    def test_is_improved_by_percent_in_window_direction(self):
+        self.assertTrue(bw.is_improved("good", 100.5, 100.0, 0.5))
+        self.assertFalse(bw.is_improved("good", 100.4, 100.0, 0.5))
+        self.assertFalse(bw.is_improved("good", 99.0, 100.0, 0.5))
+        self.assertTrue(bw.is_improved("bad", 99.5, 100.0, 0.5))
+        self.assertFalse(bw.is_improved("bad", 100.5, 100.0, 0.5))
+
+
 class EvaluateTest(unittest.TestCase):
-    def test_target_repeats_on_every_change_above_and_rearms_below(self):
-        w = watch(target=0.012, jump_percent=50)
-        state, events = bw.evaluate(w, 0.0121, {}, at(12))
-        self.assertEqual(["target"], [e["kind"] for e in events])
-        self.assertIsNone(events[0]["previous"])
-        self.assertTrue(state["above_target"])
-        state, events = bw.evaluate(w, 0.0121, state, at(12, 10))
-        self.assertEqual([], events)
-        state, events = bw.evaluate(w, 0.0122, state, at(12, 15))
-        self.assertEqual(["target"], [e["kind"] for e in events])
-        self.assertAlmostEqual(0.0121, events[0]["previous"])
-        state, events = bw.evaluate(w, 0.0119, state, at(12, 30))
-        self.assertEqual([], events)
-        self.assertFalse(state["above_target"])
-        state, events = bw.evaluate(w, 0.0120, state, at(12, 45))
-        self.assertEqual(["target"], [e["kind"] for e in events])
+    def step(self, w, rate, state, moment, history=None, cbr=None):
+        return bw.evaluate(w, rate, cbr, state, moment, WEEK if history is None else history, HOLIDAYS)
 
-    def test_no_target_means_no_target_signal(self):
-        state, events = bw.evaluate(watch(), 1.0, {}, at(12))
-        self.assertEqual([], events)
-        self.assertFalse(state["above_target"])
+    def kinds(self, events):
+        return [e["kind"] for e in events]
 
-    def test_jump_both_directions_by_percent(self):
-        w = watch(jump_percent=1.5)
-        state = {"last": 100.0}
-        _, events = bw.evaluate(w, 101.4, state, at(12))
+    def test_one_message_per_good_window_and_repeat_only_on_improvement(self):
+        w = watch()
+        state, events = self.step(w, 90.0, {}, msk(11))
+        self.assertEqual(["good"], self.kinds(events))
+        self.assertFalse(events[0]["repeat"])
+        state, events = self.step(w, 90.2, state, msk(11, 15))
         self.assertEqual([], events)
-        _, events = bw.evaluate(w, 101.5, state, at(12))
-        self.assertEqual("jump", events[0]["kind"])
-        self.assertAlmostEqual(0.015, events[0]["change"])
-        _, events = bw.evaluate(w, 98.0, state, at(12))
-        self.assertEqual("jump", events[0]["kind"])
-        self.assertLess(events[0]["change"], 0)
-
-    def test_target_takes_precedence_over_jump(self):
-        w = watch(target=101.0)
-        _, events = bw.evaluate(w, 103.0, {"last": 100.0}, at(12))
-        self.assertEqual(["target"], [e["kind"] for e in events])
-
-    def test_events_outside_window_collapse_into_one_message_at_window_start(self):
-        w = watch(target=101.0)
-        state, events = bw.evaluate(w, 103.0, {"last": 100.0}, at(19))
+        state, events = self.step(w, 90.5, state, msk(11, 30))
+        self.assertEqual(["good"], self.kinds(events))
+        self.assertTrue(events[0]["repeat"])
+        self.assertEqual(90.0, events[0]["previous"])
+        state, events = self.step(w, 90.6, state, msk(11, 45))
         self.assertEqual([], events)
-        self.assertTrue(state["pending"]["target"])
-        self.assertTrue(state["pending"]["jump"])
-        state, events = bw.evaluate(w, 99.0, state, at(3, day=11))
+        state, events = self.step(w, 89.0, state, msk(12))
         self.assertEqual([], events)
-        self.assertEqual(99.0, state["pending"]["min"])
-        self.assertEqual(103.0, state["pending"]["max"])
-        state, events = bw.evaluate(w, 99.5, state, at(10, day=11))
-        self.assertEqual(["quiet_summary"], [e["kind"] for e in events])
-        self.assertEqual({}, state["pending"])
+        self.assertEqual("good", state["window"]["kind"])
 
-    def test_outside_window_without_events_leaves_nothing_pending(self):
-        state, events = bw.evaluate(watch(), 100.2, {"last": 100.0}, at(2))
-        self.assertEqual({}, state["pending"])
-        _, events = bw.evaluate(watch(), 100.3, state, at(11))
+    def test_window_close_is_silent_and_new_window_sends_again(self):
+        w = watch()
+        state, _ = self.step(w, 90.0, {}, msk(11))
+        state, events = self.step(w, 50.0, state, msk(11, 15))
+        self.assertEqual([], events)
+        self.assertIsNone(state["window"])
+        state, events = self.step(w, 90.0, state, msk(11, 30))
+        self.assertEqual(["good"], self.kinds(events))
+        self.assertFalse(events[0]["repeat"])
+
+    def test_bad_window_mirrors_good(self):
+        w = watch()
+        state, events = self.step(w, 10.0, {}, msk(11))
+        self.assertEqual(["bad"], self.kinds(events))
+        state, events = self.step(w, 9.96, state, msk(11, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 10.5, state, msk(11, 30))
+        self.assertEqual([], events)
+        state, events = self.step(w, 9.9, state, msk(11, 45))
+        self.assertEqual(["bad"], self.kinds(events))
+        self.assertTrue(events[0]["repeat"])
+        self.assertEqual(10.0, events[0]["previous"])
+        state, events = self.step(w, 50.0, state, msk(12))
+        self.assertEqual([], events)
+        state, events = self.step(w, 90.0, state, msk(12, 15))
+        self.assertEqual(["good"], self.kinds(events))
+        state, events = self.step(w, 10.0, state, msk(12, 30))
+        self.assertEqual(["bad"], self.kinds(events))
+        self.assertFalse(events[0]["repeat"])
+
+    def test_no_signal_for_ordinary_changes_however_sharp(self):
+        w = watch()
+        state, events = self.step(w, 30.0, {}, msk(11))
+        self.assertEqual([], events)
+        state, events = self.step(w, 70.0, state, msk(11, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 30.0, state, msk(11, 30))
         self.assertEqual([], events)
 
-    def test_digest_once_per_local_day_in_chosen_hour(self):
+    def test_no_windows_outside_trading_hours(self):
+        w = watch(quiet_from=9, quiet_to=9)
+        for moment in (msk(9, 45), msk(19), msk(23), msk(12, day=SATURDAY), msk(12, day=SUNDAY), msk(12, day=4)):
+            state, events = self.step(w, 99.0, {}, moment)
+            self.assertEqual([], events)
+            self.assertIsNone(state["window"])
+            state, events = self.step(w, 1.0, {}, moment)
+            self.assertEqual([], events)
+
+    def test_evening_drop_and_morning_recovery_produce_nothing(self):
+        w = watch()
+        state, events = self.step(w, 90.0, {}, msk(17))
+        self.assertEqual(["good"], self.kinds(events))
+        state, events = self.step(w, 5.0, state, msk(19))
+        self.assertEqual([], events)
+        self.assertIsNone(state["window"])
+        state, events = self.step(w, 5.0, state, msk(9, 45, day=11))
+        self.assertEqual([], events)
+        state, events = self.step(w, 50.0, state, msk(10, 0, day=11))
+        self.assertEqual([], events)
+
+    def test_window_after_send_window_goes_to_digest_line(self):
         w = watch(digest_hour=10)
-        state, events = bw.evaluate(w, 1.0, {}, at(10, 5))
-        self.assertEqual(["digest"], [e["kind"] for e in events])
-        self.assertEqual("2026-11-10", state["last_digest_date"])
-        state, events = bw.evaluate(w, 1.0, state, at(10, 20))
+        state = {"last_digest_date": "2026-11-10"}
+        state, events = self.step(w, 95.0, state, msk(18, 15))
         self.assertEqual([], events)
-        state, events = bw.evaluate(w, 1.0, state, at(11))
+        state, events = self.step(w, 97.0, state, msk(18, 30))
         self.assertEqual([], events)
-        _, events = bw.evaluate(w, 1.0, state, at(10, 0, day=11))
-        self.assertEqual(["digest"], [e["kind"] for e in events])
+        self.assertEqual({"good": True, "best": 97.0}, state["notes"])
+        state, events = self.step(w, 3.0, state, msk(18, 45))
+        self.assertEqual([], events)
+        self.assertEqual(3.0, state["notes"]["worst"])
+        state, events = self.step(w, 3.0, state, msk(19))
+        self.assertEqual([], events)
+        self.assertIsNone(state["window"])
+        state, events = self.step(w, 50.0, state, msk(10, 0, day=11))
+        self.assertEqual(["digest"], self.kinds(events))
+        self.assertEqual({"good": True, "best": 97.0, "bad": True, "worst": 3.0}, events[0]["notes"])
+        self.assertEqual({}, state["notes"])
+        text = bw.message_digest(w, 50.0, None, None, events[0], local(msk(10, 0, day=11)))
+        self.assertIn("Вне окна отправки: было выгодно, до 97,00; было невыгодно, до 3,00", text)
 
-    def test_digest_is_not_sent_outside_window(self):
-        _, events = bw.evaluate(watch(digest_hour=9), 1.0, {}, at(9))
+    def test_without_digest_nothing_is_kept_for_later(self):
+        state, events = self.step(watch(), 95.0, {}, msk(18, 15))
         self.assertEqual([], events)
+        self.assertEqual({}, state["notes"])
+
+    def test_window_opened_before_send_window_is_sent_when_it_starts(self):
+        w = watch(quiet_to=12, quiet_from=18)
+        state, events = self.step(w, 90.0, {}, msk(11))
+        self.assertEqual([], events)
+        state, events = self.step(w, 90.0, state, msk(12))
+        self.assertEqual(["good"], self.kinds(events))
+        self.assertFalse(events[0]["repeat"])
+        state, events = self.step(w, 90.0, state, msk(12, 15))
+        self.assertEqual([], events)
+
+    def test_digest_once_per_day_and_it_replaces_the_window_message(self):
+        w = watch(digest_hour=10)
+        state, events = self.step(w, 95.0, {}, msk(10, 5))
+        self.assertEqual(["digest"], self.kinds(events))
+        self.assertEqual("good", events[0]["verdict"])
+        self.assertEqual("2026-11-10", state["last_digest_date"])
+        state, events = self.step(w, 95.0, state, msk(10, 20))
+        self.assertEqual([], events)
+        state, events = self.step(w, 96.0, state, msk(10, 35))
+        self.assertEqual(["good"], self.kinds(events))
+        self.assertTrue(events[0]["repeat"])
+        state, events = self.step(w, 50.0, state, msk(11))
+        self.assertEqual([], events)
+        state, events = self.step(w, 50.0, state, msk(10, 0, day=11))
+        self.assertEqual(["digest"], self.kinds(events))
+        self.assertEqual("normal", events[0]["verdict"])
+
+    def test_digest_verdicts(self):
+        w = watch(digest_hour=10)
+        self.assertEqual("bad", self.step(w, 5.0, {}, msk(10))[1][0]["verdict"])
+        self.assertEqual("warmup", self.step(w, 95.0, {}, msk(10), history=WEEK[:12])[1][0]["verdict"])
+        self.assertEqual("weekend", self.step(w, 95.0, {}, msk(10, day=SATURDAY))[1][0]["verdict"])
+        self.assertEqual("weekend", self.step(w, 95.0, {}, msk(10, day=4))[1][0]["verdict"])
+        early = watch(digest_hour=9, quiet_to=9)
+        self.assertEqual("night", self.step(early, 95.0, {}, msk(9))[1][0]["verdict"])
+
+    def test_weekend_digest_compares_nothing(self):
+        w = watch(digest_hour=10)
+        state, events = self.step(w, 95.0, {}, msk(10, day=SATURDAY))
+        self.assertIsNone(events[0]["assessment"])
+        self.assertIsNone(state["window"])
+        text = bw.message_digest(w, 95.0, 96.0, 100.0, events[0], local(msk(10, day=SATURDAY)))
+        self.assertIn("биржа закрыта, курс выходного дня", text)
+        self.assertNotIn("замеров", text)
+        self.assertIn(f"Обмен: 1{NBSP}RUB = 95,00{NBSP}USD", text)
+
+    def test_warmup_gives_no_signals_and_says_so_in_digest(self):
+        w = watch(digest_hour=10)
+        short = WEEK[:12]
+        state, events = self.step(w, 95.0, {}, msk(11), history=short)
+        self.assertEqual([], events)
+        state, events = self.step(w, 1.0, state, msk(11, 15), history=short)
+        self.assertEqual([], events)
+        _, events = self.step(w, 95.0, {}, msk(10), history=short)
+        text = bw.message_digest(w, 95.0, None, None, events[0], local(msk(10)))
+        self.assertIn(f"копим историю: 12{NBSP}замеров", text)
+        self.assertNotIn("замеров недели", text)
+
+    def test_target_sends_on_every_change_while_above_and_stops_below(self):
+        w = watch(target=40.0)
+        state, events = self.step(w, 50.0, {}, msk(11))
+        self.assertEqual(["target"], self.kinds(events))
+        self.assertIsNone(events[0]["previous"])
+        state, events = self.step(w, 50.0, state, msk(11, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 50.01, state, msk(11, 30))
+        self.assertEqual(["target"], self.kinds(events))
+        self.assertEqual(50.0, events[0]["previous"])
+        state, events = self.step(w, 45.0, state, msk(11, 45))
+        self.assertEqual(["target"], self.kinds(events))
+        state, events = self.step(w, 39.0, state, msk(12))
+        self.assertEqual([], events)
+        state, events = self.step(w, 38.0, state, msk(12, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 40.0, state, msk(12, 30))
+        self.assertEqual(["target"], self.kinds(events))
+        self.assertEqual(38.0, events[0]["previous"])
+
+    def test_target_ignores_warmup_and_trading_hours_but_not_send_window(self):
+        w = watch(target=40.0, quiet_from=9, quiet_to=9)
+        for moment in (msk(11), msk(21), msk(12, day=SATURDAY), msk(12, day=4)):
+            _, events = self.step(w, 50.0, {"last": 49.0}, moment, history=WEEK[:5])
+            self.assertEqual(["target"], self.kinds(events))
+        w = watch(target=40.0, digest_hour=10)
+        state, events = self.step(w, 50.0, {"last": 49.0, "last_digest_date": "2026-11-10"}, msk(18, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 52.0, state, msk(21))
+        self.assertEqual([], events)
+        state, events = self.step(w, 51.0, state, msk(9, 45, day=11))
+        self.assertEqual(52.0, state["notes"]["target_max"])
+        state, events = self.step(w, 51.0, state, msk(10, 0, day=11))
+        self.assertEqual(["digest"], self.kinds(events))
+        self.assertEqual(40.0, events[0]["target"])
+        text = bw.message_digest(w, 51.0, None, None, events[0], local(msk(10, 0, day=11)))
+        self.assertIn("Вне окна отправки: выше цели было: макс 52,00", text)
+        self.assertIn("Выше цели 40,00", text)
+        self.assertEqual({}, state["notes"])
+
+    def test_target_wins_over_window_message_but_window_state_moves(self):
+        w = watch(target=80.0)
+        state, events = self.step(w, 90.0, {}, msk(11))
+        self.assertEqual(["target"], self.kinds(events))
+        self.assertEqual("good", state["window"]["kind"])
+        self.assertTrue(state["window"]["notified"])
+        self.assertEqual(90.0, state["window"]["sent"])
+        state, events = self.step(w, 90.0, state, msk(11, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 79.0, state, msk(11, 30))
+        self.assertEqual([], events)
+        state, events = self.step(w, 79.5, state, msk(11, 45))
+        self.assertEqual([], events)
+
+    def test_window_message_still_sent_when_rate_is_below_target(self):
+        w = watch(target=95.0)
+        _, events = self.step(w, 90.0, {}, msk(11))
+        self.assertEqual(["good"], self.kinds(events))
+
+    def test_digest_is_not_sent_outside_send_window(self):
+        _, events = self.step(watch(digest_hour=9), 50.0, {}, msk(9))
+        self.assertEqual([], events)
+
+    def test_state_keeps_last_rate_and_time_for_the_app(self):
+        state, _ = self.step(watch(), 50.0, {}, msk(11))
+        self.assertEqual(50.0, state["last"])
+        self.assertEqual("2026-11-10T08:00:00+00:00", state["last_at"])
 
 
 class FormatTest(unittest.TestCase):
@@ -201,38 +474,82 @@ class FormatTest(unittest.TestCase):
 
 
 class MessageTest(unittest.TestCase):
-    def test_messages_mention_pair_rate_and_cbr(self):
-        w = watch(target=0.012)
-        text = bw.message_target(w, 0.0121, 0.0125, 0.012)
-        self.assertIn("RUB → USD", text)
-        self.assertIn(f"100{NBSP}RUB = 1,21{NBSP}USD", text)
-        self.assertIn("ЦБ", text)
-        self.assertIn(f"{MINUS}3,2{NBSP}%", text)
-        text = bw.message_jump(w, 0.0121, None, 0.0119, 0.0168)
-        self.assertTrue(text.startswith("▲"))
-        self.assertIn("было 1,19", text)
+    def good(self, rate, **overrides):
+        event = {"kind": "good", "repeat": False, "previous": None, "assessment": bw.assess(watch(**overrides), rate, None, SMALL_WEEK)}
+        return event
+
+    def test_good_message_has_rate_position_card_and_cbr(self):
+        w = watch()
+        text = bw.message_signal(w, 0.0121, 0.01225, 0.0125, self.good(0.0121))
+        lines = text.split("\n")
+        self.assertEqual("🟢 <b>RUB → USD</b>: выгодно менять", lines[0])
+        self.assertEqual(f"100{NBSP}RUB = 1,21{NBSP}USD · лучше 92{NBSP}% замеров недели", lines[1])
+        self.assertEqual(f"Картой выгоднее на 1,2{NBSP}%", lines[2])
+        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[3])
+        self.assertEqual(4, len(lines))
+
+    def test_repeat_message_names_previous_rate(self):
+        event = self.good(0.0122)
+        event.update(repeat=True, previous=0.0121)
+        text = bw.message_signal(watch(), 0.0122, None, None, event)
+        self.assertIn("стало ещё выгоднее, было 1,21", text)
+        self.assertNotIn("Картой", text)
         self.assertIn("ЦБ: курса нет", text)
 
-    def test_digest_lists_card_history_and_target(self):
-        w = watch(target=0.012, digest_hour=10)
-        text = bw.message_digest(w, 0.0115, 0.0118, 0.0121, [0.0110, 0.0119], at(10))
-        self.assertIn("Оплата картой", text)
-        self.assertIn("мин 1,10 · макс 1,19", text)
-        self.assertIn("Цель: 1,20", text)
-        text = bw.message_digest(watch(), 0.0115, None, None, [], at(10))
-        self.assertNotIn("Оплата картой", text)
-        self.assertIn("Цель не задана", text)
+    def test_target_message(self):
+        self.assertEqual("🎯 Курс выше цели 305: 306,10 (было 305,40)", bw.message_target(306.1, 305.0, 305.4))
+        self.assertEqual("🎯 Курс выше цели 1,14: 1,15 (было 1,16)", bw.message_target(0.0115, 0.0114, 0.0116))
+        self.assertEqual("🎯 Курс выше цели 92: 92,46", bw.message_target(92.456, 92.0, None))
 
-    def test_quiet_summary(self):
-        text = bw.message_quiet_summary(watch(), 99.0, 95.0, {"target": True, "jump": False, "min": 98.0, "max": 99.5})
-        self.assertIn("достигалась цель", text)
-        self.assertIn("от 98,00 до 99,50", text)
-        self.assertIn("Сейчас", text)
-        self.assertIn("событий не было", bw.message_quiet_summary(watch(), 99.0, None, {"min": 98.0, "max": 99.0}))
+    def test_bad_message(self):
+        assessment = bw.assess(watch(), 0.0101, None, SMALL_WEEK)
+        text = bw.message_signal(watch(), 0.0101, 0.0100, None, {"kind": "bad", "repeat": False, "previous": None, "assessment": assessment})
+        self.assertTrue(text.startswith("🔴 <b>RUB → USD</b>: сейчас не меняй"))
+        self.assertIn(f"хуже 88{NBSP}% замеров недели", text)
+        self.assertIn(f"Картой хуже на 1{NBSP}%", text)
+        text = bw.message_signal(watch(), 0.0100, None, None, {"kind": "bad", "repeat": True, "previous": 0.0101, "assessment": assessment})
+        self.assertIn("стало ещё хуже, было 1,01", text)
 
-    def test_subscribe_text_names_category(self):
+    def test_card_line(self):
+        self.assertEqual("Картой так же", bw.card_line(1.0, 1.0002))
+        self.assertIsNone(bw.card_line(1.0, None))
+        self.assertEqual(f"Картой хуже на 2,5{NBSP}%", bw.card_line(1.0, 0.975))
+
+    def test_digest_is_one_message_with_verdict_and_position(self):
+        w = watch(digest_hour=10)
+        event = {"kind": "digest", "verdict": "good", "assessment": bw.assess(w, 0.0121, 0.0125, SMALL_WEEK), "notes": {}}
+        lines = bw.message_digest(w, 0.0121, 0.0120, 0.0125, event, local(msk(10))).split("\n")
+        self.assertEqual("☀️ <b>RUB → USD</b>, 10:00 · выгодно", lines[0])
+        self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD", lines[1])
+        self.assertEqual(f"Картой хуже на 0,8{NBSP}%", lines[2])
+        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[3])
+        self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[4])
+        self.assertEqual(5, len(lines))
+
+    def test_digest_verdict_texts(self):
+        w = watch(digest_hour=10)
+        assessment = bw.assess(w, 0.0115, None, SMALL_WEEK)
+        for code, expected in (("normal", "· обычно"), ("bad", "· не меняй"), ("night", "· биржа закрыта, ночной курс")):
+            event = {"kind": "digest", "verdict": code, "assessment": assessment if code != "night" else None, "notes": {}}
+            self.assertIn(expected, bw.message_digest(w, 0.0115, None, None, event, local(msk(10))))
+
+    def test_notes_line(self):
+        self.assertIsNone(bw.notes_line({}, 1))
+        self.assertEqual("Вне окна отправки: было выгодно, до 1,22", bw.notes_line({"good": True, "best": 0.0122}, 100))
+        self.assertEqual("Вне окна отправки: было невыгодно, до 1,01", bw.notes_line({"bad": True, "worst": 0.0101}, 100))
+        self.assertEqual("Вне окна отправки: выше цели было: макс 1,22", bw.notes_line({"target_max": 0.0122}, 100))
+
+    def test_plural_and_share(self):
+        self.assertEqual(f"1{NBSP}замер", bw.plural(1, "замер", "замера", "замеров"))
+        self.assertEqual(f"3{NBSP}замера", bw.plural(3, "замер", "замера", "замеров"))
+        self.assertEqual(f"11{NBSP}замеров", bw.plural(11, "замер", "замера", "замеров"))
+        self.assertEqual(f"72{NBSP}замера", bw.plural(72, "замер", "замера", "замеров"))
+        self.assertEqual(f"87{NBSP}%", bw.format_share(0.866))
+        self.assertEqual(f"1,2{NBSP}%", bw.format_percent_abs(-0.0124))
+
+    def test_subscribe_text_names_pair(self):
+        self.assertIn("RUB → USD", bw.subscribe_text(watch()))
         self.assertIn("обмен в приложении", bw.subscribe_text(watch()))
-        self.assertIn("оплата картой", bw.subscribe_text(watch(category=bw.CATEGORY_CARD)))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,10 @@ data class BankRateWatchDto(
     @SerialName("to_currency") val toCurrency: String,
     val category: String,
     val target: Double?,
-    @SerialName("jump_percent") val jumpPercent: Double,
+    @SerialName("good_percentile") val goodPercentile: Int = 85,
+    @SerialName("improve_percent") val improvePercent: Double = 0.5,
+    @SerialName("trade_from") val tradeFrom: Int = 10,
+    @SerialName("trade_to") val tradeTo: Int = 19,
     @SerialName("digest_hour") val digestHour: Int?,
     @SerialName("quiet_from") val quietFrom: Int,
     @SerialName("quiet_to") val quietTo: Int,
@@ -29,7 +32,10 @@ data class BankRateWatchUpsertDto(
     @SerialName("to_currency") val toCurrency: String,
     val category: String,
     val target: Double?,
-    @SerialName("jump_percent") val jumpPercent: Double,
+    @SerialName("good_percentile") val goodPercentile: Int,
+    @SerialName("improve_percent") val improvePercent: Double,
+    @SerialName("trade_from") val tradeFrom: Int,
+    @SerialName("trade_to") val tradeTo: Int,
     @SerialName("digest_hour") val digestHour: Int?,
     @SerialName("quiet_from") val quietFrom: Int,
     @SerialName("quiet_to") val quietTo: Int,
@@ -43,6 +49,7 @@ data class BankRateSnapshotDto(
     val sell: Double?,
     val cbr: Double?,
     @SerialName("taken_at") val takenAt: String,
+    @SerialName("in_hours") val inHours: Boolean = false,
 )
 
 @Serializable

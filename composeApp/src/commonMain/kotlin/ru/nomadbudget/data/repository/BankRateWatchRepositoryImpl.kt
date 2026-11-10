@@ -12,6 +12,7 @@ import ru.nomadbudget.data.dto.BotInfoDto
 import ru.nomadbudget.data.dto.TelegramSubscriberDto
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.mapper.BankRateWatchMapper
+import ru.nomadbudget.domain.logic.BankRateAnalyzer
 import ru.nomadbudget.domain.model.BankRateCategory
 import ru.nomadbudget.domain.model.BankRateSnapshot
 import ru.nomadbudget.domain.model.BankRateWatch
@@ -35,10 +36,11 @@ class BankRateWatchRepositoryImpl(
         }.firstOrNull()?.let { BankRateWatchMapper.toDomain(it, byCode) } ?: return BankWatchData(botUsername = botUsername())
         return coroutineScope {
             val history = async { history(watch) }
+            val week = async { week(watch) }
             val latest = async { latest(watch) }
             val subscribers = async { subscribers(watch.id) }
             val bot = async { botUsername() }
-            BankWatchData(watch, history.await(), latest.await(), subscribers.await(), bot.await())
+            BankWatchData(watch, history.await(), week.await(), latest.await(), subscribers.await(), bot.await())
         }
     }
 
@@ -78,11 +80,31 @@ class BankRateWatchRepositoryImpl(
                         eq("provider", watch.provider)
                         eq("from_currency", watch.from.code)
                         eq("to_currency", watch.to.code)
-                        eq("category", watch.category.id)
+                        eq("category", BankRateCategory.EXCHANGE.id)
                         gte("taken_at", since)
                     }
                     order("taken_at", Order.ASCENDING)
                     limit(HISTORY_ROWS)
+                }
+                .decodeList<BankRateSnapshotDto>()
+        }.mapNotNull(BankRateWatchMapper::toDomain)
+    }
+
+    private suspend fun week(watch: BankRateWatch): List<BankRateSnapshot> {
+        val since = (Clock.System.now() - BankRateAnalyzer.RANGE_DAYS.days).toString()
+        return cache.throughOrDefault(KEY_WEEK, ListSerializer(BankRateSnapshotDto.serializer()), emptyList()) {
+            client.from(SNAPSHOTS)
+                .select {
+                    filter {
+                        eq("provider", watch.provider)
+                        eq("from_currency", watch.from.code)
+                        eq("to_currency", watch.to.code)
+                        eq("category", BankRateCategory.EXCHANGE.id)
+                        eq("in_hours", true)
+                        gte("taken_at", since)
+                    }
+                    order("taken_at", Order.ASCENDING)
+                    limit(WEEK_ROWS)
                 }
                 .decodeList<BankRateSnapshotDto>()
         }.mapNotNull(BankRateWatchMapper::toDomain)
@@ -126,10 +148,12 @@ class BankRateWatchRepositoryImpl(
         const val BOT_INFO = "bot_info"
         const val KEY_WATCH = "bank_watch"
         const val KEY_HISTORY = "bank_watch_history"
+        const val KEY_WEEK = "bank_watch_week"
         const val KEY_LATEST = "bank_watch_latest"
         const val KEY_SUBSCRIBERS = "bank_watch_subscribers"
         const val KEY_BOT = "bank_watch_bot"
         const val HISTORY_DAYS = 30
         const val HISTORY_ROWS: Long = 800
+        const val WEEK_ROWS: Long = 1000
     }
 }
