@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -14,9 +16,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ru.nomadbudget.domain.logic.BankRateAnalyzer
+import ru.nomadbudget.domain.logic.RateAssessment
+import ru.nomadbudget.domain.logic.RateVerdict
 import ru.nomadbudget.domain.model.BankRateCategory
 import ru.nomadbudget.domain.model.BankRateWatch
 import ru.nomadbudget.domain.model.BankRateWatchDraft
@@ -57,10 +58,13 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 private val WATCH_PERIODS = listOf(ChartPeriod("1 день", 24), ChartPeriod("7 дней", 24 * 7), ChartPeriod("30 дней", null))
 private val HOURS = BankRateWatch.HOURS.toList()
+private val TRADE_END_HOURS = BankRateWatch.TRADE_END_HOURS.toList()
+private val TOP_SHARES = listOf(10, 15, 25)
 private const val DIGEST_OFF = -1
 
 class BankWatchCallbacks(
@@ -75,7 +79,7 @@ fun LazyListScope.bankRateWatchItems(state: HomeState, wide: Boolean, callbacks:
     val data = state.bankWatch
     val watch = data.watch
     item(key = "bank-watch-title") {
-        SectionTitle("Слежение за курсом банка", hint = if (watch == null) null else "проверка каждые 15 минут", info = Hints.BANK_WATCH)
+        SectionTitle("Слежение за курсом банка", hint = if (watch == null) null else watch.lastCheckedAt?.let { "проверено ${DateFormat.dayMonthTime(it)}" } ?: "проверка каждые 15 минут", info = Hints.BANK_WATCH)
     }
     if (watch == null) {
         item(key = "bank-watch-add") { AddTile("Следить за курсом банка", onClick = onEdit) }
@@ -89,15 +93,14 @@ fun LazyListScope.bankRateWatchItems(state: HomeState, wide: Boolean, callbacks:
 @Composable
 private fun WatchTiles(data: BankWatchData, watch: BankRateWatch, wide: Boolean) {
     val colors = AppTheme.colors
-    val exchange = data.latest[BankRateCategory.EXCHANGE]
+    val current = data.latest[BankRateCategory.EXCHANGE]
     val card = data.latest[BankRateCategory.CARD]
-    val current = data.latest[watch.category] ?: exchange
     val now = Clock.System.now()
-    val range = BankRateAnalyzer.range(data.history, now)
+    val range = BankRateAnalyzer.range(data.week, now)
     val unit = MoneyFormat.quoteUnit(current?.buy ?: watch.target ?: 1.0)
     val cbr = current?.cbr
-    val spread = current?.let { BankRateAnalyzer.spread(it.buy, cbr) }
-    val checkedAt = watch.lastCheckedAt ?: current?.takenAt
+    val assessment = current?.let { BankRateAnalyzer.assess(it, data.week, now, watch.goodPercentile, watch.tradeFrom, watch.tradeTo) }
+    val compared = assessment?.takeIf { it.verdict in COMPARED_VERDICTS }
     TileRow(
         wide,
         listOf(
@@ -106,19 +109,24 @@ private fun WatchTiles(data: BankWatchData, watch: BankRateWatch, wide: Boolean)
                     "Курс банка сейчас",
                     current?.let { MoneyFormat.rateText(watch.from, watch.to, it.buy * unit, unit) } ?: "—",
                     listOfNotNull(
-                        exchange?.let { "обмен ${MoneyFormat.formatQuote(it.buy * unit)}" },
-                        card?.let { "карта ${MoneyFormat.formatQuote(it.buy * unit)}" },
-                        if (!watch.enabled) "на паузе" else checkedAt?.let { "проверено ${DateFormat.dayMonthTime(it)}" },
+                        if (!watch.enabled) "на паузе" else null,
+                        assessment?.let(::verdictText),
+                        compared?.let(::positionText),
                     ).joinToString(" · ").ifEmpty { "первая проверка в течение 15 минут" },
                     modifier = m,
                     accent = true,
+                    progress = compared?.below?.toFloat(),
                 )
             },
             { m ->
+                val spread = assessment?.spread
                 StatTile(
                     "Курс ЦБ",
                     cbr?.let { MoneyFormat.rateText(watch.from, watch.to, it * unit, unit) } ?: "—",
-                    spread?.let { "разница с ЦБ ${MoneyFormat.formatChange(it)} %" } ?: "курс ЦБ ещё не получен",
+                    listOfNotNull(
+                        spread?.let { "разница с ЦБ ${MoneyFormat.formatChange(it)} %" } ?: "курс ЦБ ещё не получен",
+                        assessment?.medianSpread?.let { "медиана недели ${MoneyFormat.formatChange(it)} %" },
+                    ).joinToString(" · "),
                     modifier = m,
                     subColor = spread?.let { if (it < 0) colors.bad else colors.good },
                 )
@@ -128,8 +136,11 @@ private fun WatchTiles(data: BankWatchData, watch: BankRateWatch, wide: Boolean)
                 StatTile(
                     "Цель",
                     target?.let { MoneyFormat.rateText(watch.from, watch.to, it * unit, unit) } ?: "не задана",
-                    range?.let { "за ${plural(BankRateAnalyzer.RANGE_DAYS, "день", "дня", "дней")}: мин ${MoneyFormat.formatQuote(it.min * unit)} · макс ${MoneyFormat.formatQuote(it.max * unit)}" }
-                        ?: "истории за неделю пока нет",
+                    listOfNotNull(
+                        range?.let { "неделя в часы биржи: мин ${MoneyFormat.formatQuote(it.min * unit)} · макс ${MoneyFormat.formatQuote(it.max * unit)}" }
+                            ?: "истории за неделю пока нет",
+                        current?.let { cardText(it.buy, card?.buy) },
+                    ).joinToString(" · "),
                     modifier = m,
                     progress = current?.let { BankRateAnalyzer.progress(it.buy, target, range) },
                     progressColor = colors.save,
@@ -137,6 +148,32 @@ private fun WatchTiles(data: BankWatchData, watch: BankRateWatch, wide: Boolean)
             },
         ),
     )
+}
+
+private val COMPARED_VERDICTS = setOf(RateVerdict.GOOD, RateVerdict.NORMAL, RateVerdict.BAD)
+
+private fun verdictText(assessment: RateAssessment): String = when (assessment.verdict) {
+    RateVerdict.GOOD -> "выгодно"
+    RateVerdict.NORMAL -> "обычно"
+    RateVerdict.BAD -> "не меняй"
+    RateVerdict.WARMUP -> "копим историю: ${plural(assessment.samples, "замер", "замера", "замеров")}"
+    RateVerdict.CLOSED -> "биржа закрыта, ночной курс"
+}
+
+private fun positionText(assessment: RateAssessment): String =
+    if (assessment.verdict == RateVerdict.BAD) "хуже ${MoneyFormat.formatPercentValue(wholePercent(assessment.above))} замеров недели"
+    else "лучше ${MoneyFormat.formatPercentValue(wholePercent(assessment.below))} замеров недели"
+
+private fun wholePercent(share: Double): Double = (share * 100).roundToInt().toDouble()
+
+private fun cardText(exchange: Double, card: Double?): String? {
+    if (card == null || exchange <= 0.0) return null
+    val tenths = ((card / exchange - 1.0) * 1000).roundToInt()
+    return when {
+        tenths == 0 -> "картой так же"
+        tenths > 0 -> "картой выгоднее на ${MoneyFormat.formatPercentValue(tenths / 10.0)}"
+        else -> "картой хуже на ${MoneyFormat.formatPercentValue(-tenths / 10.0)}"
+    }
 }
 
 @Composable
@@ -155,7 +192,7 @@ private fun WatchChart(data: BankWatchData, watch: BankRateWatch) {
     val names = listOfNotNull("банк", cbr?.let { "ЦБ" })
     ChartPanel(
         title = "Банк и ЦБ · ${watch.from.code} → ${watch.to.code}",
-        hint = "сколько ${MoneyFormat.perUnitLabel(unit, watch.from, watch.to)}, точка — час",
+        hint = "сколько ${MoneyFormat.perUnitLabel(unit, watch.from, watch.to)}, точка — час; вечером и в выходные у банка ночной курс, в сигналах не учитывается",
         legend = names.zip(listOf(bankColor, cbrColor)).map { (name, color) -> LegendEntry(name, color) },
         totalPoints = points.size,
         periods = WATCH_PERIODS,
@@ -234,17 +271,13 @@ private fun TelegramCard(data: BankWatchData, watch: BankRateWatch, callbacks: B
 }
 
 private fun settingsSummary(watch: BankRateWatch): String = listOfNotNull(
-    categoryLabel(watch.category),
-    "скачок от ${MoneyFormat.formatPercentValue(watch.jumpPercent)}",
+    "верхние ${MoneyFormat.formatPercentValue((100 - watch.goodPercentile).toDouble())} недели",
+    "повтор при улучшении на ${MoneyFormat.formatPercentValue(watch.improvePercent)}",
+    "биржа ${hourText(watch.tradeFrom)}–${hourText(watch.tradeTo)} МСК",
     watch.digestHour?.let { "сводка в ${hourText(it)}" } ?: "без сводки",
     if (watch.sendsAllDay) "присылать круглосуточно" else "присылать с ${hourText(watch.sendFrom)} до ${hourText(watch.sendTo)}",
     watch.timezone,
 ).joinToString(" · ")
-
-private fun categoryLabel(category: BankRateCategory): String = when (category) {
-    BankRateCategory.EXCHANGE -> "обмен в приложении"
-    BankRateCategory.CARD -> "оплата картой"
-}
 
 private fun hourText(hour: Int): String = "${hour.toString().padStart(2, '0')}:00"
 
@@ -259,53 +292,52 @@ fun BankRateWatchDialog(
     val foreign = currencies.firstOrNull { it != Currency.BASE }
     var from by remember { mutableStateOf(initial?.from ?: Currency.BASE) }
     var to by remember { mutableStateOf(initial?.to ?: foreign ?: Currency.BASE) }
-    var category by remember { mutableStateOf(initial?.category ?: BankRateCategory.EXCHANGE) }
     val unit = MoneyFormat.quoteUnit(initial?.target ?: suggestedTarget ?: 1.0)
     var target by remember { mutableStateOf(initial?.target?.let { MoneyFormat.formatQuote(it * unit) }.orEmpty()) }
-    var jump by remember { mutableStateOf(MoneyFormat.formatTenths(initial?.jumpPercent ?: BankRateWatch.DEFAULT_JUMP_PERCENT)) }
+    var topShare by remember { mutableStateOf(100 - (initial?.goodPercentile ?: BankRateWatch.DEFAULT_GOOD_PERCENTILE)) }
+    var improve by remember { mutableStateOf(MoneyFormat.formatTenths(initial?.improvePercent ?: BankRateWatch.DEFAULT_IMPROVE_PERCENT)) }
+    var tradeFrom by remember { mutableStateOf(initial?.tradeFrom ?: BankRateWatch.DEFAULT_TRADE_FROM) }
+    var tradeTo by remember { mutableStateOf(initial?.tradeTo ?: BankRateWatch.DEFAULT_TRADE_TO) }
     var sendFrom by remember { mutableStateOf(initial?.sendFrom ?: BankRateWatch.DEFAULT_QUIET_TO) }
     var sendTo by remember { mutableStateOf(initial?.sendTo ?: BankRateWatch.DEFAULT_QUIET_FROM) }
     var digest by remember { mutableStateOf(if (initial == null) BankRateWatch.DEFAULT_DIGEST_HOUR else initial.digestHour ?: DIGEST_OFF) }
     var timezone by remember { mutableStateOf(initial?.timezone ?: BankRateWatch.DEFAULT_TIMEZONE) }
 
     val targetValue = parseDecimal(target)?.let { it / unit }
-    val jumpValue = parseDecimal(jump)
+    val improveValue = parseDecimal(improve)
+    val topShares = (TOP_SHARES + topShare).distinct().sorted()
     val digestHours = HOURS.filter { BankRateWatch.inSendWindow(it, quietFrom = sendTo, quietTo = sendFrom) }
     val digestValid = digest == DIGEST_OFF || digest in digestHours
-    val valid = from != to && (target.isBlank() || (targetValue != null && targetValue > 0.0)) && jumpValue != null && jumpValue > 0.0 && digestValid && timezone.isNotBlank()
+    val valid = from != to && (target.isBlank() || (targetValue != null && targetValue > 0.0)) && improveValue != null && improveValue > 0.0 &&
+        BankRateWatch.validTradeHours(tradeFrom, tradeTo) && digestValid && timezone.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Следить за курсом банка" else "Слежение за курсом") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Dropdown("Из валюты", currencies, from, Currency::code, { from = it }, modifier = Modifier.weight(1f))
                     Dropdown("В валюту", currencies, to, Currency::code, { to = it }, modifier = Modifier.weight(1f))
                 }
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    BankRateCategory.entries.forEachIndexed { index, item ->
-                        SegmentedButton(
-                            selected = item == category,
-                            onClick = { category = item },
-                            shape = SegmentedButtonDefaults.itemShape(index, BankRateCategory.entries.size),
-                            icon = {},
-                        ) { Text(categoryLabel(item)) }
-                    }
-                }
+                Dropdown("Строгость: верхние X % недели", topShares, topShare, { MoneyFormat.formatPercentValue(it.toDouble()) }, { topShare = it })
                 OutlinedTextField(
-                    value = target,
-                    onValueChange = { target = it },
-                    label = { Text("Цель, ${MoneyFormat.perUnitLabel(unit, from, to)}") },
-                    placeholder = { Text(suggestedTarget?.let { "максимум за неделю ${MoneyFormat.formatQuote(it * unit)}" } ?: "без цели") },
+                    value = improve,
+                    onValueChange = { improve = it },
+                    label = { Text("Повтор при улучшении на, %") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Dropdown("Часы биржи с, МСК", HOURS, tradeFrom, ::hourText, { tradeFrom = it }, modifier = Modifier.weight(1f))
+                    Dropdown("по", TRADE_END_HOURS, tradeTo, ::hourText, { tradeTo = it }, modifier = Modifier.weight(1f))
+                }
                 OutlinedTextField(
-                    value = jump,
-                    onValueChange = { jump = it },
-                    label = { Text("Скачок с прошлой проверки, %") },
+                    value = target,
+                    onValueChange = { target = it },
+                    label = { Text("Всегда сообщать, если курс ≥, ${MoneyFormat.perUnitLabel(unit, from, to)}") },
+                    placeholder = { Text(suggestedTarget?.let { "максимум за неделю ${MoneyFormat.formatQuote(it * unit)}" } ?: "необязательно") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
@@ -323,7 +355,7 @@ fun BankRateWatchDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    "Уведомления приходят только с ${hourText(sendFrom)} до ${hourText(sendTo)}. Что случилось в остальное время, придёт одним сообщением в ${hourText(sendFrom)}. Одинаковые часы — присылать круглосуточно. Без цели сигнал о цели не отправляется.",
+                    "Выгодно — курс обмена в верхних ${MoneyFormat.formatPercentValue(topShare.toDouble())} замеров недели и разница с ЦБ уже обычной; зеркально приходит «сейчас не меняй». Считаются только часы биржи в будни: вечером и в выходные у банка ночной курс. На одно окно — одно сообщение, повтор только при улучшении. Пока курс не ниже заданного, сообщение приходит при каждом его изменении. Сообщения приходят с ${hourText(sendFrom)} до ${hourText(sendTo)}; остальное попадёт одной строкой в ежедневную сводку. Одинаковые часы — присылать круглосуточно.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -336,9 +368,12 @@ fun BankRateWatchDialog(
                         BankRateWatchDraft(
                             from = from,
                             to = to,
-                            category = category,
+                            category = BankRateCategory.EXCHANGE,
                             target = targetValue,
-                            jumpPercent = jumpValue ?: BankRateWatch.DEFAULT_JUMP_PERCENT,
+                            goodPercentile = 100 - topShare,
+                            improvePercent = improveValue ?: BankRateWatch.DEFAULT_IMPROVE_PERCENT,
+                            tradeFrom = tradeFrom,
+                            tradeTo = tradeTo,
                             digestHour = digest.takeIf { it != DIGEST_OFF },
                             quietFrom = sendTo,
                             quietTo = sendFrom,

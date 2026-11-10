@@ -9,6 +9,8 @@
 | `migrations/0003…0011` | корректировки, подкатегории плана, кредиты, цели, капитал, нейтральный seed |
 | `migrations/0012_user_settings.sql` | `user_settings` (начало месяца бюджета, дни дохода, базовая валюта, подушка, онбординг), триггер без стартовых счетов, RPC `delete_own_account` и `ensure_currency` |
 | `migrations/0013_bank_rate_watch.sql` | слежение за курсом банка: `bank_rate_snapshots` (общие снимки, пишет воркер), `rate_watches` (настройки владельца, `state` и `link_code` ведёт воркер), `telegram_subscribers`, `bot_info`, почасовая вьюха `bank_rate_snapshots_hourly` |
+| `migrations/0014_watch_trigger.sql` | pg_cron + pg_net: запуск проверки курса каждые 15 минут через `workflow_dispatch` |
+| `migrations/0015_watch_windows.sql` | окна слежения: `rate_watches.good_percentile / improve_percent / trade_from / trade_to`, таблица `exchange_holidays` (неторговые дни биржи, обновлять раз в год), `bank_rate_snapshots.in_hours` с заполнением истории, функция `exchange_in_hours`, сброс `state` |
 
 ## Применить
 

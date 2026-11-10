@@ -27,7 +27,10 @@ object BankRateWatchMapper {
             to = to,
             category = BankRateCategory.fromId(dto.category),
             target = dto.target,
-            jumpPercent = dto.jumpPercent,
+            goodPercentile = dto.goodPercentile,
+            improvePercent = dto.improvePercent,
+            tradeFrom = dto.tradeFrom,
+            tradeTo = dto.tradeTo,
             digestHour = dto.digestHour,
             quietFrom = dto.quietFrom,
             quietTo = dto.quietTo,
@@ -45,7 +48,10 @@ object BankRateWatchMapper {
         toCurrency = draft.to.code,
         category = draft.category.id,
         target = draft.target,
-        jumpPercent = draft.jumpPercent,
+        goodPercentile = draft.goodPercentile,
+        improvePercent = draft.improvePercent,
+        tradeFrom = draft.tradeFrom,
+        tradeTo = draft.tradeTo,
         digestHour = draft.digestHour,
         quietFrom = draft.quietFrom,
         quietTo = draft.quietTo,
@@ -55,7 +61,7 @@ object BankRateWatchMapper {
     fun toDomain(dto: BankRateSnapshotDto): BankRateSnapshot? {
         val takenAt = runCatching { Instant.parse(dto.takenAt) }.getOrNull() ?: return null
         if (dto.buy <= 0.0) return null
-        return BankRateSnapshot(BankRateCategory.fromId(dto.category), dto.buy, dto.sell, dto.cbr, takenAt)
+        return BankRateSnapshot(BankRateCategory.fromId(dto.category), dto.buy, dto.sell, dto.cbr, takenAt, dto.inHours)
     }
 
     fun toDomain(dto: TelegramSubscriberDto): TelegramSubscriber = TelegramSubscriber(dto.id, dto.title?.takeIf { it.isNotBlank() } ?: "Подписчик")

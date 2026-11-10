@@ -5,7 +5,10 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.plus
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import ru.nomadbudget.domain.logic.BankRateAnalyzer
 import ru.nomadbudget.core.SystemToday
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
@@ -52,6 +55,7 @@ class DemoDatabase(val today: LocalDate) {
     val capitalGoals = mutableListOf<ru.nomadbudget.domain.logic.CapitalGoal>()
     var bankWatch: BankRateWatch? = null
     val bankSnapshots = mutableListOf<BankRateSnapshot>()
+    val bankWeek = mutableListOf<BankRateSnapshot>()
     val telegramSubscribers = mutableListOf<TelegramSubscriber>()
     var settings = UserSettings(
         periodStartDay = START_DAY,
@@ -170,17 +174,22 @@ private class DemoSeed(private val db: DemoDatabase) {
     private fun seedBankWatch() {
         db.bankWatch = BankRateWatch(
             id = "watch_demo", provider = BankRateWatch.DEFAULT_PROVIDER, from = Currency.RUB, to = usd, category = BankRateCategory.EXCHANGE,
-            target = 0.0118, jumpPercent = BankRateWatch.DEFAULT_JUMP_PERCENT, digestHour = BankRateWatch.DEFAULT_DIGEST_HOUR,
+            target = 0.0118, goodPercentile = BankRateWatch.DEFAULT_GOOD_PERCENTILE, improvePercent = BankRateWatch.DEFAULT_IMPROVE_PERCENT,
+            tradeFrom = BankRateWatch.DEFAULT_TRADE_FROM, tradeTo = BankRateWatch.DEFAULT_TRADE_TO, digestHour = BankRateWatch.DEFAULT_DIGEST_HOUR,
             quietFrom = BankRateWatch.DEFAULT_QUIET_FROM, quietTo = BankRateWatch.DEFAULT_QUIET_TO, timezone = BankRateWatch.DEFAULT_TIMEZONE, enabled = true, linkCode = "demo",
         )
         val end = db.today.atStartOfDayIn(TimeZone.UTC) + BANK_WATCH_LAST_HOUR.hours
-        repeat(BANK_WATCH_HOURS) { index ->
-            val hoursAgo = BANK_WATCH_HOURS - 1 - index
-            val takenAt = end - hoursAgo.hours
+        repeat(BANK_WATCH_HOURS * BANK_WATCH_CHECKS_PER_HOUR) { step ->
+            val index = step / BANK_WATCH_CHECKS_PER_HOUR.toDouble()
+            val takenAt = end - (BANK_WATCH_HOURS - 1).hours + (step * 60 / BANK_WATCH_CHECKS_PER_HOUR).minutes
+            if (takenAt > end) return@repeat
             val cbrUsdPerRub = 1.0 / (92.4 + 1.6 * sin(index / 24.0 / 9.0))
             val bank = cbrUsdPerRub * (0.955 + 0.012 * sin(index / 7.0) + random.nextDouble(-0.002, 0.002))
-            db.bankSnapshots += BankRateSnapshot(BankRateCategory.EXCHANGE, bank, bank * 1.055, cbrUsdPerRub, takenAt)
-            if (hoursAgo == 0) db.bankSnapshots += BankRateSnapshot(BankRateCategory.CARD, bank * 1.012, null, cbrUsdPerRub, takenAt)
+            val inHours = BankRateAnalyzer.inStandardHours(takenAt)
+            val snapshot = BankRateSnapshot(BankRateCategory.EXCHANGE, bank, bank * 1.055, cbrUsdPerRub, takenAt, inHours)
+            if (step % BANK_WATCH_CHECKS_PER_HOUR == 0) db.bankSnapshots += snapshot
+            if (inHours && end - takenAt <= BankRateAnalyzer.RANGE_DAYS.days) db.bankWeek += snapshot
+            if (takenAt == end) db.bankSnapshots += BankRateSnapshot(BankRateCategory.CARD, bank * 1.012, null, cbrUsdPerRub, takenAt, inHours)
         }
         db.bankWatch = db.bankWatch?.copy(lastRate = db.bankSnapshots.last { it.category == BankRateCategory.EXCHANGE }.buy, lastCheckedAt = end)
         db.telegramSubscribers += TelegramSubscriber("sub_1", "Я")
@@ -317,6 +326,7 @@ private class DemoSeed(private val db: DemoDatabase) {
         const val PERIODS = 6
         const val BANK_WATCH_HOURS = 30 * 24
         const val BANK_WATCH_LAST_HOUR = 11
+        const val BANK_WATCH_CHECKS_PER_HOUR = 4
     }
 }
 

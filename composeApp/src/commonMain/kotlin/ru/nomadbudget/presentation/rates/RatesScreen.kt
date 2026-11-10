@@ -70,7 +70,7 @@ fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCal
         BankRateWatchDialog(
             initial = watch,
             currencies = state.currencies,
-            suggestedTarget = BankRateAnalyzer.suggestedTarget(state.bankWatch.history, Clock.System.now()),
+            suggestedTarget = BankRateAnalyzer.suggestedTarget(state.bankWatch.week, Clock.System.now()),
             onDismiss = { editingWatch = false },
             onConfirm = { draft ->
                 if (watch == null) bankWatch.onCreate(draft) else bankWatch.onUpdate(draft)

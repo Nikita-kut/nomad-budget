@@ -53,7 +53,9 @@ internal class BankWatchActions(
     private fun validate(draft: BankRateWatchDraft) {
         require(draft.from != draft.to) { "Выбери две разные валюты" }
         require(draft.target == null || draft.target > 0.0) { "Цель должна быть больше нуля" }
-        require(draft.jumpPercent > 0.0) { "Скачок должен быть больше нуля" }
+        require(draft.goodPercentile in BankRateWatch.PERCENTILES) { "Строгость: от 50 до 99" }
+        require(draft.improvePercent > 0.0) { "Повтор при улучшении должен быть больше нуля" }
+        require(BankRateWatch.validTradeHours(draft.tradeFrom, draft.tradeTo)) { "Часы биржи: начало раньше конца" }
         require(draft.digestHour == null || draft.digestHour in BankRateWatch.HOURS) { "Час сводки: от 0 до 23" }
         require(draft.quietFrom in BankRateWatch.HOURS && draft.quietTo in BankRateWatch.HOURS) { "Окно отправки: часы от 0 до 23" }
         require(draft.digestHour == null || BankRateWatch.inSendWindow(draft.digestHour, draft.quietFrom, draft.quietTo)) { "Час сводки должен быть внутри окна отправки" }

@@ -22,6 +22,7 @@ import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.BankRateCategory
 import ru.nomadbudget.domain.model.BankRateWatch
 import ru.nomadbudget.domain.model.BankRateWatchDraft
 import ru.nomadbudget.domain.model.BankWatchData
@@ -82,9 +83,9 @@ val demoModule = module {
 private class DemoBankRateWatchRepository(private val db: DemoDatabase) : BankRateWatchRepository {
     override suspend fun load(currencies: List<Currency>): BankWatchData {
         val watch = db.bankWatch ?: return BankWatchData(botUsername = BOT)
-        val history = db.bankSnapshots.filter { it.category == watch.category }.sortedBy { it.takenAt }
+        val history = db.bankSnapshots.filter { it.category == BankRateCategory.EXCHANGE }.sortedBy { it.takenAt }
         val latest = db.bankSnapshots.groupBy { it.category }.mapValues { (_, list) -> list.maxBy { it.takenAt } }
-        return BankWatchData(watch, history, latest, db.telegramSubscribers.toList(), BOT)
+        return BankWatchData(watch, history, db.bankWeek.toList(), latest, db.telegramSubscribers.toList(), BOT)
     }
 
     override suspend fun create(draft: BankRateWatchDraft): BankRateWatch = fromDraft(db.newId("watch"), draft, "demo-${db.newId("code")}").also { db.bankWatch = it }
@@ -109,7 +110,7 @@ private class DemoBankRateWatchRepository(private val db: DemoDatabase) : BankRa
 
     private fun fromDraft(id: String, draft: BankRateWatchDraft, linkCode: String) = BankRateWatch(
         id = id, provider = draft.provider, from = draft.from, to = draft.to, category = draft.category, target = draft.target,
-        jumpPercent = draft.jumpPercent, digestHour = draft.digestHour, quietFrom = draft.quietFrom, quietTo = draft.quietTo,
+        goodPercentile = draft.goodPercentile, improvePercent = draft.improvePercent, tradeFrom = draft.tradeFrom, tradeTo = draft.tradeTo, digestHour = draft.digestHour, quietFrom = draft.quietFrom, quietTo = draft.quietTo,
         timezone = draft.timezone, enabled = true, linkCode = linkCode,
     )
 
