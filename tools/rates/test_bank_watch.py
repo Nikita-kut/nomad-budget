@@ -552,5 +552,87 @@ class MessageTest(unittest.TestCase):
         self.assertIn("обмен в приложении", bw.subscribe_text(watch()))
 
 
+class RetryTest(unittest.TestCase):
+    def setUp(self):
+        self.slept = []
+        self.original_sleep = bw.sleep
+        bw.sleep = self.slept.append
+
+    def tearDown(self):
+        bw.sleep = self.original_sleep
+
+    def flaky(self, errors):
+        calls = []
+
+        def action():
+            calls.append(1)
+            if len(calls) <= len(errors):
+                raise errors[len(calls) - 1]
+            return "ok"
+        return action, calls
+
+    def test_transient_error_is_retried(self):
+        action, calls = self.flaky([bw.urllib.error.URLError(ConnectionResetError(104, "reset"))])
+        self.assertEqual("ok", bw.with_retries(action))
+        self.assertEqual(2, len(calls))
+        self.assertEqual([2], self.slept)
+
+    def test_gives_up_after_three_attempts(self):
+        reset = ConnectionResetError(104, "reset")
+        action, calls = self.flaky([reset, reset, reset])
+        with self.assertRaises(ConnectionResetError):
+            bw.with_retries(action)
+        self.assertEqual(3, len(calls))
+
+    def test_client_error_is_not_retried(self):
+        action, calls = self.flaky([bw.urllib.error.HTTPError("u", 400, "bad", None, None)])
+        with self.assertRaises(bw.urllib.error.HTTPError):
+            bw.with_retries(action)
+        self.assertEqual(1, len(calls))
+
+    def test_server_error_is_retried(self):
+        action, calls = self.flaky([bw.urllib.error.HTTPError("u", 502, "bad gateway", None, None)])
+        self.assertEqual("ok", bw.with_retries(action))
+
+    def test_unsafe_request_is_not_retried(self):
+        action, calls = self.flaky([ConnectionResetError(104, "reset")])
+        with self.assertRaises(ConnectionResetError):
+            bw.with_retries(action, retry=False)
+        self.assertEqual(1, len(calls))
+
+
+class FakeDb:
+    def __init__(self):
+        self.upserts = []
+        self.deletes = []
+
+    def select(self, table, query=""):
+        return []
+
+    def upsert(self, table, rows, prefer=""):
+        self.upserts.append(table)
+
+    def delete(self, table, query):
+        self.deletes.append(table)
+
+
+class BrokenTelegram:
+    def call(self, method, **params):
+        raise bw.urllib.error.URLError(ConnectionResetError(104, "reset"))
+
+
+class RunTest(unittest.TestCase):
+    def test_telegram_failure_does_not_stop_check(self):
+        db = FakeDb()
+        original = bw.fetch_cbr
+        bw.fetch_cbr = lambda: {}
+        try:
+            bw.run(db, BrokenTelegram(), at(9))
+        finally:
+            bw.fetch_cbr = original
+        self.assertEqual([], db.upserts)
+        self.assertEqual(["bank_rate_snapshots"], db.deletes)
+
+
 if __name__ == "__main__":
     unittest.main()
