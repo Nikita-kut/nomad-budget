@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.entry
 
+import kotlin.math.roundToLong
+import ru.nomadbudget.domain.logic.RateQuote
 import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
@@ -382,7 +384,7 @@ private fun EntryForm(
                 trailingIcon = currency?.let { { CurrencyChip(it, state, Modifier.padding(end = 12.dp)) } },
                 modifier = Modifier.fillMaxWidth().focusRequester(focus).focusProperties { next = categoryFocus }.submitOnEnter(onSubmit),
             )
-            if (amount != null && amount.currency != Currency.BASE) AmountHint(state, amount)
+            if (amount != null && amount.currency != Currency.BASE) AmountHint(state, amount, account?.id.takeIf { form.type != EntryType.INCOME }, form.date)
             if (form.type == EntryType.EXPENSE && form.debt == null) {
                 if (!form.splitOn) {
                     TextButton(onClick = {
@@ -513,16 +515,15 @@ private fun EntryForm(
 }
 
 @Composable
-private fun AmountHint(state: HomeState, amount: Money?) {
+private fun AmountHint(state: HomeState, amount: Money?, accountId: String?, date: LocalDate) {
+    val average = accountId?.let { state.costBasis.averageCost[it] }?.let { quote -> basePerUnitOf(quote, amount?.currency) }
+    val market = amount?.let { state.marketRateOn(it.currency, date) }
     val text = when {
-        amount == null -> "В рублях по курсу на сегодня: —"
+        amount == null -> "В рублях: —"
         amount.currency == Currency.BASE -> "Счёт в рублях, курс не нужен"
-        !state.rates.hasRate(amount.currency) -> "Нет курса для ${amount.currency.code}, записать нельзя"
-        else -> {
-            val perUnit = state.rates.basePerUnit(amount.currency)
-            val unit = MoneyFormat.quoteUnit(perUnit)
-            "≈ ${MoneyFormat.format(state.rates.toBase(amount))} по курсу ${MoneyFormat.rateText(amount.currency, Currency.BASE, perUnit * unit, unit)}"
-        }
+        average != null -> "≈ ${MoneyFormat.format(baseOf(amount, average))} по средней стоимости валюты на счёте: ${perUnitText(amount.currency, average)}"
+        market != null -> "≈ ${MoneyFormat.format(baseOf(amount, market))} по курсу на ${DateFormat.dayMonth(date)}: ${perUnitText(amount.currency, market)}"
+        else -> "Нет курса для ${amount.currency.code}, записать нельзя"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -656,4 +657,19 @@ private fun envelopeHint(state: HomeState, category: Category?, amount: Money?):
     val after = budget.remainingWhole - (amount?.let { state.rates.toBaseOrNull(it) }?.withoutFraction() ?: Money.zero(Currency.BASE))
     return "потрачено ${MoneyFormat.format(budget.fact, false)} из ${MoneyFormat.format(budget.planned, false)}" +
         if (amount != null) " · после записи ${if (after.isNegative) "перерасход ${MoneyFormat.format(-after, false)}" else "останется ${MoneyFormat.format(after, false)}"}" else ""
+}
+
+private fun basePerUnitOf(quote: RateQuote, currency: Currency?): Double? = when {
+    currency == null || quote.value <= 0.0 -> null
+    quote.unit == currency && quote.price == Currency.BASE -> quote.value
+    quote.unit == Currency.BASE && quote.price == currency -> 1.0 / quote.value
+    else -> null
+}
+
+private fun baseOf(amount: Money, perUnit: Double): Money =
+    Money((amount.toMajor() * perUnit * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
+
+private fun perUnitText(currency: Currency, perUnit: Double): String {
+    val unit = MoneyFormat.quoteUnit(perUnit)
+    return MoneyFormat.rateText(currency, Currency.BASE, perUnit * unit, unit)
 }
