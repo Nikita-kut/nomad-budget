@@ -20,6 +20,7 @@ import json
 import os
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -73,6 +74,9 @@ MAX_QUOTE_UNIT = 1_000_000
 NBSP = " "
 MINUS = "−"
 TIMEOUT = 30
+RETRY_DELAYS = (2, 5)
+TELEGRAM_UNSAFE_TO_REPEAT = {"sendMessage"}
+sleep = time.sleep
 
 
 # ---------- HTTP ----------
@@ -83,16 +87,40 @@ def provider_ssl_context() -> ssl.SSLContext:
     return context
 
 
-def http_json(url: str, context: ssl.SSLContext | None = None, data: bytes | None = None, headers: dict[str, str] | None = None, method: str | None = None):
-    request = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
-    with urllib.request.urlopen(request, timeout=TIMEOUT, context=context) as response:
-        raw = response.read()
-        return json.loads(raw) if raw else None
+def is_transient(error: Exception) -> bool:
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (urllib.error.URLError, OSError))
+
+
+def with_retries(action, retry: bool = True):
+    delays = RETRY_DELAYS if retry else ()
+    for delay in delays:
+        try:
+            return action()
+        except Exception as e:
+            if not is_transient(e):
+                raise
+            print(f"network error, retry in {delay}s: {type(e).__name__}", file=sys.stderr)
+            sleep(delay)
+    return action()
+
+
+def http_json(url: str, context: ssl.SSLContext | None = None, data: bytes | None = None, headers: dict[str, str] | None = None,
+              method: str | None = None, retry: bool = True):
+    def action():
+        request = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+        with urllib.request.urlopen(request, timeout=TIMEOUT, context=context) as response:
+            raw = response.read()
+            return json.loads(raw) if raw else None
+    return with_retries(action, retry)
 
 
 def http_bytes(url: str) -> bytes:
-    with urllib.request.urlopen(url, timeout=TIMEOUT) as response:
-        return response.read()
+    def action():
+        with urllib.request.urlopen(url, timeout=TIMEOUT) as response:
+            return response.read()
+    return with_retries(action)
 
 
 # ---------- Supabase ----------
@@ -107,7 +135,8 @@ class Supabase:
         if prefer:
             headers["Prefer"] = prefer
         data = json.dumps(body).encode() if body is not None else None
-        return http_json(self.base + path, data=data, headers=headers, method=method)
+        repeatable = method != "POST" or "duplicates" in (prefer or "")
+        return http_json(self.base + path, data=data, headers=headers, method=method, retry=repeatable)
 
     def select(self, table: str, query: str = ""):
         return self.request(f"{table}?{query}") or []
@@ -133,7 +162,8 @@ class Telegram:
 
     def call(self, method: str, **params):
         url = TELEGRAM_URL.format(token=self.token, method=method)
-        payload = http_json(url, data=json.dumps(params).encode(), headers={"Content-Type": "application/json"}, method="POST")
+        payload = http_json(url, data=json.dumps(params).encode(), headers={"Content-Type": "application/json"}, method="POST",
+                            retry=method not in TELEGRAM_UNSAFE_TO_REPEAT)
         if not payload or not payload.get("ok"):
             raise RuntimeError(f"telegram {method} failed")
         return payload["result"]
@@ -662,12 +692,19 @@ def pair_trade_hours(watches: list[dict]) -> dict[tuple[str, str, str], tuple[in
     return hours
 
 
-def run(db: Supabase, tg: Telegram, now_utc: dt.datetime) -> None:
+def sync_bot(db: Supabase, tg: Telegram, now_utc: dt.datetime) -> None:
     me = tg.call("getMe")
     rows = db.select("bot_info", "select=*&id=eq.1")
     info = rows[0] if rows else {}
     offset = handle_updates(db, tg, info)
     db.upsert("bot_info", {"id": 1, "username": me.get("username"), "update_offset": offset, "updated_at": now_utc.isoformat()})
+
+
+def run(db: Supabase, tg: Telegram, now_utc: dt.datetime) -> None:
+    try:
+        sync_bot(db, tg, now_utc)
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
+        print(f"bot updates skipped: {type(e).__name__}", file=sys.stderr)
 
     watches = db.select("rate_watches", "select=*&enabled=is.true")
     subscribers = db.select("telegram_subscribers", "select=watch_id,chat_id")
