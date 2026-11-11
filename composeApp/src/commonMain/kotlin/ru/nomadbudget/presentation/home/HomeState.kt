@@ -135,6 +135,8 @@ data class HomeState(
 
     fun marketBase(money: Money, date: LocalDate): Money = marketRates.toBase(money, date) ?: rates.toBase(money)
 
+    fun marketRateOn(currency: Currency, date: LocalDate): Double? = marketRates.basePerUnit(currency, date)
+
     val systemCategoryIds: Set<String> = memo.get("system", categories) { categories.filter { it.isSystem }.map { it.id }.toSet() }
 
     val monthlyHistory: List<MonthPoint> = memo.get("history", transactions, accounts, period, categories, settings) {
