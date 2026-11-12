@@ -642,12 +642,14 @@ def subscribe_text(watch: dict) -> str:
 
 
 HELP_TEXT = ("Бот присылает курс банка и сигналы, когда менять выгодно.\n"
-             "/rate — курс сейчас\n/stop — отписаться\n"
+             "/rate — курс сейчас\n/pause 3д — помолчать (12ч, 3д, 2н; до 30 дней)\n/resume — снова присылать\n/stop — отписаться\n"
              "Подписка включается по ссылке из приложения.")
 STOP_TEXT = "Подписка выключена."
 NOT_SUBSCRIBED_TEXT = "Ты пока не подписан. Подписка включается по ссылке из приложения."
 BOT_COMMANDS = [
     {"command": "rate", "description": "Курс сейчас"},
+    {"command": "pause", "description": "Помолчать: /pause 3д"},
+    {"command": "resume", "description": "Снова присылать"},
     {"command": "stop", "description": "Отписаться"},
     {"command": "help", "description": "Что умеет бот"},
 ]
@@ -848,6 +850,7 @@ def handle_command(db: Supabase, tg: Telegram, chat: dict, text: str) -> None:
         tg.send(chat_id, subscribe_text(watch))
     elif command == "/stop":
         db.delete("telegram_subscribers", f"chat_id=eq.{chat_id}")
+        db.delete("telegram_chat_prefs", f"chat_id=eq.{chat_id}")
         tg.send(chat_id, STOP_TEXT)
     elif command in ("/help", "/start"):
         tg.send(chat_id, HELP_TEXT)
@@ -933,10 +936,9 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
     watches = db.select("rate_watches", "select=*&enabled=is.true")
     subscribers = db.select("telegram_subscribers", "select=watch_id,chat_id")
     holidays = load_holidays(db)
-    chats_by_watch: dict[str, list[int]] = {}
-    for row in subscribers:
-        chats_by_watch.setdefault(row["watch_id"], []).append(int(row["chat_id"]))
-    print(f"{len(watches)} watch(es), {len(subscribers)} subscriber(s)")
+    paused = paused_chats(db, now_utc)
+    chats_by_watch = active_chats(subscribers, paused)
+    print(f"{len(watches)} watch(es), {len(subscribers)} subscriber(s), {len(paused)} paused")
 
     cbr_table: dict[str, float] | None = None
     try:
@@ -961,6 +963,24 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
 
     cutoff = (now_utc - dt.timedelta(days=RETENTION_DAYS)).isoformat()
     db.delete("bank_rate_snapshots", "taken_at=lt." + urllib.parse.quote(cutoff))
+
+
+def paused_chats(db: Supabase, now_utc: dt.datetime) -> set[int]:
+    try:
+        rows = db.select("telegram_chat_prefs", "select=chat_id&paused_until=gt." + urllib.parse.quote(now_utc.isoformat()))
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
+        print(f"chat prefs unavailable: {type(e).__name__}", file=sys.stderr)
+        return set()
+    return {int(row["chat_id"]) for row in rows}
+
+
+def active_chats(subscribers: list[dict], paused: set[int]) -> dict[str, list[int]]:
+    chats: dict[str, list[int]] = {}
+    for row in subscribers:
+        chat_id = int(row["chat_id"])
+        if chat_id not in paused:
+            chats.setdefault(row["watch_id"], []).append(chat_id)
+    return chats
 
 
 def fetch_pair(db: Supabase, key: tuple[str, str, str], cbr_table: dict[str, float] | None, now_utc: dt.datetime, in_hours: bool) -> dict | None:

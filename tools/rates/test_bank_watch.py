@@ -723,5 +723,36 @@ class RunTest(unittest.TestCase):
         self.assertEqual(["bank_rate_snapshots"], db.deletes)
 
 
+
+class PauseTest(unittest.TestCase):
+    def test_paused_chat_gets_nothing_others_still_do(self):
+        subscribers = [{"watch_id": "w1", "chat_id": 1}, {"watch_id": "w1", "chat_id": 2}, {"watch_id": "w2", "chat_id": 2}]
+        self.assertEqual({"w1": [1]}, bw.active_chats(subscribers, {2}))
+        self.assertEqual({"w1": [1, 2], "w2": [2]}, bw.active_chats(subscribers, set()))
+
+    def test_prefs_failure_means_no_pause(self):
+        class FailingDb(FakeDb):
+            def select(self, table, query=""):
+                raise RuntimeError("down")
+        self.assertEqual(set(), bw.paused_chats(FailingDb(), at(9)))
+
+    def test_paused_chats_reads_only_future_pauses(self):
+        class PrefsDb(FakeDb):
+            def __init__(self):
+                super().__init__()
+                self.queries = []
+
+            def select(self, table, query=""):
+                self.queries.append((table, query))
+                return [{"chat_id": "7"}]
+        db = PrefsDb()
+        self.assertEqual({7}, bw.paused_chats(db, at(9)))
+        self.assertTrue(db.queries[0][1].startswith("select=chat_id&paused_until=gt."))
+
+    def test_commands_include_pause_and_resume(self):
+        names = [c["command"] for c in bw.BOT_COMMANDS]
+        self.assertIn("pause", names)
+        self.assertIn("resume", names)
+
 if __name__ == "__main__":
     unittest.main()
