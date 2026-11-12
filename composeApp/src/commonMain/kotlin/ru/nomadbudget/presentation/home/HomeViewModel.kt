@@ -280,6 +280,10 @@ class HomeViewModel(
         debtsActions.reopenDebt(id)
     }
 
+    fun closePaidOffDebt(id: String) {
+        debtsActions.closePaidOff(id)
+    }
+
     fun payDebt(debtId: String) = debtsActions.payDebt(debtId)
 
     fun prefillMissedExpense(accountId: String, date: LocalDate) {

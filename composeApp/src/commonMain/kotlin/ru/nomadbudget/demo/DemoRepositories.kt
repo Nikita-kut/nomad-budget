@@ -1,24 +1,18 @@
 package ru.nomadbudget.demo
 
-import ru.nomadbudget.domain.repository.FlushResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.LocalDate
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
-import ru.nomadbudget.domain.repository.OfflineStatus
 import ru.nomadbudget.core.TodayProvider
 import ru.nomadbudget.data.local.DraftsStore
 import ru.nomadbudget.data.local.InMemoryStore
-import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.UserScopedStore
-import ru.nomadbudget.domain.model.IsoCurrencies
-import ru.nomadbudget.domain.model.UserSettings
-import ru.nomadbudget.domain.repository.SessionCheck
-import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.domain.logic.BudgetLine
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -26,21 +20,24 @@ import ru.nomadbudget.domain.model.BankRateCategory
 import ru.nomadbudget.domain.model.BankRateWatch
 import ru.nomadbudget.domain.model.BankRateWatchDraft
 import ru.nomadbudget.domain.model.BankWatchData
-import ru.nomadbudget.domain.repository.BankRateWatchRepository
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.domain.model.UserSettings
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
+import ru.nomadbudget.domain.repository.BankRateWatchRepository
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -48,10 +45,14 @@ import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.DraftRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
+import ru.nomadbudget.domain.repository.FlushResult
+import ru.nomadbudget.domain.repository.KeyValueStore
+import ru.nomadbudget.domain.repository.OfflineStatus
 import ru.nomadbudget.domain.repository.PeriodRepository
+import ru.nomadbudget.domain.repository.SessionCheck
 import ru.nomadbudget.domain.repository.TransactionRepository
+import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.presentation.home.HomeViewModel
-import ru.nomadbudget.domain.logic.PeriodBudgetLine
 
 val demoModule = module {
     single { DemoDatabase(DemoDatabase.anchorToday()) }
@@ -327,8 +328,19 @@ private class DemoDebtRepository(private val db: DemoDatabase) : DebtRepository 
         db.debts.replaceEach { if (it.id == debt.id) debt else it }
     }
 
-    override suspend fun setClosed(id: String, closed: Boolean) {
-        db.debts.replaceEach { if (it.id == id) it.copy(isClosed = closed) else it }
+    override suspend fun close(id: String, reason: DebtCloseReason, on: LocalDate, writeOff: Boolean) {
+        db.debts.replaceEach { debt ->
+            if (debt.id != id || debt.isClosed) return@replaceEach debt
+            val tail = if (writeOff && !debt.principalRemaining.isNegative) debt.principalRemaining else Money.zero(debt.currency)
+            debt.copy(isClosed = true, closedOn = on, closeReason = reason, writtenOff = tail, principalRemaining = debt.principalRemaining - tail)
+        }
+    }
+
+    override suspend fun reopen(id: String) {
+        db.debts.replaceEach { debt ->
+            if (debt.id != id) return@replaceEach debt
+            debt.copy(isClosed = false, closedOn = null, closeReason = null, principalRemaining = debt.principalRemaining + debt.writtenOff, writtenOff = Money.zero(debt.currency))
+        }
     }
 }
 

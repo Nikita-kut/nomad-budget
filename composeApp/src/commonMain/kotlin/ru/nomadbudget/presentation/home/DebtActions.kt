@@ -3,6 +3,8 @@ package ru.nomadbudget.presentation.home
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.DebtCloseReason
+import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -40,14 +42,36 @@ internal class DebtActions(
         }
     }
 
-    fun closeDebt(id: String) = setClosed(id, closed = true, "Кредит закрыт")
+    fun closeDebt(id: String) = close(id, writeOff = false, reason = DebtCloseReason.MANUAL)
 
-    fun reopenDebt(id: String) = setClosed(id, closed = false, "Кредит снова открыт")
+    fun closePaidOff(id: String) {
+        val state = store.value
+        val early = state.transactions.any { it is Transaction.Expense && it.debtId == id && it.debtEarly }
+        close(id, writeOff = true, reason = if (early) DebtCloseReason.EARLY else DebtCloseReason.PAID_OFF)
+    }
 
-    private fun setClosed(id: String, closed: Boolean, done: String) = runner.run("Не удалось изменить кредит") {
-        debtRepository.setClosed(id, closed)
-        store.update { state -> state.copy(debts = state.debts.map { if (it.id == id) it.copy(isClosed = closed) else it }) }
-        store.message(done)
+    private fun close(id: String, writeOff: Boolean, reason: DebtCloseReason) = runner.run("Не удалось закрыть кредит") {
+        val on = store.value.today
+        debtRepository.close(id, reason, on, writeOff)
+        store.update { state ->
+            state.copy(debts = state.debts.map { debt ->
+                if (debt.id != id) return@map debt
+                val tail = if (writeOff && !debt.principalRemaining.isNegative) debt.principalRemaining else Money.zero(debt.currency)
+                debt.copy(isClosed = true, closedOn = on, closeReason = reason, writtenOff = tail, principalRemaining = debt.principalRemaining - tail)
+            })
+        }
+        store.message("Кредит закрыт, он в архиве внизу экрана")
+    }
+
+    fun reopenDebt(id: String) = runner.run("Не удалось открыть кредит") {
+        debtRepository.reopen(id)
+        store.update { state ->
+            state.copy(debts = state.debts.map { debt ->
+                if (debt.id != id) return@map debt
+                debt.copy(isClosed = false, closedOn = null, closeReason = null, principalRemaining = debt.principalRemaining + debt.writtenOff, writtenOff = Money.zero(debt.currency))
+            })
+        }
+        store.message("Кредит снова открыт")
     }
 
     fun payDebt(debtId: String) {

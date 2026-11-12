@@ -1,48 +1,55 @@
 package ru.nomadbudget.data.repository
 
-import ru.nomadbudget.domain.repository.FlushResult
 import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.query.Order
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
-import ru.nomadbudget.data.local.OfflineCache
-import ru.nomadbudget.data.local.PendingQueue
-import ru.nomadbudget.data.local.PendingTransaction
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.rpc
+import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
-import kotlin.time.Clock
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import ru.nomadbudget.data.dto.AccountDto
-import ru.nomadbudget.data.dto.AccountInsertDto
 import ru.nomadbudget.data.dto.AccountFundDto
+import ru.nomadbudget.data.dto.AccountInsertDto
 import ru.nomadbudget.data.dto.AccountRoleDto
 import ru.nomadbudget.data.dto.BalanceCheckDto
 import ru.nomadbudget.data.dto.BudgetLineDto
 import ru.nomadbudget.data.dto.BudgetLineUpsertDto
+import ru.nomadbudget.data.dto.BudgetLineWithPeriodDto
 import ru.nomadbudget.data.dto.CategoryDto
 import ru.nomadbudget.data.dto.CategoryInsertDto
+import ru.nomadbudget.data.dto.CloseDebtParams
 import ru.nomadbudget.data.dto.CurrencyDto
 import ru.nomadbudget.data.dto.DebtDto
+import ru.nomadbudget.data.dto.EnsureCurrencyParams
 import ru.nomadbudget.data.dto.ExchangeRateDto
 import ru.nomadbudget.data.dto.PeriodDto
 import ru.nomadbudget.data.dto.PeriodInsertDto
+import ru.nomadbudget.data.dto.ReopenDebtParams
 import ru.nomadbudget.data.dto.SubcategoryDto
 import ru.nomadbudget.data.dto.SubcategoryInsertDto
 import ru.nomadbudget.data.dto.TransactionDto
+import ru.nomadbudget.data.local.OfflineCache
+import ru.nomadbudget.data.local.PendingQueue
+import ru.nomadbudget.data.local.PendingTransaction
 import ru.nomadbudget.data.mapper.AccountMapper
-import ru.nomadbudget.data.mapper.PeriodMapper
 import ru.nomadbudget.data.mapper.BalanceCheckMapper
 import ru.nomadbudget.data.mapper.CategoryMapper
 import ru.nomadbudget.data.mapper.CurrencyMapper
 import ru.nomadbudget.data.mapper.DebtMapper
+import ru.nomadbudget.data.mapper.PeriodMapper
 import ru.nomadbudget.data.mapper.RateMapper
 import ru.nomadbudget.data.mapper.TransactionMapper
 import ru.nomadbudget.domain.logic.BudgetLine
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -50,6 +57,7 @@ import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.Money
@@ -64,14 +72,9 @@ import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
+import ru.nomadbudget.domain.repository.FlushResult
 import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
-import ru.nomadbudget.domain.logic.PeriodBudgetLine
-import ru.nomadbudget.data.dto.BudgetLineWithPeriodDto
-import io.github.jan.supabase.postgrest.query.Columns
-import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.rpc
-import ru.nomadbudget.data.dto.EnsureCurrencyParams
 
 private object Tables {
     const val CURRENCIES = "currencies"
@@ -267,8 +270,17 @@ class DebtRepositoryImpl(
         }) { filter { eq("id", debt.id) } }
     }
 
-    override suspend fun setClosed(id: String, closed: Boolean) {
-        client.from(Tables.DEBTS).update({ if (closed) set("closed_at", Clock.System.now().toString()) else setToNull("closed_at") }) { filter { eq("id", id) } }
+    override suspend fun close(id: String, reason: DebtCloseReason, on: LocalDate, writeOff: Boolean) {
+        client.postgrest.rpc(CLOSE_DEBT, CloseDebtParams(id, reason.id, on.toString(), writeOff))
+    }
+
+    override suspend fun reopen(id: String) {
+        client.postgrest.rpc(REOPEN_DEBT, ReopenDebtParams(id))
+    }
+
+    private companion object {
+        const val CLOSE_DEBT = "close_debt"
+        const val REOPEN_DEBT = "reopen_debt"
     }
 }
 

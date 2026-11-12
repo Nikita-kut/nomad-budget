@@ -50,8 +50,12 @@ import ru.nomadbudget.domain.logic.ObligationStatus
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
+import ru.nomadbudget.domain.model.DebtCloseReason
+import ru.nomadbudget.domain.model.DebtHistory
+import ru.nomadbudget.domain.model.DebtTotals
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
+import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AddTile
 import ru.nomadbudget.presentation.components.AppIcons
 import ru.nomadbudget.presentation.components.ArchiveCard
@@ -63,6 +67,7 @@ import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.PillTone
 import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.StatusPill
@@ -81,12 +86,14 @@ fun DebtsScreen(
     onSave: (Debt) -> Unit,
     onClose: (String) -> Unit,
     onReopen: (String) -> Unit = {},
+    onClosePaidOff: (String) -> Unit = {},
     onPay: (String) -> Unit,
     twoColumns: Boolean = false,
 ) {
     var editing by remember { mutableStateOf<Debt?>(null) }
     var creating by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf<Debt?>(null) }
+    var closingPaidOff by remember { mutableStateOf<Debt?>(null) }
     val month = state.month
     val obligations = month.debts.sortedWith(compareBy<DebtObligation> { it.status == ObligationStatus.PAID }.thenBy(nullsLast()) { it.due })
 
@@ -100,7 +107,7 @@ fun DebtsScreen(
             item { PaymentsTimeline(obligations, state.period, state.today) }
             item { SectionTitle("Открытые", hint = "сначала ближайшие") }
             val perRow = if (twoColumns) 2 else 1
-            items(obligations.chunked(perRow), key = { row -> row.joinToString { it.debt.id } }) { row ->
+            items(obligations.filterNot { it.debt.isClosed }.chunked(perRow), key = { row -> row.joinToString { it.debt.id } }) { row ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                     row.forEach { obligation ->
                         Box(modifier = Modifier.weight(1f)) {
@@ -109,6 +116,7 @@ fun DebtsScreen(
                                 today = state.today,
                                 onEdit = { editing = obligation.debt },
                                 onClose = { closing = obligation.debt },
+                                onClosePaidOff = { closingPaidOff = obligation.debt },
                                 onPay = { onPay(obligation.debt.id) },
                             )
                         }
@@ -125,7 +133,14 @@ fun DebtsScreen(
         val closed = state.debts.filter { it.isClosed }
         if (closed.isNotEmpty()) {
             item { SectionTitle("Закрытые", hint = "в план и итоги не входят") }
-            item { ArchiveCard(closed.map { ArchivedItem(it.id, it.name) }, restoreText = "Открыть снова", onRestore = onReopen) }
+            val payments = state.transactions.filterIsInstance<Transaction.Expense>()
+            item {
+                ArchiveCard(
+                    closed.map { debt -> ArchivedItem(debt.id, debt.name, archiveSubtitle(debt, DebtHistory.totals(debt, payments))) },
+                    restoreText = "Открыть снова",
+                    onRestore = onReopen,
+                )
+            }
         }
     }
 
@@ -140,6 +155,23 @@ fun DebtsScreen(
             onSave(it)
             editing = null
         }
+    }
+    closingPaidOff?.let { debt ->
+        val tail = debt.principalRemaining
+        ConfirmDialog(
+            title = "Закрыть «${debt.name}» как погашенный?",
+            text = if (tail.minor > 0L) {
+                "Осталось ${MoneyFormat.format(tail)}: это расхождение с банком в процентах. Остаток спишется — это не доход и не расход, бюджет не изменится. Кредит уйдёт в архив; «Открыть снова» вернёт и остаток."
+            } else {
+                "Кредит уйдёт в архив, платежи по нему останутся в истории. «Открыть снова» вернёт его."
+            },
+            confirmText = if (tail.minor > 0L) "Закрыть и списать" else "Закрыть",
+            onDismiss = { closingPaidOff = null },
+            onConfirm = {
+                onClosePaidOff(debt.id)
+                closingPaidOff = null
+            },
+        )
     }
     closing?.let { debt ->
         ConfirmDialog(
@@ -268,7 +300,7 @@ private fun PaymentsTimeline(obligations: List<DebtObligation>, period: Period, 
 }
 
 @Composable
-private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () -> Unit, onClose: () -> Unit, onPay: () -> Unit) {
+private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () -> Unit, onClose: () -> Unit, onClosePaidOff: () -> Unit, onPay: () -> Unit) {
     val debt = obligation.debt
     var menu by remember { mutableStateOf(false) }
     val forecast = DebtCalculator.forecast(debt, debt.plannedPayment)
@@ -305,6 +337,16 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
                     style = MaterialTheme.typography.bodySmall,
                     color = if (forecast == null) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (debt.lessThanOnePayment) {
+                    Text(
+                        if (debt.principalRemaining.minor > 0L) "Осталось меньше одного платежа — похоже, кредит погашен." else "Остаток ноль — кредит погашен.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SecondaryButton(onClick = onClosePaidOff, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (debt.principalRemaining.minor > 0L) "Закрыть, списать ${MoneyFormat.format(debt.principalRemaining, false)}" else "Закрыть кредит")
+                    }
+                }
                 val early = obligation.earlyPaid.takeUnless { it.isZero }?.let { "досрочно ${MoneyFormat.format(it, false)}" }
                 when {
                     obligation.paidOff -> Text(
@@ -332,7 +374,7 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
 private val DAYS_OF_MONTH = 1..31
 
 private fun statusText(o: DebtObligation): String = when (o.status) {
-    ObligationStatus.PAID -> "оплачен"
+    ObligationStatus.PAID -> if (o.paidOff) "погашен" else "оплачен"
     ObligationStatus.OVERDUE -> "просрочен"
     ObligationStatus.SOON, ObligationStatus.UPCOMING -> o.due?.let { "к ${it.day} ${DateFormat.monthGenitive(it)}" } ?: "к оплате"
 }
@@ -427,3 +469,20 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
+
+private fun archiveSubtitle(debt: Debt, totals: DebtTotals): String = listOfNotNull(
+    listOfNotNull(
+        (debt.openedOn ?: totals.firstPayment)?.let(DateFormat::monthYear),
+        debt.closedOn?.let(DateFormat::monthYear),
+    ).joinToString(" — ").takeIf { it.isNotEmpty() },
+    when (debt.closeReason) {
+        DebtCloseReason.EARLY -> "погашен досрочно"
+        DebtCloseReason.PAID_OFF -> "выплачен"
+        DebtCloseReason.MANUAL, null -> "закрыт"
+    },
+    totals.paid.takeUnless { it.isZero }?.let { "внесено ${MoneyFormat.format(it, false)}" },
+    totals.principal?.let { "тело ${MoneyFormat.format(it, false)}" },
+    totals.interest?.let { "проценты ≈ ${MoneyFormat.format(it, false)}" },
+    debt.writtenOff.takeUnless { it.isZero }?.let { "списано ${MoneyFormat.format(it, false)}" },
+).joinToString(" · ")
+

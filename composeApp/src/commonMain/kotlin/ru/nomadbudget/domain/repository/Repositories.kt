@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CapitalGoal
+import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -14,14 +15,14 @@ import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.Draft
 import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
-import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.model.UserSettings
 
 sealed interface AuthState {
@@ -117,7 +118,8 @@ interface DebtRepository {
     suspend fun getAll(): List<Debt>
     suspend fun add(debt: Debt): Debt
     suspend fun update(debt: Debt, principalChanged: Boolean)
-    suspend fun setClosed(id: String, closed: Boolean)
+    suspend fun close(id: String, reason: DebtCloseReason, on: LocalDate, writeOff: Boolean)
+    suspend fun reopen(id: String)
 }
 
 interface DraftRepository {
