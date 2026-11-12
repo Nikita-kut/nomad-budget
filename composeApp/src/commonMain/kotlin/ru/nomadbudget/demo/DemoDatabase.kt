@@ -175,7 +175,7 @@ private class DemoSeed(private val db: DemoDatabase) {
         db.bankWatch = BankRateWatch(
             id = "watch_demo", provider = BankRateWatch.DEFAULT_PROVIDER, from = Currency.RUB, to = usd, category = BankRateCategory.EXCHANGE,
             target = 0.0118, goodPercentile = BankRateWatch.DEFAULT_GOOD_PERCENTILE, improvePercent = BankRateWatch.DEFAULT_IMPROVE_PERCENT,
-            tradeFrom = BankRateWatch.DEFAULT_TRADE_FROM, tradeTo = BankRateWatch.DEFAULT_TRADE_TO, digestHour = BankRateWatch.DEFAULT_DIGEST_HOUR,
+            tradeOpen = BankRateWatch.DEFAULT_TRADE_OPEN, tradeClose = BankRateWatch.DEFAULT_TRADE_CLOSE, digestAt = BankRateWatch.DEFAULT_DIGEST_AT,
             quietFrom = BankRateWatch.DEFAULT_QUIET_FROM, quietTo = BankRateWatch.DEFAULT_QUIET_TO, timezone = BankRateWatch.DEFAULT_TIMEZONE, enabled = true, linkCode = "demo",
         )
         val end = db.today.atStartOfDayIn(TimeZone.UTC) + BANK_WATCH_LAST_HOUR.hours

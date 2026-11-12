@@ -20,9 +20,9 @@ data class BankRateWatch(
     val target: Double?,
     val goodPercentile: Int,
     val improvePercent: Double,
-    val tradeFrom: Int,
-    val tradeTo: Int,
-    val digestHour: Int?,
+    val tradeOpen: Int,
+    val tradeClose: Int,
+    val digestAt: Int?,
     val quietFrom: Int,
     val quietTo: Int,
     val timezone: String,
@@ -36,10 +36,10 @@ data class BankRateWatch(
         require(target == null || target > 0.0) { "Цель должна быть больше нуля" }
         require(goodPercentile in PERCENTILES) { "Строгость: от 50 до 99" }
         require(improvePercent > 0.0) { "Повтор при улучшении должен быть больше нуля" }
-        require(validTradeHours(tradeFrom, tradeTo)) { "Часы биржи: начало раньше конца, в пределах суток" }
-        require(digestHour == null || digestHour in HOURS) { "Час сводки: от 0 до 23" }
+        require(validTradeMinutes(tradeOpen, tradeClose)) { "Часы биржи: начало раньше конца, в пределах суток" }
+        require(digestAt == null || digestAt in MINUTES) { "Время сводки: в пределах суток" }
         require(quietFrom in HOURS && quietTo in HOURS) { "Окно отправки: часы от 0 до 23" }
-        require(digestHour == null || inSendWindow(digestHour, quietFrom, quietTo)) { "Час сводки должен быть внутри окна отправки" }
+        require(digestAt == null || inSendWindow(digestAt, quietFrom, quietTo)) { "Время сводки должно быть внутри окна отправки" }
     }
 
     val sendsAllDay: Boolean get() = quietFrom == quietTo
@@ -52,23 +52,36 @@ data class BankRateWatch(
         const val DEFAULT_PROVIDER = "tbank"
         const val DEFAULT_GOOD_PERCENTILE = 85
         const val DEFAULT_IMPROVE_PERCENT = 0.5
-        const val DEFAULT_TRADE_FROM = 10
-        const val DEFAULT_TRADE_TO = 19
-        const val DEFAULT_DIGEST_HOUR = 10
+        const val MINUTES_PER_HOUR = 60
+        const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+        const val TIME_STEP_MINUTES = 15
+        const val DEFAULT_TRADE_OPEN = 10 * MINUTES_PER_HOUR + 30
+        const val DEFAULT_TRADE_CLOSE = 18 * MINUTES_PER_HOUR + 30
+        const val DEFAULT_DIGEST_AT = DEFAULT_TRADE_OPEN
         const val DEFAULT_QUIET_FROM = 18
         const val DEFAULT_QUIET_TO = 10
         const val DEFAULT_TIMEZONE = "Europe/Moscow"
         val HOURS: IntRange = 0..23
-        val TRADE_END_HOURS: IntRange = 1..24
+        val MINUTES: IntRange = 0 until MINUTES_PER_DAY
+        val TIME_STEPS: List<Int> = MINUTES.step(TIME_STEP_MINUTES).toList()
+        val CLOSE_STEPS: List<Int> = (TIME_STEP_MINUTES..MINUTES_PER_DAY step TIME_STEP_MINUTES).toList()
         val PERCENTILES: IntRange = 50..99
 
-        fun validTradeHours(from: Int, to: Int): Boolean = from in HOURS && to in TRADE_END_HOURS && from < to
+        fun validTradeMinutes(open: Int, close: Int): Boolean = open in MINUTES && close in 1..MINUTES_PER_DAY && open < close
 
-        fun inSendWindow(hour: Int, quietFrom: Int, quietTo: Int): Boolean = when {
-            quietFrom == quietTo -> true
-            quietTo < quietFrom -> hour >= quietTo && hour < quietFrom
-            else -> hour >= quietTo || hour < quietFrom
+        fun inSendWindow(minute: Int, quietFrom: Int, quietTo: Int): Boolean {
+            val start = quietTo * MINUTES_PER_HOUR
+            val end = quietFrom * MINUTES_PER_HOUR
+            return when {
+                quietFrom == quietTo -> true
+                quietTo < quietFrom -> minute >= start && minute < end
+                else -> minute >= start || minute < end
+            }
         }
+
+        fun legacyHour(minute: Int): Int = minute / MINUTES_PER_HOUR
+
+        fun legacyEndHour(minute: Int): Int = (minute + MINUTES_PER_HOUR - 1) / MINUTES_PER_HOUR
     }
 }
 
@@ -79,9 +92,9 @@ data class BankRateWatchDraft(
     val target: Double? = null,
     val goodPercentile: Int = BankRateWatch.DEFAULT_GOOD_PERCENTILE,
     val improvePercent: Double = BankRateWatch.DEFAULT_IMPROVE_PERCENT,
-    val tradeFrom: Int = BankRateWatch.DEFAULT_TRADE_FROM,
-    val tradeTo: Int = BankRateWatch.DEFAULT_TRADE_TO,
-    val digestHour: Int? = BankRateWatch.DEFAULT_DIGEST_HOUR,
+    val tradeOpen: Int = BankRateWatch.DEFAULT_TRADE_OPEN,
+    val tradeClose: Int = BankRateWatch.DEFAULT_TRADE_CLOSE,
+    val digestAt: Int? = BankRateWatch.DEFAULT_DIGEST_AT,
     val quietFrom: Int = BankRateWatch.DEFAULT_QUIET_FROM,
     val quietTo: Int = BankRateWatch.DEFAULT_QUIET_TO,
     val timezone: String = BankRateWatch.DEFAULT_TIMEZONE,
