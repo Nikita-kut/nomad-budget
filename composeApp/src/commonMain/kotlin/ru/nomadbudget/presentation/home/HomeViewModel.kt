@@ -22,6 +22,7 @@ import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BankRateWatchRepository
+import ru.nomadbudget.domain.repository.BaseCurrencySource
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -54,6 +55,7 @@ class HomeViewModel(
     capitalRepository: CapitalRepository,
     userSettingsRepository: UserSettingsRepository,
     bankRateWatchRepository: BankRateWatchRepository,
+    baseCurrency: BaseCurrencySource,
 ) : ViewModel() {
 
     private val today: LocalDate = todayProvider.today()
@@ -102,6 +104,7 @@ class HomeViewModel(
             offline = offlineStatus,
             today = today,
             isPendingDelete = transactions::isPendingDelete,
+            baseCurrency = baseCurrency,
         )
         plans = PlanActions(store, runner, periodRepository, budgetRepository, categoryRepository, categories)
         accounts = AccountActions(store, runner, accountRepository)

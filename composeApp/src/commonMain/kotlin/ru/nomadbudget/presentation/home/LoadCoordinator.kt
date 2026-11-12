@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.home
 
+import kotlin.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -10,12 +11,15 @@ import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
+import ru.nomadbudget.domain.logic.RateRebase
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
+import ru.nomadbudget.domain.model.BankWatchData
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
@@ -25,9 +29,9 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.UserSettings
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
-import ru.nomadbudget.domain.model.BankWatchData
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BankRateWatchRepository
+import ru.nomadbudget.domain.repository.BaseCurrencySource
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -42,7 +46,6 @@ import ru.nomadbudget.domain.repository.SessionCheck
 import ru.nomadbudget.domain.repository.TransactionRepository
 import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.presentation.format.operations
-import kotlin.time.Clock
 
 internal class LoadCoordinator(
     private val store: HomeStore,
@@ -65,7 +68,14 @@ internal class LoadCoordinator(
     private val offline: OfflineStatus,
     private val today: LocalDate,
     private val isPendingDelete: (String) -> Boolean,
+    private val baseCurrency: BaseCurrencySource,
 ) {
+    init {
+        userSettingsRepository.cached()?.baseCurrencyCode?.let(::knownCurrency)?.let(baseCurrency::set)
+    }
+
+    private fun knownCurrency(code: String): Currency? = IsoCurrencies.find(code)?.toCurrency()
+
     private var loadJob: Job? = null
     private var periodJob: Job? = null
 
@@ -171,24 +181,31 @@ internal class LoadCoordinator(
     private suspend fun fetch(previous: HomeState): LoadedData = coroutineScope {
         val settingsAsync = async { userSettingsRepository.get() }
         val currencies = async { currencyRepository.getAll() }
+        val baseReady = async {
+            val code = settingsAsync.await().baseCurrencyCode
+            val base = currencies.await().firstOrNull { it.code == code } ?: knownCurrency(code) ?: Currency.DEFAULT_BASE
+            baseCurrency.set(base)
+            base
+        }
         val accountsAsync = async { accountRepository.getAll() }
         val categories = async { categoryRepository.getCategories() }
         val subcategories = async { categoryRepository.getSubcategories() }
-        val rates = async { rateRepository.ratesOnOrBefore(today) }
+        val rates = async { RateRebase.table(rateRepository.ratesOnOrBefore(today), baseReady.await()) }
         val debts = async { debtRepository.getAll() }
-        val rateHistory = async { rateRepository.history() }
-        val allPlanLines = async { runCatching { budgetRepository.getAllLines() }.getOrDefault(previous.allPlanLines) }
-        val capitalGoals = async { runCatching { capitalRepository.getGoals() }.getOrDefault(previous.capitalGoals) }
+        val rateHistory = async { RateRebase.history(rateRepository.history(), Currency.RATE_PIVOT, baseReady.await()) }
+        val allPlanLines = async { baseReady.await(); runCatching { budgetRepository.getAllLines() }.getOrDefault(previous.allPlanLines) }
+        val capitalGoals = async { baseReady.await(); runCatching { capitalRepository.getGoals() }.getOrDefault(previous.capitalGoals) }
         val bankWatch = async { runCatching { bankRateWatchRepository.load(currencies.await()) }.getOrDefault(previous.bankWatch) }
         val plan = async {
             val period = periodFor(previous, settingsAsync.await())
+            baseReady.await()
             val id = periodRepository.ensure(period)
             val lines = async { budgetRepository.getLines(id) }
             val target = async { budgetRepository.getSavingsTarget(id) }
             PlanData(period, id, lines.await(), target.await())
         }
         val accounts = accountsAsync.await()
-        val transactions = async { transactionRepository.getAll(accounts) }
+        val transactions = async { baseReady.await(); transactionRepository.getAll(accounts) }
         val checks = async { balanceCheckRepository.getRecent(accounts) }
         val planData = plan.await()
         LoadedData(

@@ -54,7 +54,7 @@ tools/rates/           fetch_rates.py (курсы раз в сутки), bank_wa
 
 ```bash
 bash tools/check_rules.sh
-python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py
+python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py
 ./gradlew :composeApp:testAndroidHostTest :composeApp:wasmJsBrowserTest :androidApp:assembleDebug
 ```
 

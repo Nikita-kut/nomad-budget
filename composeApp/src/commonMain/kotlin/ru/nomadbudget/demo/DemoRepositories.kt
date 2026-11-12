@@ -42,6 +42,7 @@ import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BankRateWatchRepository
+import ru.nomadbudget.domain.repository.BaseCurrencySource
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
@@ -50,6 +51,7 @@ import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.DraftRepository
 import ru.nomadbudget.domain.repository.ExchangeRateRepository
 import ru.nomadbudget.domain.repository.FlushResult
+import ru.nomadbudget.domain.repository.InMemoryBaseCurrency
 import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.domain.repository.OfflineStatus
 import ru.nomadbudget.domain.repository.PeriodRepository
@@ -64,6 +66,7 @@ val demoModule = module {
     single<TodayProvider> { TodayProvider { get<DemoDatabase>().today } }
     single { OfflineCache(get()) } bind OfflineStatus::class
     single<UserSettingsRepository> { DemoUserSettingsRepository(get()) }
+    single<BaseCurrencySource> { InMemoryBaseCurrency() }
     single<DraftRepository> {
         DraftsStore(get()).apply {
             add("кофе 300")

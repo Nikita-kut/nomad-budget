@@ -10,9 +10,14 @@ import ru.nomadbudget.data.dto.CapitalGoalInsertDto
 import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.repository.BaseCurrencySource
 import ru.nomadbudget.domain.repository.CapitalRepository
 
-class CapitalRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : CapitalRepository {
+class CapitalRepositoryImpl(
+    private val client: SupabaseClient,
+    private val cache: OfflineCache,
+    private val baseCurrency: BaseCurrencySource,
+) : CapitalRepository {
 
     override suspend fun getGoals(): List<CapitalGoal> =
         cache.throughOrDefault("capital_goals", ListSerializer(CapitalGoalDto.serializer()), emptyList()) {
@@ -33,7 +38,7 @@ class CapitalRepositoryImpl(private val client: SupabaseClient, private val cach
         client.from(GOALS).delete { filter { eq("id", id) } }
     }
 
-    private fun toDomain(dto: CapitalGoalDto) = CapitalGoal(dto.id, dto.name, Money.rub(dto.amountBase), LocalDate.parse(dto.targetDate))
+    private fun toDomain(dto: CapitalGoalDto) = CapitalGoal(dto.id, dto.name, Money(dto.amountBase, baseCurrency.current), LocalDate.parse(dto.targetDate))
 
     private companion object {
         const val GOALS = "capital_goals"

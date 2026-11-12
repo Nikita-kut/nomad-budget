@@ -70,6 +70,7 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
+import ru.nomadbudget.domain.repository.BaseCurrencySource
 import ru.nomadbudget.domain.repository.BudgetRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
@@ -362,6 +363,7 @@ class TransactionRepositoryImpl(
     private val client: SupabaseClient,
     private val cache: OfflineCache,
     private val queue: PendingQueue,
+    private val baseCurrency: BaseCurrencySource,
 ) : TransactionRepository {
 
     override suspend fun getAll(accounts: List<Account>): List<Transaction> {
@@ -372,8 +374,8 @@ class TransactionRepositoryImpl(
         val remoteIds = remote.map { it.id }.toSet()
         val pending = queue.all()
             .filterNot { it.id in remoteIds }
-            .map { TransactionMapper.toDomain(TransactionMapper.toDto(it.id, it.dto), byId, pending = true) }
-        return pending + remote.map { TransactionMapper.toDomain(it, byId) }
+            .map { TransactionMapper.toDomain(TransactionMapper.toDto(it.id, it.dto), byId, baseCurrency.current, pending = true) }
+        return pending + remote.map { TransactionMapper.toDomain(it, byId, baseCurrency.current) }
     }
 
     override suspend fun add(transaction: Transaction, accounts: List<Account>): Transaction {
@@ -384,11 +386,11 @@ class TransactionRepositoryImpl(
             client.from(Tables.TRANSACTIONS)
                 .insert(insert) { select() }
                 .decodeSingle<TransactionDto>()
-                .let { TransactionMapper.toDomain(it, byId) }
+                .let { TransactionMapper.toDomain(it, byId, baseCurrency.current) }
         } catch (e: Exception) {
             if (!OfflineCache.isOffline(e)) throw e
             queue.add(PendingTransaction(id, insert))
-            TransactionMapper.toDomain(TransactionMapper.toDto(id, insert), byId, pending = true)
+            TransactionMapper.toDomain(TransactionMapper.toDto(id, insert), byId, baseCurrency.current, pending = true)
         }
     }
 
@@ -429,7 +431,7 @@ class TransactionRepositoryImpl(
                 select()
             }
             .decodeSingle<TransactionDto>()
-            .let { TransactionMapper.toDomain(it, byId) }
+            .let { TransactionMapper.toDomain(it, byId, baseCurrency.current) }
     }
 
     override suspend fun delete(id: String) {
@@ -445,13 +447,17 @@ class TransactionRepositoryImpl(
     }
 }
 
-class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache: OfflineCache) : BudgetRepository {
+class BudgetRepositoryImpl(
+    private val client: SupabaseClient,
+    private val cache: OfflineCache,
+    private val baseCurrency: BaseCurrencySource,
+) : BudgetRepository {
 
     override suspend fun getLines(periodId: String): List<BudgetLine> {
         if (periodId.startsWith(PeriodRepositoryImpl.OFFLINE_PREFIX)) return emptyList()
         return cache.throughOrDefault("lines:$periodId", ListSerializer(BudgetLineDto.serializer()), emptyList()) {
             client.from(Tables.BUDGET_LINES).select { filter { eq("period_id", periodId) } }.decodeList<BudgetLineDto>()
-        }.map { BudgetLine(categoryId = it.categoryId, planned = Money.rub(it.plannedBase), subcategoryId = it.subcategoryId) }
+        }.map { BudgetLine(categoryId = it.categoryId, planned = Money(it.plannedBase, baseCurrency.current), subcategoryId = it.subcategoryId) }
     }
 
     override suspend fun getAllLines(): List<PeriodBudgetLine> {
@@ -469,7 +475,7 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
             result
         }
         return rows.map {
-            PeriodBudgetLine(LocalDate.parse(it.periods.startDate), BudgetLine(it.categoryId, Money.rub(it.plannedBase), it.subcategoryId))
+            PeriodBudgetLine(LocalDate.parse(it.periods.startDate), BudgetLine(it.categoryId, Money(it.plannedBase, baseCurrency.current), it.subcategoryId))
         }
     }
 
@@ -477,7 +483,7 @@ class BudgetRepositoryImpl(private val client: SupabaseClient, private val cache
         if (periodId.startsWith(PeriodRepositoryImpl.OFFLINE_PREFIX)) return null
         return cache.throughOrDefault("target:$periodId", ListSerializer(PeriodDto.serializer()), emptyList()) {
             client.from(Tables.PERIODS).select { filter { eq("id", periodId) } }.decodeList<PeriodDto>()
-        }.firstOrNull()?.savingsTarget?.let(Money::rub)
+        }.firstOrNull()?.savingsTarget?.let { Money(it, baseCurrency.current) }
     }
 
     override suspend fun setSavingsTarget(periodId: String, target: Money?) {
@@ -537,18 +543,27 @@ class ExchangeRateRepositoryImpl(
     override suspend fun history(): List<ExchangeRate> {
         val byCode = currencies.byCode()
         return cache.throughOrDefault("rate_history", ListSerializer(ExchangeRateDto.serializer()), emptyList()) {
-            client.from(Tables.EXCHANGE_RATES)
-                .select {
-                    filter { eq("base", Currency.RATE_PIVOT.code) }
-                    order("rate_date", Order.ASCENDING)
-                    limit(HISTORY_ROWS)
-                }
-                .decodeList<ExchangeRateDto>()
+            val rows = ArrayList<ExchangeRateDto>()
+            var from = 0L
+            do {
+                val page = client.from(Tables.EXCHANGE_RATES)
+                    .select {
+                        filter { eq("base", Currency.RATE_PIVOT.code) }
+                        order("rate_date", Order.ASCENDING)
+                        order("quote", Order.ASCENDING)
+                        range(from, from + PAGE_ROWS - 1)
+                    }
+                    .decodeList<ExchangeRateDto>()
+                rows += page
+                from += PAGE_ROWS
+            } while (page.size.toLong() == PAGE_ROWS && from < MAX_HISTORY_ROWS)
+            rows
         }.mapNotNull { RateMapper.toDomain(it, byCode) }
     }
 
     private companion object {
-        const val RECENT_ROWS: Long = 50
-        const val HISTORY_ROWS: Long = 5000
+        const val RECENT_ROWS: Long = 500
+        const val PAGE_ROWS: Long = 1000
+        const val MAX_HISTORY_ROWS: Long = 200_000
     }
 }

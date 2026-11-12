@@ -30,7 +30,7 @@ class TransactionMapperDebtTest {
         val insert = TransactionMapper.toInsert(payment(Money.rub(5_000_000L), early = true))
         assertEquals(5_000_000L, insert.debtPrincipal)
         assertEquals(true, insert.debtEarly)
-        val back = TransactionMapper.toDomain(TransactionMapper.toDto("t1", insert), accounts) as Transaction.Expense
+        val back = TransactionMapper.toDomain(TransactionMapper.toDto("t1", insert), accounts, Currency.RUB) as Transaction.Expense
         assertEquals(Money.rub(5_000_000L), back.debtPrincipal)
         assertEquals(true, back.debtEarly)
     }
@@ -39,7 +39,7 @@ class TransactionMapperDebtTest {
     fun withoutPrincipal_staysNull() {
         val insert = TransactionMapper.toInsert(payment(null, early = false))
         assertNull(insert.debtPrincipal)
-        val back = TransactionMapper.toDomain(TransactionMapper.toDto("t1", insert), accounts) as Transaction.Expense
+        val back = TransactionMapper.toDomain(TransactionMapper.toDto("t1", insert), accounts, Currency.RUB) as Transaction.Expense
         assertNull(back.debtPrincipal)
         assertEquals(false, back.debtEarly)
     }
