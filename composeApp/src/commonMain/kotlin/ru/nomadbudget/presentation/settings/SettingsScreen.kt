@@ -1,6 +1,5 @@
 package ru.nomadbudget.presentation.settings
 
-import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,7 +45,9 @@ import ru.nomadbudget.presentation.components.TrashIconButton
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysText
 import ru.nomadbudget.presentation.components.startDayText
+import ru.nomadbudget.presentation.format.CurrencyWords
 import ru.nomadbudget.presentation.format.LocalAmountPrivacy
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.format.plural
@@ -152,7 +153,7 @@ fun SettingsScreen(
             }
         }
 
-        item { SectionTitle("Валюты", hint = "итоги считаются в рублях") }
+        item { SectionTitle("Валюты", hint = "итоги считаются ${CurrencyWords.inCurrency(state.base)}") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
@@ -180,7 +181,7 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Добавить валюту", fontWeight = FontWeight.Medium)
                     CurrencySearchField(exclude = state.userCurrencies.map { it.code }.toSet(), onPick = { onAddCurrency(it.code) })
-                    Text("Курс к рублю появится в течение суток, до этого суммы в этой валюте в итоги не попадут.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Курс к ${state.base.code} появится в течение суток, до этого суммы в этой валюте в итоги не попадут.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

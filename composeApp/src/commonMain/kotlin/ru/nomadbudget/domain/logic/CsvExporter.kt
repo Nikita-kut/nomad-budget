@@ -8,7 +8,7 @@ import ru.nomadbudget.domain.model.Transaction
 
 object CsvExporter {
 
-    private const val HEADER = "date,type,account,amount,currency,category,subcategory,to_account,to_amount,to_currency,amount_rub,note"
+    private const val HEADER = "date,type,account,amount,currency,category,subcategory,to_account,to_amount,to_currency,amount_base,base_currency,note"
 
     fun export(
         transactions: List<Transaction>,
@@ -38,7 +38,7 @@ object CsvExporter {
                     "", "", accountNames[tx.toAccountId].orEmpty(), plain(tx.received), tx.received.currency.code,
                 )
             }
-            (listOf(tx.date.toString()) + cells + listOf(plain(tx.amountBase), tx.note)).joinToString(",") { escape(it) }
+            (listOf(tx.date.toString()) + cells + listOf(plain(tx.amountBase), tx.amountBase.currency.code, tx.note)).joinToString(",") { escape(it) }
         }
         return (listOf(HEADER) + rows).joinToString("\r\n") + "\r\n"
     }

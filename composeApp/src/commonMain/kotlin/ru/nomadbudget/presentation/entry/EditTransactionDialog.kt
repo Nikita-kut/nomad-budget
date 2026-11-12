@@ -1,6 +1,5 @@
 package ru.nomadbudget.presentation.entry
 
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,7 +28,10 @@ import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.DateField
 import ru.nomadbudget.presentation.components.Dropdown
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.TagChip
+import ru.nomadbudget.presentation.format.CurrencyWords
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
@@ -193,7 +195,7 @@ fun EditTransactionDialog(
                     EarlyPaymentToggle(checked = debtEarly, onChange = { debtEarly = it }, preview = null, differentCurrency = debt != null && account?.currency != debt.currency)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Если сумма изменилась, сумма в рублях пересчитается по сегодняшнему курсу.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Если сумма изменилась, сумма ${CurrencyWords.inCurrency(LocalBaseCurrency.current)} пересчитается по сегодняшнему курсу.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },

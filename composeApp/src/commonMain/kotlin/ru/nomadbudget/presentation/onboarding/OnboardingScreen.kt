@@ -59,7 +59,7 @@ import ru.nomadbudget.presentation.home.HomeState
 
 private enum class Step(val title: String, val subtitle: String) {
     PERIOD("Когда начинается твой месяц бюджета", "От этого дня считаются план, конверты и итоги. Если доход приходит в разные дни или нерегулярно, оставь 1 число."),
-    CURRENCIES("Валюты", "Итоги считаются в рублях. Другие валюты можно добавить по коду ISO, курс подтянется в течение суток."),
+    CURRENCIES("Валюты", "Базовая валюта — в ней считаются итоги, план и капитал. Другие валюты можно добавить по коду ISO, курс подтянется в течение суток."),
     ACCOUNTS("Счета", "Где лежат деньги. Названия и роли можно поменять позже на экране «Счета»."),
     CATEGORIES("Категории", "Снимай лишнее и добавляй своё. Подкатегории появятся у стандартных категорий."),
     BALANCES("Начальные остатки", "Сколько сейчас на каждом счёте. Можно пропустить и свериться позже кнопкой «Сверить остаток»."),
@@ -75,6 +75,7 @@ class OnboardingState {
     val categories: SnapshotStateList<OnboardingCategory> = mutableStateListOf<OnboardingCategory>().apply { addAll(OnboardingDefaults.categories()) }
     var newCategory: String by mutableStateOf("")
     var newCategoryKind: CategoryKind by mutableStateOf(CategoryKind.EXPENSE)
+    var pickingBase: Boolean by mutableStateOf(false)
 
     private var accountSequence = 0
 
@@ -83,6 +84,18 @@ class OnboardingState {
         accounts.removeAll { it.auto && it.currencyCode !in wanted }
         wanted.forEach { code ->
             if (accounts.none { it.currencyCode == code }) accounts += OnboardingDefaults.cashFor(code)
+        }
+    }
+
+    fun changeBase(currency: Currency) {
+        val old = base.code
+        base = currency
+        pickingBase = false
+        currencyCodes.remove(currency.code)
+        accounts.removeAll { it.auto && it.currencyCode == currency.code }
+        accounts.indices.forEach { index ->
+            val account = accounts[index]
+            if (account.currencyCode == old) accounts[index] = account.copy(currencyCode = currency.code)
         }
     }
 
@@ -114,6 +127,7 @@ class OnboardingState {
 
     fun result(): OnboardingResult = OnboardingResult(
         periodStartDay = startDay,
+        baseCode = base.code,
         incomeDays = incomeDays.sorted(),
         currencyCodes = currencyCodes.toList(),
         accounts = accounts.filter { it.name.isNotBlank() }.map { account ->
@@ -195,8 +209,19 @@ private fun PeriodStep(form: OnboardingState) {
 @Composable
 private fun CurrenciesStep(form: OnboardingState) {
     CurrencyRow(code = form.base.code, name = IsoCurrencies.nameOf(form.base.code), trailing = {
-        Text("базовая", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("базовая", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { form.pickingBase = !form.pickingBase }) { Text(if (form.pickingBase) "Отмена" else "Сменить") }
+        }
     })
+    if (form.pickingBase) {
+        CurrencySearchField(exclude = setOf(form.base.code), onPick = { form.changeBase(it.toCurrency()) })
+        Text(
+            "Сменить базовую валюту можно и позже в настройках, но тогда все суммы пересчитаются по курсам. Курс новой базы к другим валютам подтянется в течение суток.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     form.currencyCodes.forEach { code ->
         HorizontalDivider()
         CurrencyRow(code = code, name = IsoCurrencies.nameOf(code), trailing = {

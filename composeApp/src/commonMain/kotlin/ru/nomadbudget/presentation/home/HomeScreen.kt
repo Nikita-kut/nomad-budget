@@ -90,6 +90,7 @@ import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.entry.EntryFormState
 import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
+import ru.nomadbudget.presentation.format.CurrencyWords
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.LocalAmountPrivacy
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
@@ -645,9 +646,9 @@ private fun RatesWarning(state: HomeState) {
     }
     val warning = when {
         state.currenciesWithoutRate.isNotEmpty() ->
-            "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: суммы в рублях не посчитать, курс появится после обновления"
-        state.rates.rateFor(Currency.USD)?.source == RateSource.MANUAL ->
-            "Курсы ещё не загружены, суммы в рублях приблизительные"
+            "Нет курса для ${state.currenciesWithoutRate.joinToString { it.code }}: суммы ${CurrencyWords.inCurrency(state.base)} не посчитать, курс появится после обновления"
+        state.rates.all.any { it.source == RateSource.MANUAL } ->
+            "Курсы ещё не загружены, суммы ${CurrencyWords.inCurrency(state.base)} приблизительные"
         else -> null
     }
     warning?.let {

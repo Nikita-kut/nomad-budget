@@ -1,6 +1,5 @@
 package ru.nomadbudget.presentation.entry
 
-import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,7 +74,9 @@ import ru.nomadbudget.presentation.components.InfoHint
 import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.format.CurrencyWords
 import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.format.plural
@@ -521,15 +522,15 @@ private fun AmountHint(state: HomeState, amount: Money?, accountId: String?, dat
     val average = accountId?.let { state.costBasis.averageCost[it] }?.let { quote -> basePerUnitOf(quote, amount?.currency, state.base) }
     val market = amount?.let { state.marketRateOn(it.currency, date) }
     val text = when {
-        amount == null -> "В рублях: —"
-        amount.currency == state.base -> "Счёт в рублях, курс не нужен"
+        amount == null -> "${CurrencyWords.columnIn(state.base)}: —"
+        amount.currency == state.base -> "Счёт ${CurrencyWords.inCurrency(state.base)}, курс не нужен"
         average != null -> "≈ ${MoneyFormat.format(baseOf(amount, average, state.base))} по средней стоимости валюты на счёте: ${perUnitText(amount.currency, average, state.base)}"
         market != null -> "≈ ${MoneyFormat.format(baseOf(amount, market, state.base))} по курсу на ${DateFormat.dayMonth(date)}: ${perUnitText(amount.currency, market, state.base)}"
         else -> "Нет курса для ${amount.currency.code}, записать нельзя"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        InfoHint("Пересчёт в рубли", Hints.AMOUNT_BASE)
+        InfoHint("Пересчёт в ${state.base.code}", Hints.AMOUNT_BASE)
     }
 }
 

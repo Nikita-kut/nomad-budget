@@ -121,7 +121,7 @@ internal class SettingsActions(
 
     fun completeOnboarding(result: OnboardingResult) = runner.run("Не удалось завершить настройку", busy = true) {
         val currencies = currencyRepository.getAll().toMutableList()
-        result.currencyCodes.map { it.trim().uppercase() }.distinct().forEach { code ->
+        (listOf(result.baseCode) + result.currencyCodes).map { it.trim().uppercase() }.distinct().forEach { code ->
             if (currencies.none { it.code == code }) currencies += currencyRepository.ensure(code)
         }
         val byCode = currencies.associateBy { it.code }
@@ -147,6 +147,7 @@ internal class SettingsActions(
         }
         val settings = store.value.settings.copy(
             periodStartDay = result.periodStartDay,
+            baseCurrencyCode = result.baseCode,
             incomeDays = cleanIncomeDays(result.incomeDays),
             onboardedAt = Clock.System.now(),
         )

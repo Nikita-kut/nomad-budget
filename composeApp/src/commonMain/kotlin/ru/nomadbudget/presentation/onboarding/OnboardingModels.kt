@@ -23,6 +23,7 @@ data class OnboardingCategory(
 
 data class OnboardingResult(
     val periodStartDay: Int,
+    val baseCode: String,
     val incomeDays: List<Int>,
     val currencyCodes: List<String>,
     val accounts: List<OnboardingAccountResult>,
