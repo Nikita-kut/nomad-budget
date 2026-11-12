@@ -1,7 +1,5 @@
 package ru.nomadbudget.presentation.more
 
-import ru.nomadbudget.presentation.components.AddTile
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,23 +52,27 @@ import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
+import ru.nomadbudget.presentation.components.AddTile
+import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.ArchiveCard
+import ru.nomadbudget.presentation.components.ArchivedItem
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.ConfirmDialog
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.PillTone
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.StatusPill
+import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
-import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
-import ru.nomadbudget.presentation.components.CenteredLazyColumn
-import ru.nomadbudget.presentation.components.StatTile
-import ru.nomadbudget.presentation.components.TileRow
-import ru.nomadbudget.presentation.components.AppIcons
 
 @Composable
 fun DebtsScreen(
@@ -78,6 +80,7 @@ fun DebtsScreen(
     onBack: (() -> Unit)?,
     onSave: (Debt) -> Unit,
     onClose: (String) -> Unit,
+    onReopen: (String) -> Unit = {},
     onPay: (String) -> Unit,
     twoColumns: Boolean = false,
 ) {
@@ -121,23 +124,19 @@ fun DebtsScreen(
         }
         val closed = state.debts.filter { it.isClosed }
         if (closed.isNotEmpty()) {
-            item { SectionTitle("Закрытые") }
-            items(closed, key = Debt::id) { debt ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Text(debt.name, modifier = Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            item { SectionTitle("Закрытые", hint = "в план и итоги не входят") }
+            item { ArchiveCard(closed.map { ArchivedItem(it.id, it.name) }, restoreText = "Открыть снова", onRestore = onReopen) }
         }
     }
 
     if (creating) {
-        DebtDialog(initial = null, currencies = state.currencies, onDismiss = { creating = false }) {
+        DebtDialog(initial = null, currencies = state.userCurrencies, onDismiss = { creating = false }) {
             onSave(it)
             creating = false
         }
     }
     editing?.let { debt ->
-        DebtDialog(initial = debt, currencies = state.currencies, onDismiss = { editing = null }) {
+        DebtDialog(initial = debt, currencies = state.userCurrencies, onDismiss = { editing = null }) {
             onSave(it)
             editing = null
         }

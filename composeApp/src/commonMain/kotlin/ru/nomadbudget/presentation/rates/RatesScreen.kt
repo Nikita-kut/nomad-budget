@@ -50,7 +50,7 @@ private val RATE_PERIODS = listOf(ChartPeriod("30 дн.", 30), ChartPeriod("90 �
 
 @Composable
 fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCallbacks) {
-    val pairs = remember(state.currencies) { RatePairs.pairs(state.currencies) }
+    val pairs = remember(state.userCurrencies) { RatePairs.pairs(state.userCurrencies) }
     val series = remember(state.rateHistory, pairs) {
         pairs.associateWith { (a, b) -> RatePairs.series(a, b, state.rateHistory) }
     }
@@ -69,7 +69,7 @@ fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCal
         val watch = state.bankWatch.watch
         BankRateWatchDialog(
             initial = watch,
-            currencies = state.currencies,
+            currencies = state.userCurrencies,
             suggestedTarget = BankRateAnalyzer.suggestedTarget(state.bankWatch.week, Clock.System.now()),
             onDismiss = { editingWatch = false },
             onConfirm = { draft ->

@@ -25,6 +25,10 @@ class CapitalRepositoryImpl(private val client: SupabaseClient, private val cach
             .decodeSingle<CapitalGoalDto>()
             .let(::toDomain)
 
+    override suspend fun updateGoal(goal: CapitalGoal) {
+        client.from(GOALS).update(CapitalGoalInsertDto(goal.name, goal.amount.minor, goal.targetDate.toString())) { filter { eq("id", goal.id) } }
+    }
+
     override suspend fun deleteGoal(id: String) {
         client.from(GOALS).delete { filter { eq("id", id) } }
     }

@@ -32,6 +32,8 @@ rule "Domain imports other layers" '^import ru\.nomadbudget\.(presentation|data|
 rule "Presentation imports data" '^import ru\.nomadbudget\.data\.' '^[^:]*/(data|di|demo)/|/App\.kt'
 rule "Data imports presentation" '^import ru\.nomadbudget\.presentation\.' '^[^:]*/(presentation|di|demo)/|/App\.kt'
 rule "Named colors outside the theme" 'Color\.(White|Black|Gray|Red|Green|Blue|Yellow|LightGray|DarkGray)' '/presentation/theme/|/components/AppIcons\.kt'
+rule "Trash icon outside the confirm buttons: use DeleteIconButton or TrashIconButton + ConfirmDialog" 'AppIcons\.Trash' '/components/(Dialogs|AppIcons)\.kt|/journal/JournalScreen\.kt|/onboarding/OnboardingScreen\.kt'
+rule "Currency pickers: use HomeState.userCurrencies, not the shared currency table" 'currencies = state\.currencies' ''
 rule "Own copies of format helpers: use presentation/format" 'fun (majorText|shortMonth|periodLabel|thousands|monthYear)\(' '/presentation/format/'
 
 if [ "$fail" -ne 0 ]; then

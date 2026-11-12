@@ -162,8 +162,8 @@ class AccountRepositoryImpl(
         client.from(Tables.ACCOUNTS).update(AccountFundDto(monthly?.minor, goal?.minor, day)) { filter { eq("id", id) } }
     }
 
-    override suspend fun archive(id: String) {
-        client.from(Tables.ACCOUNTS).update({ set("archived_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
+    override suspend fun setArchived(id: String, archived: Boolean) {
+        client.from(Tables.ACCOUNTS).update({ if (archived) set("archived_at", Clock.System.now().toString()) else setToNull("archived_at") }) { filter { eq("id", id) } }
     }
 }
 
@@ -194,8 +194,8 @@ class CategoryRepositoryImpl(private val client: SupabaseClient, private val cac
         client.from(Tables.CATEGORIES).update({ set("sort_order", sortOrder) }) { filter { eq("id", id) } }
     }
 
-    override suspend fun archiveCategory(id: String) {
-        client.from(Tables.CATEGORIES).update({ set("archived_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
+    override suspend fun setCategoryArchived(id: String, archived: Boolean) {
+        client.from(Tables.CATEGORIES).update({ if (archived) set("archived_at", Clock.System.now().toString()) else setToNull("archived_at") }) { filter { eq("id", id) } }
     }
 
     override suspend fun addSubcategory(categoryId: String, name: String): Subcategory = client.from(Tables.SUBCATEGORIES)
@@ -267,8 +267,8 @@ class DebtRepositoryImpl(
         }) { filter { eq("id", debt.id) } }
     }
 
-    override suspend fun close(id: String) {
-        client.from(Tables.DEBTS).update({ set("closed_at", Clock.System.now().toString()) }) { filter { eq("id", id) } }
+    override suspend fun setClosed(id: String, closed: Boolean) {
+        client.from(Tables.DEBTS).update({ if (closed) set("closed_at", Clock.System.now().toString()) else setToNull("closed_at") }) { filter { eq("id", id) } }
     }
 }
 

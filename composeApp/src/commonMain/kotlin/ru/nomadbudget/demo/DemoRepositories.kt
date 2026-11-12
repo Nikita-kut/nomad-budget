@@ -188,7 +188,7 @@ private class DemoAccountRepository(private val db: DemoDatabase) : AccountRepos
 
     override suspend fun setSortOrder(id: String, sortOrder: Int) = replace(id) { it.copy(sortOrder = sortOrder) }
 
-    override suspend fun archive(id: String) = replace(id) { it.copy(isArchived = true) }
+    override suspend fun setArchived(id: String, archived: Boolean) = replace(id) { it.copy(isArchived = archived) }
 
     private fun replace(id: String, change: (Account) -> Account) {
         db.accounts.replaceEach { if (it.id == id) change(it) else it }
@@ -215,8 +215,8 @@ private class DemoCategoryRepository(private val db: DemoDatabase) : CategoryRep
         db.categories.replaceEach { if (it.id == id) it.copy(name = name) else it }
     }
 
-    override suspend fun archiveCategory(id: String) {
-        db.categories.replaceEach { if (it.id == id) it.copy(isArchived = true) else it }
+    override suspend fun setCategoryArchived(id: String, archived: Boolean) {
+        db.categories.replaceEach { if (it.id == id) it.copy(isArchived = archived) else it }
     }
 
     override suspend fun addSubcategory(categoryId: String, name: String): Subcategory =
@@ -327,8 +327,8 @@ private class DemoDebtRepository(private val db: DemoDatabase) : DebtRepository 
         db.debts.replaceEach { if (it.id == debt.id) debt else it }
     }
 
-    override suspend fun close(id: String) {
-        db.debts.replaceEach { if (it.id == id) it.copy(isClosed = true) else it }
+    override suspend fun setClosed(id: String, closed: Boolean) {
+        db.debts.replaceEach { if (it.id == id) it.copy(isClosed = closed) else it }
     }
 }
 
@@ -343,6 +343,10 @@ private class DemoCapitalRepository(private val db: DemoDatabase) : ru.nomadbudg
 
     override suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): ru.nomadbudget.domain.logic.CapitalGoal =
         ru.nomadbudget.domain.logic.CapitalGoal(db.newId("goal"), name, amount, targetDate).also { db.capitalGoals += it }
+
+    override suspend fun updateGoal(goal: ru.nomadbudget.domain.logic.CapitalGoal) {
+        db.capitalGoals.replaceEach { if (it.id == goal.id) goal else it }
+    }
 
     override suspend fun deleteGoal(id: String) {
         db.capitalGoals.removeAll { it.id == id }

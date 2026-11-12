@@ -40,10 +40,14 @@ internal class DebtActions(
         }
     }
 
-    fun closeDebt(id: String) = runner.run("Не удалось закрыть кредит") {
-        debtRepository.close(id)
-        store.update { state -> state.copy(debts = state.debts.map { if (it.id == id) it.copy(isClosed = true) else it }) }
-        store.message("Кредит закрыт")
+    fun closeDebt(id: String) = setClosed(id, closed = true, "Кредит закрыт")
+
+    fun reopenDebt(id: String) = setClosed(id, closed = false, "Кредит снова открыт")
+
+    private fun setClosed(id: String, closed: Boolean, done: String) = runner.run("Не удалось изменить кредит") {
+        debtRepository.setClosed(id, closed)
+        store.update { state -> state.copy(debts = state.debts.map { if (it.id == id) it.copy(isClosed = closed) else it }) }
+        store.message(done)
     }
 
     fun payDebt(debtId: String) {

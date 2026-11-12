@@ -94,10 +94,14 @@ internal class AccountActions(
         }
     }
 
-    fun archiveAccount(id: String) = runner.run("Не удалось архивировать счёт") {
-        accountRepository.archive(id)
-        store.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(isArchived = true) else it }) }
-        store.message("Счёт убран в архив")
+    fun archiveAccount(id: String) = setArchived(id, archived = true, "Счёт убран в архив")
+
+    fun restoreAccount(id: String) = setArchived(id, archived = false, "Счёт возвращён из архива")
+
+    private fun setArchived(id: String, archived: Boolean, done: String) = runner.run("Не удалось изменить счёт") {
+        accountRepository.setArchived(id, archived)
+        store.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(isArchived = archived) else it }) }
+        store.message(done)
     }
 }
 

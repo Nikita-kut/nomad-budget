@@ -1,6 +1,5 @@
 package ru.nomadbudget.presentation.settings
 
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,15 +34,19 @@ import ru.nomadbudget.presentation.components.CapitalSettingsFields
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.CurrencyRow
 import ru.nomadbudget.presentation.components.CurrencySearchField
+import ru.nomadbudget.presentation.components.DeleteIconButton
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.IncomeDaysEditor
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StartDayPicker
+import ru.nomadbudget.presentation.components.TrashIconButton
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysText
 import ru.nomadbudget.presentation.components.startDayText
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.operations
+import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -58,6 +61,7 @@ fun SettingsScreen(
     onSetIncomeDays: (List<Int>) -> Unit,
     onSaveCapital: (CapitalSettings) -> Unit,
     onAddCurrency: (String) -> Unit,
+    onRemoveCurrency: (String) -> Unit,
     onChangePassword: (String) -> Unit,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
@@ -131,15 +135,19 @@ fun SettingsScreen(
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    state.currencies.sortedWith(compareBy({ it != Currency.BASE }, { it.code })).forEachIndexed { index, currency ->
+                    state.userCurrencies.forEachIndexed { index, currency ->
                         if (index > 0) HorizontalDivider()
+                        val usedBy = state.activeAccounts.count { it.currency == currency }
                         CurrencyRow(
                             code = currency.code,
                             name = IsoCurrencies.nameOf(currency.code) ?: currency.symbol,
-                            trailing = when {
-                                currency == Currency.BASE -> ({ Text("базовая", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) })
-                                !state.rates.hasRate(currency) -> ({ Text("курса пока нет", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.warning) })
-                                else -> null
+                            trailing = {
+                                CurrencyTrailing(
+                                    currency = currency,
+                                    hasRate = state.rates.hasRate(currency),
+                                    usedBy = usedBy,
+                                    onRemove = { onRemoveCurrency(currency.code) },
+                                )
                             },
                         )
                     }
@@ -150,7 +158,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Добавить валюту", fontWeight = FontWeight.Medium)
-                    CurrencySearchField(exclude = state.currencies.map { it.code }.toSet(), onPick = { onAddCurrency(it.code) })
+                    CurrencySearchField(exclude = state.userCurrencies.map { it.code }.toSet(), onPick = { onAddCurrency(it.code) })
                     Text("Курс к рублю появится в течение суток, до этого суммы в этой валюте в итоги не попадут.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -304,3 +312,29 @@ private fun formatReturn(value: Double): String = if (value == 0.0) "без до
 
 private const val MIN_PASSWORD = 8
 private const val DELETE_WORD = "УДАЛИТЬ"
+
+@Composable
+private fun CurrencyTrailing(currency: Currency, hasRate: Boolean, usedBy: Int, onRemove: () -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        when {
+            currency == Currency.BASE -> Text("базовая", style = MaterialTheme.typography.labelSmall, color = muted)
+            !hasRate -> Text("курса пока нет", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.warning)
+            usedBy > 0 -> Text(plural(usedBy, "счёт", "счёта", "счетов"), style = MaterialTheme.typography.labelSmall, color = muted)
+        }
+        if (currency != Currency.BASE) {
+            if (usedBy > 0) {
+                TrashIconButton("Убрать ${currency.code}: сначала убери счета в архив", enabled = false) {}
+            } else {
+                DeleteIconButton(
+                    description = "Убрать ${currency.code}",
+                    title = "Убрать ${currency.code} из списка?",
+                    text = "Валюта пропадёт из выбора при создании счёта и с экрана курсов. Старые операции не изменятся. Вернуть можно поиском ниже.",
+                    confirmText = "Убрать",
+                    onConfirm = onRemove,
+                )
+            }
+        }
+    }
+}
+
