@@ -39,6 +39,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.CapitalModel
+import ru.nomadbudget.domain.logic.CapitalMonth
 import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.logic.Scenario
 import ru.nomadbudget.domain.model.Currency
@@ -259,7 +260,9 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val months = capital.months.takeLast(CapitalModel.HISTORY_MONTHS).reversed()
     var showAll by remember { mutableStateOf(false) }
+    var explaining by remember { mutableStateOf<CapitalMonth?>(null) }
     val visible = if (showAll) months else months.take(COLLAPSED_MONTHS)
+    explaining?.let { month -> GrowthDialog(month, onDismiss = { explaining = null }) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 8.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -275,7 +278,7 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
             HorizontalDivider()
             visible.forEachIndexed { index, month ->
                 if (index > 0) HorizontalDivider()
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().clickable { explaining = month }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         DateFormat.monthName(month.period.start) + if (month.isCurrent) " · идёт" else "",
                         modifier = Modifier.weight(MONTH_WEIGHT),
@@ -490,3 +493,32 @@ private fun months(count: Int): String = "$count мес."
 private const val COLLAPSED_MONTHS = 6
 private const val SCENARIO_WEIGHT = 2.2f
 private const val MONTH_WEIGHT = 1.2f
+
+@Composable
+private fun GrowthDialog(month: CapitalMonth, onDismiss: () -> Unit) {
+    val lines = listOfNotNull(
+        "Пришло в подушку: ${MoneyFormat.format(month.cushionIn, false)}",
+        "Ушло из подушки: ${MoneyFormat.format(month.cushionGone, false)}" +
+            (month.cushionToDebts.takeUnless { it.isZero }?.let { ", из них на кредиты ${MoneyFormat.format(it, false)}" } ?: ""),
+        "Подушка за месяц: ${MoneyFormat.formatSigned(month.saved, false)}",
+        "Погашено тело долга: ${MoneyFormat.format(month.principalPaid, false)}" +
+            if (month.principalEarly.isZero) "" else " (досрочно ${MoneyFormat.format(month.principalEarly, false)}, в обычных платежах ${MoneyFormat.format(month.principalRegular, false)})",
+        "Рост капитала: ${MoneyFormat.formatSigned(month.saved, false)} + ${MoneyFormat.format(month.principalPaid, false)} = ${MoneyFormat.formatSigned(month.capitalGrowth, false)}",
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${DateFormat.monthName(month.period.start)}: откуда рост капитала") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                lines.forEach { Text(it) }
+                Text(
+                    "Капитал — всё, что есть, минус долги. Досрочка из подушки его не меняет: на сколько уменьшилась подушка, на столько же уменьшился долг. Растят капитал новые деньги в подушке и тело долга в обычных платежах. Деньги на картах «На жизнь» сюда не входят.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Понятно") } },
+    )
+}
+
