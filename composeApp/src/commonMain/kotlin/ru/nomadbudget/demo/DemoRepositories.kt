@@ -2,7 +2,9 @@ package ru.nomadbudget.demo
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -28,6 +30,7 @@ import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.model.PaymentChange
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
 import ru.nomadbudget.domain.model.Subcategory
@@ -333,6 +336,14 @@ private class DemoDebtRepository(private val db: DemoDatabase) : DebtRepository 
             if (debt.id != id || debt.isClosed) return@replaceEach debt
             val tail = if (writeOff && !debt.principalRemaining.isNegative) debt.principalRemaining else Money.zero(debt.currency)
             debt.copy(isClosed = true, closedOn = on, closeReason = reason, writtenOff = tail, principalRemaining = debt.principalRemaining - tail)
+        }
+    }
+
+    override suspend fun changePayment(debtId: String, effectiveFrom: LocalDate, payment: Money, sourceTransactionId: String?) {
+        db.debts.replaceEach { debt ->
+            if (debt.id != debtId) return@replaceEach debt
+            val history = debt.paymentChanges.ifEmpty { listOf(PaymentChange(debt.openedOn ?: db.today.minus(1, DateTimeUnit.YEAR), debt.monthlyPayment)) }
+            debt.copy(monthlyPayment = payment, paymentChanges = history + PaymentChange(effectiveFrom, payment))
         }
     }
 

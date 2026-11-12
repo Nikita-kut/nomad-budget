@@ -40,3 +40,19 @@ data class DebtInsertDto(
     @SerialName("pay_day") val payDay: Int?,
     @SerialName("extra_payment") val extraPayment: Long,
 )
+
+@Serializable
+data class DebtPaymentChangeDto(
+    @SerialName("debt_id") val debtId: String,
+    @SerialName("effective_from") val effectiveFrom: String,
+    @SerialName("monthly_payment") val monthlyPayment: Long,
+)
+
+@Serializable
+data class DebtPaymentChangeInsertDto(
+    @SerialName("debt_id") val debtId: String,
+    @SerialName("effective_from") val effectiveFrom: String,
+    @SerialName("monthly_payment") val monthlyPayment: Long,
+    @SerialName("source_tx_id") val sourceTxId: String?,
+)
+

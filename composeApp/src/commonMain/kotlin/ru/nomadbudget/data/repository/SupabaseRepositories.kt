@@ -29,6 +29,8 @@ import ru.nomadbudget.data.dto.CategoryInsertDto
 import ru.nomadbudget.data.dto.CloseDebtParams
 import ru.nomadbudget.data.dto.CurrencyDto
 import ru.nomadbudget.data.dto.DebtDto
+import ru.nomadbudget.data.dto.DebtPaymentChangeDto
+import ru.nomadbudget.data.dto.DebtPaymentChangeInsertDto
 import ru.nomadbudget.data.dto.EnsureCurrencyParams
 import ru.nomadbudget.data.dto.ExchangeRateDto
 import ru.nomadbudget.data.dto.PeriodDto
@@ -244,9 +246,17 @@ class DebtRepositoryImpl(
 
     override suspend fun getAll(): List<Debt> {
         val byCode = currencies.byCode()
+        val changes = cache.throughOrDefault("debt_payment_changes", ListSerializer(DebtPaymentChangeDto.serializer()), emptyList()) {
+            client.from(PAYMENT_CHANGES).select { order("effective_from", Order.ASCENDING) }.decodeList<DebtPaymentChangeDto>()
+        }.groupBy { it.debtId }
         return cache.throughOrDefault("debts", ListSerializer(DebtDto.serializer()), emptyList()) {
             client.from(Tables.DEBTS).select { order("created_at", Order.ASCENDING) }.decodeList<DebtDto>()
-        }.mapNotNull { DebtMapper.toDomain(it, byCode) }
+        }.mapNotNull { dto -> DebtMapper.toDomain(dto, byCode, changes[dto.id].orEmpty()) }
+    }
+
+    override suspend fun changePayment(debtId: String, effectiveFrom: LocalDate, payment: Money, sourceTransactionId: String?) {
+        client.from(PAYMENT_CHANGES).insert(DebtPaymentChangeInsertDto(debtId, effectiveFrom.toString(), payment.minor, sourceTransactionId))
+        client.from(Tables.DEBTS).update({ set("monthly_payment", payment.minor) }) { filter { eq("id", debtId) } }
     }
 
     override suspend fun add(debt: Debt): Debt {
@@ -280,6 +290,7 @@ class DebtRepositoryImpl(
 
     private companion object {
         const val CLOSE_DEBT = "close_debt"
+        const val PAYMENT_CHANGES = "debt_payment_changes"
         const val REOPEN_DEBT = "reopen_debt"
     }
 }

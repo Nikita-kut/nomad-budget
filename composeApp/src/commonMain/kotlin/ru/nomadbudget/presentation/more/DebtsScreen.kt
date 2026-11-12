@@ -76,6 +76,7 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.format.plural
+import ru.nomadbudget.presentation.home.EarlyRepaymentDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 
@@ -87,6 +88,7 @@ fun DebtsScreen(
     onClose: (String) -> Unit,
     onReopen: (String) -> Unit = {},
     onClosePaidOff: (String) -> Unit = {},
+    onRepayEarly: (EarlyRepaymentDraft) -> Unit = {},
     onPay: (String) -> Unit,
     twoColumns: Boolean = false,
 ) {
@@ -94,6 +96,7 @@ fun DebtsScreen(
     var creating by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf<Debt?>(null) }
     var closingPaidOff by remember { mutableStateOf<Debt?>(null) }
+    var repaying by remember { mutableStateOf<Debt?>(null) }
     val month = state.month
     val obligations = month.debts.sortedWith(compareBy<DebtObligation> { it.status == ObligationStatus.PAID }.thenBy(nullsLast()) { it.due })
 
@@ -117,6 +120,7 @@ fun DebtsScreen(
                                 onEdit = { editing = obligation.debt },
                                 onClose = { closing = obligation.debt },
                                 onClosePaidOff = { closingPaidOff = obligation.debt },
+                                onRepayEarly = { repaying = obligation.debt },
                                 onPay = { onPay(obligation.debt.id) },
                             )
                         }
@@ -155,6 +159,20 @@ fun DebtsScreen(
             onSave(it)
             editing = null
         }
+    }
+    repaying?.let { debt ->
+        EarlyRepaymentDialog(
+            debt = debt,
+            accounts = state.activeAccounts,
+            balances = state.balances,
+            today = state.today,
+            saving = state.saving,
+            onDismiss = { repaying = null },
+            onConfirm = {
+                onRepayEarly(it)
+                repaying = null
+            },
+        )
     }
     closingPaidOff?.let { debt ->
         val tail = debt.principalRemaining
@@ -300,7 +318,15 @@ private fun PaymentsTimeline(obligations: List<DebtObligation>, period: Period, 
 }
 
 @Composable
-private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () -> Unit, onClose: () -> Unit, onClosePaidOff: () -> Unit, onPay: () -> Unit) {
+private fun DebtCard(
+    obligation: DebtObligation,
+    today: LocalDate,
+    onEdit: () -> Unit,
+    onClose: () -> Unit,
+    onClosePaidOff: () -> Unit,
+    onRepayEarly: () -> Unit,
+    onPay: () -> Unit,
+) {
     val debt = obligation.debt
     var menu by remember { mutableStateOf(false) }
     val forecast = DebtCalculator.forecast(debt, debt.plannedPayment)
@@ -362,9 +388,12 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
                     else -> {
                         early?.let { Text("в этом месяце $it", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good) }
                         PrimaryButton(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                            Text("Внести платёж ${MoneyFormat.format(debt.plannedPayment, false)}")
+                            Text("Внести платёж ${MoneyFormat.format(obligation.planned, false)}")
                         }
                     }
+                }
+                if (!debt.lessThanOnePayment && !obligation.paidOff) {
+                    SecondaryButton(onClick = onRepayEarly, modifier = Modifier.fillMaxWidth()) { Text("Досрочное погашение") }
                 }
             }
         }

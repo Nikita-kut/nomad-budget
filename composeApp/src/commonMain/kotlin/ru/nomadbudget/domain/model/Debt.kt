@@ -1,6 +1,8 @@
 package ru.nomadbudget.domain.model
 
 import kotlinx.datetime.LocalDate
+import kotlin.math.ceil
+import kotlin.math.pow
 
 enum class DebtCloseReason(val id: String) {
     PAID_OFF("paid_off"),
@@ -11,6 +13,10 @@ enum class DebtCloseReason(val id: String) {
         fun fromId(id: String?): DebtCloseReason? = entries.firstOrNull { it.id == id }
     }
 }
+
+data class PaymentChange(val effectiveFrom: LocalDate, val payment: Money)
+
+enum class EarlyRepaymentMode { REDUCE_PAYMENT, REDUCE_TERM, PAY_OFF }
 
 data class Debt(
     val id: String,
@@ -26,6 +32,7 @@ data class Debt(
     val closedOn: LocalDate? = null,
     val closeReason: DebtCloseReason? = null,
     val writtenOff: Money = Money.zero(currency),
+    val paymentChanges: List<PaymentChange> = emptyList(),
 ) {
     init {
         require(principalRemaining.currency == currency && monthlyPayment.currency == currency && extraPayment.currency == currency) {
@@ -34,6 +41,11 @@ data class Debt(
     }
 
     val plannedPayment: Money get() = monthlyPayment + extraPayment
+
+    fun paymentOn(date: LocalDate): Money =
+        paymentChanges.filter { it.effectiveFrom <= date }.maxByOrNull { it.effectiveFrom }?.payment ?: monthlyPayment
+
+    fun nextPaymentChange(after: LocalDate): PaymentChange? = paymentChanges.filter { it.effectiveFrom > after }.minByOrNull { it.effectiveFrom }
 
     val lessThanOnePayment: Boolean get() = !isClosed && monthlyPayment.minor > 0L && principalRemaining.minor < monthlyPayment.minor
 
@@ -106,6 +118,26 @@ object DebtCalculator {
             payment > debt.principalRemaining -> debt.principalRemaining
             else -> payment
         }
+    }
+
+    fun annuityPayment(principal: Money, ratePercent: Double?, months: Int): Money? {
+        if (months <= 0 || principal.minor <= 0L) return null
+        val rate = (ratePercent ?: 0.0) / PERCENT / MONTHS_IN_YEAR
+        val minor = if (rate <= 0.0) {
+            principal.minor.toDouble() / months
+        } else {
+            principal.minor * rate / (1.0 - (1.0 + rate).pow(-months))
+        }
+        val factor = principal.currency.minorFactor
+        return Money(ceil(minor / factor).toLong() * factor, principal.currency)
+    }
+
+    fun remainingPayments(debt: Debt): Int? = forecast(debt, debt.monthlyPayment)?.months
+
+    fun suggestedPayment(debt: Debt, repayment: Money): Money? {
+        val months = remainingPayments(debt) ?: return null
+        val left = debt.principalRemaining - repayment
+        return if (left.minor <= 0L) null else annuityPayment(left, debt.ratePercent, months)
     }
 
     fun principalFor(debt: Debt, payment: Money, early: Boolean): Money? = when {
