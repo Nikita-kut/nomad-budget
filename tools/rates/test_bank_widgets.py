@@ -105,7 +105,9 @@ class RenderTest(unittest.TestCase):
         self.assertTrue(w.fits(document))
         self.assertIn("БИРЖА ЗАКРЫТА", document)
         self.assertIn("ночной курс", document)
-        self.assertIn('opacity=".14"', document)
+        self.assertIn('stroke-dasharray="4 3"', document)
+        self.assertIn("ночной курс", document)
+        self.assertNotIn("<rect", document)
 
     def test_today_marks_first_evening_point(self):
         values, night_from, start = self.charts(night=True).today()

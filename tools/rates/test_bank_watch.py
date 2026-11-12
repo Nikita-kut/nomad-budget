@@ -365,7 +365,7 @@ class EvaluateTest(unittest.TestCase):
         self.assertIsNone(events[0]["assessment"])
         self.assertIsNone(state["window"])
         text = bw.message_digest(w, 95.0, 100.0, events[0], local(msk(10, day=SATURDAY)))
-        self.assertIn("☀️ <b>RUB → USD</b> · утренняя сводка, 10:00", text)
+        self.assertIn("☀️ <b>RUB → USD</b> · утренняя сводка, 10:00 МСК", text)
         self.assertIn("биржа закрыта, курс выходного дня", text)
         self.assertNotIn("замеров", text)
         self.assertIn(f"Обмен: 1{NBSP}RUB = 95,00{NBSP}USD", text)
@@ -526,7 +526,7 @@ class MessageTest(unittest.TestCase):
         w = watch(digest_hour=10)
         event = {"kind": "digest", "verdict": "good", "assessment": bw.assess(w, 0.0121, 0.0125, SMALL_WEEK), "notes": {}}
         lines = bw.message_digest(w, 0.0121, 0.0125, event, local(msk(10, 30))).split("\n")
-        self.assertEqual("☀️ <b>RUB → USD</b> · курс на начало торгов, 10:30", lines[0])
+        self.assertEqual("☀️ <b>RUB → USD</b> · курс на начало торгов, 10:30 МСК", lines[0])
         self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD · выгодно", lines[1])
         self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[2])
         self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[3])
@@ -562,7 +562,7 @@ class MessageTest(unittest.TestCase):
         w = watch(target=0.012)
         assessment = bw.assess(w, 0.0121, 0.0125, SMALL_WEEK)
         lines = bw.message_now(w, 0.0121, 0.0125, "good", assessment, local(msk(13, 26))).split("\n")
-        self.assertEqual("💱 <b>RUB → USD</b> · курс на 13:26", lines[0])
+        self.assertEqual("💱 <b>RUB → USD</b> · курс на 13:26 МСК", lines[0])
         self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD · выгодно", lines[1])
         self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[3])
         self.assertEqual("Выше цели 1,20", lines[4])
@@ -579,6 +579,10 @@ class MessageTest(unittest.TestCase):
         late = EvaluateTest.step(None, w, 95.0, {}, msk(11, 15))[1]
         self.assertEqual(["digest"], [e["kind"] for e in late])
         self.assertEqual([], [e for e in EvaluateTest.step(None, w, 95.0, {}, msk(11, 30))[1] if e["kind"] == "digest"])
+
+    def test_clock_names_time_zone(self):
+        self.assertEqual("13:26 МСК", bw.clock(local(msk(13, 26))))
+        self.assertEqual("17:26 UTC+07", bw.clock(bw.local_now(msk(13, 26), "Asia/Bangkok")))
 
     def test_webhook_texts_match_worker(self):
         source = (Path(__file__).resolve().parents[2] / "supabase" / "functions" / "telegram-webhook" / "index.ts").read_text()
