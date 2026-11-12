@@ -44,7 +44,9 @@ CSS = (
     ".m{color:var(--tg-theme-hint-color,#6b7785)}"
     ".h{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}"
     ".c{font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:99px;white-space:nowrap}"
-    ".r{font-size:34px;font-weight:700;letter-spacing:-.02em;margin-top:6px}.u{font-size:13px;font-weight:500;margin-left:4px}"
+    ".r{font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-top:2px}.s{font-size:12px}.d{font-size:13px}"
+    ".top{display:flex;justify-content:space-between;align-items:stretch;gap:12px}"
+    ".side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:4px;text-align:right}"
     ".row{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-top:6px}"
     ".bar{position:relative;height:6px;border-radius:3px;margin:10px 0 4px;"
     "background:linear-gradient(90deg,#e5484d55,#94a3b833 25%,#94a3b833 75%,#2fbf7155)}"
@@ -153,7 +155,6 @@ def day_chart(values: list[float], night_from: int | None, start_label: str, end
         night = " ".join(f"{x:g},{y_:g}" for x, y_ in xy[night_from - 1:])
         parts.append(f'<polyline points="{night}" fill="none" stroke="{FLAT}" stroke-width="2" stroke-dasharray="4 3"/>')
         parts.append(f'<circle cx="{xy[-1][0]:g}" cy="{xy[-1][1]:g}" r="4" fill="{FLAT}" stroke="var(--tg-theme-bg-color,#fff)" stroke-width="2"/>')
-        parts.append(f'<text x="{PLOT_RIGHT}" y="{max(xy[-1][1] - 8, 10):g}" font-size="10" text-anchor="end" fill="var(--tg-theme-hint-color,#8b98a5)">ночной курс</text>')
     else:
         parts.append(_line(xy, color, DAY_HEIGHT, "d"))
     parts.append(_label(0, DAY_HEIGHT, start_label, "start"))
@@ -184,16 +185,24 @@ def cbr_row(cbr: dict | None) -> str:
 
 def render(view: dict) -> str:
     code = view["verdict"]
-    head_left = (f'<b style="color:{CHIPS[code][0]}">{esc(view["headline"])}</b>' if view.get("headline") else f'<b>{esc(view["title"])}</b>')
-    body = [
-        f'<div class="h">{head_left}<span class="m">{esc(view["subtitle"])}</span></div>',
-        f'<div class="r">{esc(view["rate"])}<span class="u m">{esc(view["unit"])}</span></div>',
-    ]
-    if view.get("delta"):
-        delta_color = TRENDS[view["delta"]["trend"]]
-        body.append(f'<div class="row"><span style="color:{delta_color}">{esc(view["delta"]["text"])}</span><span class="m">{esc(view.get("note") or "")}</span></div>')
+    if view.get("headline"):
+        label = f'<b style="color:{CHIPS[code][0]}">{esc(view["headline"])}</b>'
     else:
-        body.append(f'<div class="h" style="margin-top:6px">{chip(code)}<span class="m">{esc(view.get("note") or "")}</span></div>')
+        label = f'<b>{esc(view["title"])}</b>'
+    if view.get("delta"):
+        badge = f'<b class="d" style="color:{TRENDS[view["delta"]["trend"]]}">{esc(view["delta"]["text"])}</b>'
+    else:
+        badge = chip(code)
+    note = f'<span class="m s">{esc(view["note"])}</span>' if view.get("note") else ""
+    body = [
+        '<div class="top"><div>'
+        f'<div class="s">{label}</div>'
+        f'<div class="r">{esc(view["rate"])}</div>'
+        f'<div class="m s">{esc(view["unit"])}</div>'
+        '</div><div class="side">'
+        f'{badge}{note}<span class="m s">{esc(view["subtitle"])}</span>'
+        '</div></div>'
+    ]
     if view.get("position") is not None:
         body.append(position_bar(view["position"], code))
         if view.get("position_labels"):
