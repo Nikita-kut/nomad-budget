@@ -20,6 +20,7 @@ import ru.nomadbudget.domain.logic.MonthModel
 import ru.nomadbudget.domain.logic.MonthPoint
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.logic.PlanCalculator
+import ru.nomadbudget.domain.model.BaseChange
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.BalanceCheck
@@ -119,6 +120,7 @@ data class HomeState(
     val debts: List<Debt> = emptyList(),
     val rateHistory: List<ExchangeRate> = emptyList(),
     val capitalGoals: List<CapitalGoal> = emptyList(),
+    val baseChange: BaseChange? = null,
     val settings: UserSettings = UserSettings(),
     val bankWatch: BankWatchData = BankWatchData(),
     private val memo: Memo = Memo(),

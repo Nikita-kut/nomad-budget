@@ -12,6 +12,7 @@ import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.logic.RateRebase
+import ru.nomadbudget.domain.model.BaseChange
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.BankWatchData
@@ -164,6 +165,7 @@ internal class LoadCoordinator(
                         capitalGoals = loaded.capitalGoals,
                         settings = loaded.settings,
                         bankWatch = loaded.bankWatch,
+                        baseChange = loaded.baseChange,
                     )
                 }
                 if (flush.sent > 0) store.message("Отправлено: ${operations(flush.sent)}")
@@ -196,6 +198,7 @@ internal class LoadCoordinator(
         val allPlanLines = async { baseReady.await(); runCatching { budgetRepository.getAllLines() }.getOrDefault(previous.allPlanLines) }
         val capitalGoals = async { baseReady.await(); runCatching { capitalRepository.getGoals() }.getOrDefault(previous.capitalGoals) }
         val bankWatch = async { runCatching { bankRateWatchRepository.load(currencies.await()) }.getOrDefault(previous.bankWatch) }
+        val baseChange = async { runCatching { userSettingsRepository.lastBaseChange() }.getOrDefault(previous.baseChange) }
         val plan = async {
             val period = periodFor(previous, settingsAsync.await())
             baseReady.await()
@@ -226,6 +229,7 @@ internal class LoadCoordinator(
             capitalGoals = capitalGoals.await(),
             settings = settingsAsync.await(),
             bankWatch = bankWatch.await(),
+            baseChange = baseChange.await(),
         )
     }
 
@@ -249,5 +253,6 @@ internal class LoadCoordinator(
         val capitalGoals: List<CapitalGoal>,
         val settings: UserSettings,
         val bankWatch: BankWatchData,
+        val baseChange: BaseChange?,
     )
 }

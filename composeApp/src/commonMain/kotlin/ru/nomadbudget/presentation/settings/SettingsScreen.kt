@@ -31,8 +31,10 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.AppModal
 import ru.nomadbudget.presentation.components.CapitalSettingsFields
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.ConfirmDialog
 import ru.nomadbudget.presentation.components.CurrencyRow
 import ru.nomadbudget.presentation.components.CurrencySearchField
 import ru.nomadbudget.presentation.components.DeleteIconButton
@@ -46,6 +48,7 @@ import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysText
 import ru.nomadbudget.presentation.components.startDayText
 import ru.nomadbudget.presentation.format.CurrencyWords
+import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.LocalAmountPrivacy
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
@@ -66,6 +69,8 @@ fun SettingsScreen(
     onSaveCapital: (CapitalSettings) -> Unit,
     onAddCurrency: (String) -> Unit,
     onRemoveCurrency: (String) -> Unit,
+    onChangeBase: (String) -> Unit,
+    onRevertBase: () -> Unit,
     onChangePassword: (String) -> Unit,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
@@ -77,6 +82,8 @@ fun SettingsScreen(
     var changingPassword by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     var deleteStep by remember { mutableStateOf(0) }
+    var changingBase by remember { mutableStateOf(false) }
+    var confirmRevert by remember { mutableStateOf(false) }
     val theme = LocalThemeSettings.current
 
     CenteredLazyColumn {
@@ -185,6 +192,21 @@ fun SettingsScreen(
                 }
             }
         }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    ActionRow("Сменить базовую валюту", "сейчас ${state.base.code}; все суммы пересчитаются по курсам") { changingBase = true }
+                    val change = state.baseChange
+                    if (change != null && !change.reverted) {
+                        HorizontalDivider()
+                        ActionRow(
+                            "Вернуть ${change.from}",
+                            "база сменена ${DateFormat.dayMonthTime(change.changedAt)} с ${change.from} на ${change.to}; вернуть можно, пока нет новых операций",
+                        ) { confirmRevert = true }
+                    }
+                }
+            }
+        }
 
         item { SectionTitle("Аккаунт", hint = platformName()) }
         item {
@@ -197,6 +219,26 @@ fun SettingsScreen(
                     ActionRow("Удалить аккаунт", "все данные в облаке будут стёрты без возможности восстановления", danger = true) { deleteStep = 1 }
                 }
             }
+        }
+    }
+
+    if (changingBase) {
+        ChangeBaseDialog(state, onDismiss = { changingBase = false }) { code ->
+            changingBase = false
+            onChangeBase(code)
+        }
+    }
+
+    val revertable = state.baseChange?.takeIf { !it.reverted }
+    if (confirmRevert && revertable != null) {
+        ConfirmDialog(
+            title = "Вернуть ${revertable.from}?",
+            text = "Суммы вернутся к значениям до смены. План и цели, изменённые после смены, пересчитаются обратно по курсу. Если после смены уже записаны или изменены операции, откат не получится.",
+            confirmText = "Вернуть ${revertable.from}",
+            onDismiss = { confirmRevert = false },
+        ) {
+            confirmRevert = false
+            onRevertBase()
         }
     }
 
@@ -361,3 +403,35 @@ private fun CurrencyTrailing(currency: Currency, hasRate: Boolean, usedBy: Int, 
     }
 }
 
+
+@Composable
+private fun ChangeBaseDialog(state: HomeState, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var picked by remember { mutableStateOf<String?>(null) }
+    val blocker = when {
+        state.offline -> "Без сети базу не сменить."
+        state.pendingCount > 0 -> "Сначала отправь операции из очереди: ${operations(state.pendingCount)}. Нажми «Обновить» при сети."
+        else -> null
+    }
+    AppModal(
+        title = "Базовая валюта",
+        onDismiss = onDismiss,
+        confirmText = picked?.let { "Пересчитать в $it" } ?: "Пересчитать",
+        confirmEnabled = picked != null && blocker == null,
+        onConfirm = { picked?.let(onConfirm) },
+    ) {
+        Text("Сейчас ${state.base.code}${IsoCurrencies.nameOf(state.base.code)?.let { " — $it" }.orEmpty()}.", fontWeight = FontWeight.Medium)
+        picked?.let { code ->
+            CurrencyRow(code = code, name = IsoCurrencies.nameOf(code), trailing = {
+                TextButton(onClick = { picked = null }) { Text("Другая") }
+            })
+        } ?: CurrencySearchField(exclude = setOf(state.base.code), onPick = { picked = it.code })
+        Text(
+            "Все суммы пересчитаются в новую валюту: операции — по курсу на свой день (если счёт в новой валюте, берётся точная сумма), " +
+                "план и «Себе» — по курсу на начало месяца, цели капитала — по сегодняшнему. Остатки счетов не меняются. " +
+                "Пока после смены нет новых операций, её можно отменить.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        blocker?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning) }
+    }
+}

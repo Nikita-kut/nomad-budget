@@ -16,3 +16,14 @@ data class UserSettingsDto(
 
 @Serializable
 data class EnsureCurrencyParams(@SerialName("p_code") val code: String)
+
+@Serializable
+data class BaseChangeDto(
+    @SerialName("from_currency") val fromCurrency: String,
+    @SerialName("to_currency") val toCurrency: String,
+    @SerialName("changed_at") val changedAt: String,
+    @SerialName("reverted_at") val revertedAt: String? = null,
+)
+
+@Serializable
+data class ChangeBaseParams(@SerialName("p_code") val code: String)

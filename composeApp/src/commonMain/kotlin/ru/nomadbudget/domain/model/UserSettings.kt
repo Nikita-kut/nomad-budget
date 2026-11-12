@@ -26,3 +26,5 @@ data class UserSettings(
     fun withCapital(settings: CapitalSettings): UserSettings =
         copy(cushionMonths = settings.cushionMonths, annualReturn = settings.annualReturn)
 }
+
+data class BaseChange(val from: String, val to: String, val changedAt: Instant, val reverted: Boolean)

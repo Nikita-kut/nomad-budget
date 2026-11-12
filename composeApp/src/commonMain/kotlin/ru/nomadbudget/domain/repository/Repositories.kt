@@ -7,6 +7,7 @@ import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
+import ru.nomadbudget.domain.model.BaseChange
 import ru.nomadbudget.domain.model.BalanceCheck
 import ru.nomadbudget.domain.model.BankRateWatch
 import ru.nomadbudget.domain.model.BankRateWatchDraft
@@ -47,6 +48,9 @@ interface UserSettingsRepository {
     fun cached(): UserSettings?
     suspend fun get(): UserSettings
     suspend fun save(settings: UserSettings): UserSettings
+    suspend fun lastBaseChange(): BaseChange?
+    suspend fun changeBase(code: String)
+    suspend fun revertBase()
 }
 
 interface CurrencyRepository {
