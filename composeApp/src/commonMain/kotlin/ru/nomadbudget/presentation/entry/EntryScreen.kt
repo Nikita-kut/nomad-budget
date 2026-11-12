@@ -623,7 +623,8 @@ internal fun EarlyPaymentToggle(checked: Boolean, onChange: (Boolean) -> Unit, p
         Text(
             when {
                 differentCurrency -> "Валюта счёта не совпадает с валютой кредита: остаток кредита не изменится"
-                checked -> "Вся сумма уменьшает тело кредита, проценты не вычитаются" + (preview?.let { ". В тело: ${MoneyFormat.format(it, false)}" } ?: "")
+                checked -> "Вся сумма уменьшает тело кредита, проценты не вычитаются" + (preview?.let { ". В тело: ${MoneyFormat.format(it, false)}" } ?: "") +
+                    ". Чтобы сразу пересчитать платёж или закрыть кредит, вноси досрочку кнопкой «Досрочное погашение» в «Кредитах»"
                 else -> "Обычный платёж: из суммы вычитаются проценты за месяц" + (preview?.let { ", в тело: ${MoneyFormat.format(it, false)}" } ?: "")
             },
             style = MaterialTheme.typography.labelSmall,

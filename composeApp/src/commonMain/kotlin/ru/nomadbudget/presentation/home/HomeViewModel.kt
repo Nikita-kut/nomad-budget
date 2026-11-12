@@ -106,7 +106,7 @@ class HomeViewModel(
         plans = PlanActions(store, runner, periodRepository, budgetRepository, categoryRepository, categories)
         accounts = AccountActions(store, runner, accountRepository)
         inbox = InboxActions(store, runner, draftRepository)
-        debtsActions = DebtActions(store, runner, debtRepository, inbox, today)
+        debtsActions = DebtActions(store, runner, debtRepository, inbox, today, transactionRepository, categories)
         settings = SettingsActions(
             store = store,
             runner = runner,
@@ -278,6 +278,10 @@ class HomeViewModel(
 
     fun reopenDebt(id: String) {
         debtsActions.reopenDebt(id)
+    }
+
+    fun repayEarly(draft: EarlyRepaymentDraft) {
+        debtsActions.repayEarly(draft)
     }
 
     fun closePaidOffDebt(id: String) {
