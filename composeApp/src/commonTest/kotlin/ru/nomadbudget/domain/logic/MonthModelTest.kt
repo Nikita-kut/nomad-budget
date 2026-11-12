@@ -136,6 +136,23 @@ class MonthModelTest {
     }
 
     @Test
+    fun closedDebt_staysInMonthsWhenItWasOpen() {
+        val closed = loan.copy(isClosed = true, closedOn = LocalDate(2026, 11, 12), openedOn = LocalDate(2026, 1, 10))
+        val obligation = build(debts = listOf(closed)).debts.single()
+        assertTrue(obligation.paidOff)
+        assertEquals(ObligationStatus.PAID, obligation.status)
+        assertTrue(obligation.planned.isZero)
+        val next = SalaryCycle.next(period, TEST_START_DAY)
+        val later = MonthModel.build(
+            period = next, today = next.start, categories = categories, subcategories = emptyList(), lines = emptyList(),
+            transactions = emptyList(), accounts = accounts, debts = listOf(closed), rates = rates, balances = emptyMap(), savingsTarget = null,
+        )
+        assertTrue(later.debts.isEmpty())
+        val notYetOpened = loan.copy(openedOn = LocalDate(2027, 1, 1))
+        assertTrue(build(debts = listOf(notYetOpened)).debts.isEmpty())
+    }
+
+    @Test
     fun perDay_dividesWholeRemainderByDaysLeft() {
         val m = build(listOf(BudgetLine("food", Money.rub(3_000_000L))), listOf(expense("a", "food", 1_000_000L)))
         assertEquals(period.lengthDays - period.dayNumber(today) + 1, m.daysLeft)

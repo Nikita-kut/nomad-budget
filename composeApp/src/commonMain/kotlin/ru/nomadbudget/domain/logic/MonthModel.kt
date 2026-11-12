@@ -155,7 +155,7 @@ data class MonthModel(
                 today = today,
                 incomeBudgets = budgets.filter { it.category.kind == CategoryKind.INCOME },
                 envelopes = budgets.filter { it.category.kind == CategoryKind.EXPENSE },
-                debts = debts.filterNot { it.isClosed }.map { debtObligation(it, period, today, inPeriod, rates) },
+                debts = debts.filter { it.isActiveIn(period) }.map { debtObligation(it, period, today, inPeriod, rates) },
                 funds = accounts.filter { it.role == AccountRole.FUND && !it.isArchived }.map { fundState(it, period, today, inPeriod, rates, balances, systemIds) },
                 savingsTarget = savingsTarget?.takeIf { it.minor > 0L },
                 carryOver = carryOver,
@@ -197,11 +197,12 @@ data class MonthModel(
             val earlyPaid = payments.filter { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE)
             val paid = regularPaid + earlyPaid
             val due = dueDate(period, debt.payDay)
-            val paidOff = earlyPaid.minor > 0L && debt.principalRemaining.minor < debt.monthlyPayment.minor
+            val closedHere = debt.closedIn(period)
+            val paidOff = closedHere || earlyPaid.minor > 0L && debt.principalRemaining.minor < debt.monthlyPayment.minor
             val paidEnough = paidOff ||
                 regularPlanned.minor > 0L && regularPaid.wholeUnits >= regularPlanned.wholeUnits ||
                 regularPlanned.isZero && paid.minor > 0L
-            return DebtObligation(debt, due, planned, paid, status(paidEnough, due, today, period), regularPaid, earlyPaid, paidOff)
+            return DebtObligation(debt, due, if (closedHere) paid else planned, paid, status(paidEnough, due, today, period), regularPaid, earlyPaid, paidOff)
         }
 
         private fun fundState(

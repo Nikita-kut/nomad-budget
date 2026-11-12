@@ -498,6 +498,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onSave = viewModel::saveDebt,
                                     onClose = viewModel::closeDebt,
                                     onReopen = viewModel::reopenDebt,
+                                    onClosePaidOff = viewModel::closePaidOffDebt,
                                     onPay = viewModel::payDebt,
                                     twoColumns = twoColumns,
                                 )
