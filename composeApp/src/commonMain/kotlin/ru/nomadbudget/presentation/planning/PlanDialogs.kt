@@ -1,26 +1,18 @@
 package ru.nomadbudget.presentation.planning
 
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,22 +27,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.sumIn
+import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.AppModal
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.TagChip
-import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.home.PlanItemInput
 import ru.nomadbudget.presentation.theme.AppTheme
-import ru.nomadbudget.presentation.components.AppIcons
 
 private const val MAX_SUGGESTIONS = 8
 
@@ -102,18 +93,13 @@ fun PlanEditorDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(modifier = Modifier.fillMaxSize().imePadding()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) { Icon(AppIcons.Close, contentDescription = "Закрыть без сохранения") }
-                    Text(category.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { draft()?.let(onSave) }, enabled = dirty && error == null && !state.saving) { Text("Сохранить") }
-                }
-                Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).widthIn(max = Ui.FormMaxWidth),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+    AppModal(
+        title = category.name,
+        onDismiss = onDismiss,
+        confirmText = "Сохранить",
+        confirmEnabled = dirty && error == null && !state.saving,
+        onConfirm = { draft()?.let(onSave) },
+    ) {
                     Text("План на месяц", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(MoneyFormat.format(total, false), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                     history?.let { h ->
@@ -189,9 +175,6 @@ fun PlanEditorDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     error?.takeIf { dirty }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.bad) }
-                }
-            }
-        }
     }
 }
 

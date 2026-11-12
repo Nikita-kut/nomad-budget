@@ -34,6 +34,7 @@ rule "Data imports presentation" '^import ru\.nomadbudget\.presentation\.' '^[^:
 rule "Named colors outside the theme" 'Color\.(White|Black|Gray|Red|Green|Blue|Yellow|LightGray|DarkGray)' '/presentation/theme/|/components/AppIcons\.kt'
 rule "Trash icon outside the confirm buttons: use DeleteIconButton or TrashIconButton + ConfirmDialog" 'AppIcons\.Trash' '/components/(Dialogs|AppIcons)\.kt|/journal/JournalScreen\.kt|/onboarding/OnboardingScreen\.kt'
 rule "Currency pickers: use HomeState.userCurrencies, not the shared currency table" 'currencies = state\.currencies' ''
+rule "Full-screen dialogs: use AlertDialog or AppModal" 'usePlatformDefaultWidth *= *false' '/components/Dialogs\.kt'
 rule "Own copies of format helpers: use presentation/format" 'fun (majorText|shortMonth|periodLabel|thousands|monthYear)\(' '/presentation/format/'
 
 if [ "$fail" -ne 0 ]; then
