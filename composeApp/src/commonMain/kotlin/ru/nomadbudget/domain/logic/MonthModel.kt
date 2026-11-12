@@ -30,7 +30,13 @@ data class DebtObligation(
     val regularPaid: Money = paid,
     val earlyPaid: Money = Money.zero(Currency.BASE),
     val paidOff: Boolean = false,
+    val earlyPlanned: Money = Money.zero(Currency.BASE),
+    val earlyFromCushion: Boolean = false,
 ) {
+    val regularPlanned: Money get() = planned - earlyPlanned
+
+    val budgetPlanned: Money get() = if (earlyFromCushion) regularPlanned else planned
+
     val left: Money get() = if (paid >= planned) Money.zero(Currency.BASE) else planned - paid
 }
 
@@ -86,7 +92,8 @@ data class MonthModel(
 
     val perDay: Money? = if (daysLeft > 0 && canSpend.minor > 0L) Money(canSpend.minor / daysLeft, Currency.BASE).withoutFraction() else null
 
-    val debtsPlanned: Money = debts.map { it.planned }.sumIn(Currency.BASE)
+    val debtsPlanned: Money = debts.map { it.budgetPlanned }.sumIn(Currency.BASE)
+    val debtsFromCushion: Money = debts.filter { it.earlyFromCushion }.map { it.earlyPlanned }.sumIn(Currency.BASE)
     val fundsPlanned: Money = funds.mapNotNull { it.monthlyPlanned }.sumIn(Currency.BASE)
     val obligationsPlanned: Money = debtsPlanned + fundsPlanned
     val obligationsCount: Int = debts.size + funds.count { it.monthlyPlanned != null }
@@ -192,8 +199,10 @@ data class MonthModel(
         private fun debtObligation(debt: Debt, period: Period, today: LocalDate, inPeriod: List<Transaction>, rates: RateTable): DebtObligation {
             val due = dueDate(period, debt.payDay)
             val monthly = debt.paymentOn(due ?: period.start)
-            val planned = rates.toBaseOrNull(monthly + debt.extraPayment) ?: Money.zero(Currency.BASE)
+            val earlyPlan = debt.earlyPlanFor(period)
+            val earlyPlanned = earlyPlan?.let { rates.toBaseOrNull(it.amount) } ?: Money.zero(Currency.BASE)
             val regularPlanned = rates.toBaseOrNull(monthly) ?: Money.zero(Currency.BASE)
+            val planned = regularPlanned + earlyPlanned
             val payments = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.debtId == debt.id }
             val regularPaid = payments.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE)
             val earlyPaid = payments.filter { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE)
@@ -203,7 +212,18 @@ data class MonthModel(
             val paidEnough = paidOff ||
                 regularPlanned.minor > 0L && regularPaid.wholeUnits >= regularPlanned.wholeUnits ||
                 regularPlanned.isZero && paid.minor > 0L
-            return DebtObligation(debt, due, if (closedHere) paid else planned, paid, status(paidEnough, due, today, period), regularPaid, earlyPaid, paidOff)
+            return DebtObligation(
+                debt = debt,
+                due = due,
+                planned = if (closedHere) paid else planned,
+                paid = paid,
+                status = status(paidEnough, due, today, period),
+                regularPaid = regularPaid,
+                earlyPaid = earlyPaid,
+                paidOff = paidOff,
+                earlyPlanned = if (closedHere) Money.zero(Currency.BASE) else earlyPlanned,
+                earlyFromCushion = earlyPlan?.fromCushion == true,
+            )
         }
 
         private fun fundState(

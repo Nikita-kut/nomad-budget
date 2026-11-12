@@ -121,6 +121,7 @@ interface DebtRepository {
     suspend fun close(id: String, reason: DebtCloseReason, on: LocalDate, writeOff: Boolean)
     suspend fun reopen(id: String)
     suspend fun changePayment(debtId: String, effectiveFrom: LocalDate, payment: Money, sourceTransactionId: String?)
+    suspend fun setEarlyPlan(debtId: String, periodStart: LocalDate, amount: Money, fromCushion: Boolean)
 }
 
 interface DraftRepository {

@@ -1,14 +1,17 @@
 package ru.nomadbudget.presentation.home
 
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.logic.MonthModel
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.DebtCloseReason
+import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.EarlyRepaymentMode
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.PaymentChange
 import ru.nomadbudget.domain.model.RateSource
+import ru.nomadbudget.domain.model.SalaryCycle
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.DebtRepository
 import ru.nomadbudget.domain.repository.TransactionRepository
@@ -29,19 +32,29 @@ internal class DebtActions(
         require(debt.name.isNotBlank()) { "Введи название кредита" }
         if (debt.id.isEmpty()) {
             val created = debtRepository.add(debt)
-            store.update { it.copy(debts = it.debts + created) }
+            val baseline = PaymentChange(created.openedOn ?: today, created.monthlyPayment)
+            debtRepository.changePayment(created.id, baseline.effectiveFrom, baseline.payment, null)
+            store.update { it.copy(debts = it.debts + created.copy(paymentChanges = listOf(baseline))) }
             store.message("Кредит добавлен")
         } else {
             val current = store.value.debts.firstOrNull { it.id == debt.id }
             val principalChanged = current == null || current.principalRemaining != debt.principalRemaining
             debtRepository.update(debt, principalChanged)
+            var saved = debt
+            if (current != null && current.monthlyPayment != debt.monthlyPayment) {
+                val history = ensureBaseline(current)
+                val from = nextDueDate(debt, today)
+                debtRepository.changePayment(debt.id, from, debt.monthlyPayment, null)
+                saved = debt.copy(paymentChanges = history + PaymentChange(from, debt.monthlyPayment))
+            }
+            val result = saved
             store.update { state ->
                 state.copy(
                     debts = state.debts.map { existing ->
                         when {
                             existing.id != debt.id -> existing
-                            principalChanged -> debt
-                            else -> debt.copy(principalRemaining = existing.principalRemaining)
+                            principalChanged -> result
+                            else -> result.copy(principalRemaining = existing.principalRemaining)
                         }
                     },
                 )
@@ -113,7 +126,7 @@ internal class DebtActions(
             val payment = requireNotNull(draft.newPayment) { "Впиши новый платёж из графика банка" }
             val from = requireNotNull(draft.effectiveFrom) { "Укажи, с какого платежа" }
             debtRepository.changePayment(debt.id, from, payment, saved.id.takeUnless { saved.pending })
-            val history = debt.paymentChanges.ifEmpty { listOf(PaymentChange(debt.openedOn ?: draft.date, debt.monthlyPayment)) }
+            val history = ensureBaseline(debt)
             updated = updated.copy(monthlyPayment = payment, paymentChanges = history + PaymentChange(from, payment))
         }
         if (draft.mode == EarlyRepaymentMode.PAY_OFF) {
@@ -130,6 +143,34 @@ internal class DebtActions(
                 EarlyRepaymentMode.REDUCE_TERM -> "Досрочка записана, осталось ${MoneyFormat.format(result.principalRemaining, false)}"
             },
         )
+    }
+
+    fun setEarlyPlan(debtId: String, amount: Money, fromCushion: Boolean) = runner.run("Не удалось сохранить досрочку в плане") {
+        val state = store.value
+        val debt = requireNotNull(state.debts.firstOrNull { it.id == debtId }) { "Кредит не найден" }
+        require(amount.currency == debt.currency && !amount.isNegative) { "Сумма в валюте кредита, не меньше нуля" }
+        val start = state.period.start
+        debtRepository.setEarlyPlan(debtId, start, amount, fromCushion)
+        store.update { s ->
+            s.copy(debts = s.debts.map { d ->
+                if (d.id != debtId) d else d.copy(earlyPlans = d.earlyPlans.filterNot { it.periodStart == start } + EarlyPlan(start, amount, fromCushion))
+            })
+        }
+        store.message(if (amount.isZero) "Досрочки в этом месяце нет" else "Досрочка в плане: ${MoneyFormat.format(amount, false)}" + if (fromCushion) " из подушки" else "")
+    }
+
+    private suspend fun ensureBaseline(debt: Debt): List<PaymentChange> {
+        if (debt.paymentChanges.isNotEmpty()) return debt.paymentChanges
+        val baseline = PaymentChange(debt.openedOn ?: today, debt.monthlyPayment)
+        debtRepository.changePayment(debt.id, baseline.effectiveFrom, baseline.payment, null)
+        return listOf(baseline)
+    }
+
+    private fun nextDueDate(debt: Debt, after: LocalDate): LocalDate {
+        val period = SalaryCycle.periodContaining(after, store.value.settings.periodStartDay)
+        val thisMonth = MonthModel.dueDate(period, debt.payDay)
+        return if (thisMonth != null && thisMonth > after) thisMonth
+        else MonthModel.dueDate(SalaryCycle.next(period, store.value.settings.periodStartDay), debt.payDay) ?: SalaryCycle.next(period, store.value.settings.periodStartDay).start
     }
 
     private fun lastPayment(state: HomeState, debtId: String): Transaction.Expense? =

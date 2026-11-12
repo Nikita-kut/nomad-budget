@@ -7,6 +7,8 @@ import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.PaymentChange
+import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
@@ -150,6 +152,34 @@ class MonthModelTest {
         assertTrue(later.debts.isEmpty())
         val notYetOpened = loan.copy(openedOn = LocalDate(2027, 1, 1))
         assertTrue(build(debts = listOf(notYetOpened)).debts.isEmpty())
+    }
+
+    @Test
+    fun earlyPlan_fromCushionStaysOutOfMonthEquation() {
+        val fromCushion = loan.copy(earlyPlans = listOf(EarlyPlan(period.start, Money.rub(5_000_000L), fromCushion = true)))
+        val m = build(debts = listOf(fromCushion))
+        assertEquals(Money.rub(2_000_000L), m.debtsPlanned)
+        assertEquals(Money.rub(5_000_000L), m.debtsFromCushion)
+        assertEquals(Money.rub(7_000_000L), m.debts.single().planned)
+        val fromLife = loan.copy(earlyPlans = listOf(EarlyPlan(period.start, Money.rub(5_000_000L), fromCushion = false)))
+        assertEquals(Money.rub(7_000_000L), build(debts = listOf(fromLife)).debtsPlanned)
+    }
+
+    @Test
+    fun earlyPlan_templateFromSettingsUnlessMonthOverrides() {
+        val withExtra = loan.copy(extraPayment = Money.rub(300_000L))
+        assertEquals(Money.rub(2_300_000L), build(debts = listOf(withExtra)).debtsPlanned)
+        val zeroThisMonth = withExtra.copy(earlyPlans = listOf(EarlyPlan(period.start, Money.rub(0L), fromCushion = false)))
+        assertEquals(Money.rub(2_000_000L), build(debts = listOf(zeroThisMonth)).debtsPlanned)
+    }
+
+    @Test
+    fun paymentChange_appliesFromItsDateOnly() {
+        val changed = loan.copy(
+            monthlyPayment = Money.rub(1_500_000L),
+            paymentChanges = listOf(PaymentChange(LocalDate(2026, 1, 1), Money.rub(2_000_000L)), PaymentChange(LocalDate(2026, 12, 22), Money.rub(1_500_000L))),
+        )
+        assertEquals(Money.rub(2_000_000L), build(debts = listOf(changed)).debtsPlanned)
     }
 
     @Test

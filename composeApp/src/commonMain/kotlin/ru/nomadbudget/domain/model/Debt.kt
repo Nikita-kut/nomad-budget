@@ -16,6 +16,8 @@ enum class DebtCloseReason(val id: String) {
 
 data class PaymentChange(val effectiveFrom: LocalDate, val payment: Money)
 
+data class EarlyPlan(val periodStart: LocalDate, val amount: Money, val fromCushion: Boolean, val isTemplate: Boolean = false)
+
 enum class EarlyRepaymentMode { REDUCE_PAYMENT, REDUCE_TERM, PAY_OFF }
 
 data class Debt(
@@ -33,6 +35,7 @@ data class Debt(
     val closeReason: DebtCloseReason? = null,
     val writtenOff: Money = Money.zero(currency),
     val paymentChanges: List<PaymentChange> = emptyList(),
+    val earlyPlans: List<EarlyPlan> = emptyList(),
 ) {
     init {
         require(principalRemaining.currency == currency && monthlyPayment.currency == currency && extraPayment.currency == currency) {
@@ -44,6 +47,10 @@ data class Debt(
 
     fun paymentOn(date: LocalDate): Money =
         paymentChanges.filter { it.effectiveFrom <= date }.maxByOrNull { it.effectiveFrom }?.payment ?: monthlyPayment
+
+    fun earlyPlanFor(period: Period): EarlyPlan? =
+        earlyPlans.firstOrNull { it.periodStart == period.start }
+            ?: extraPayment.takeIf { it.minor > 0L }?.let { EarlyPlan(period.start, it, fromCushion = false, isTemplate = true) }
 
     fun nextPaymentChange(after: LocalDate): PaymentChange? = paymentChanges.filter { it.effectiveFrom > after }.minByOrNull { it.effectiveFrom }
 

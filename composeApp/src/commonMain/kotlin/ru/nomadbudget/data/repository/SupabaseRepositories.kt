@@ -29,6 +29,7 @@ import ru.nomadbudget.data.dto.CategoryInsertDto
 import ru.nomadbudget.data.dto.CloseDebtParams
 import ru.nomadbudget.data.dto.CurrencyDto
 import ru.nomadbudget.data.dto.DebtDto
+import ru.nomadbudget.data.dto.DebtMonthPlanDto
 import ru.nomadbudget.data.dto.DebtPaymentChangeDto
 import ru.nomadbudget.data.dto.DebtPaymentChangeInsertDto
 import ru.nomadbudget.data.dto.EnsureCurrencyParams
@@ -249,9 +250,18 @@ class DebtRepositoryImpl(
         val changes = cache.throughOrDefault("debt_payment_changes", ListSerializer(DebtPaymentChangeDto.serializer()), emptyList()) {
             client.from(PAYMENT_CHANGES).select { order("effective_from", Order.ASCENDING) }.decodeList<DebtPaymentChangeDto>()
         }.groupBy { it.debtId }
+        val plans = cache.throughOrDefault("debt_month_plans", ListSerializer(DebtMonthPlanDto.serializer()), emptyList()) {
+            client.from(MONTH_PLANS).select().decodeList<DebtMonthPlanDto>()
+        }.groupBy { it.debtId }
         return cache.throughOrDefault("debts", ListSerializer(DebtDto.serializer()), emptyList()) {
             client.from(Tables.DEBTS).select { order("created_at", Order.ASCENDING) }.decodeList<DebtDto>()
-        }.mapNotNull { dto -> DebtMapper.toDomain(dto, byCode, changes[dto.id].orEmpty()) }
+        }.mapNotNull { dto -> DebtMapper.toDomain(dto, byCode, changes[dto.id].orEmpty(), plans[dto.id].orEmpty()) }
+    }
+
+    override suspend fun setEarlyPlan(debtId: String, periodStart: LocalDate, amount: Money, fromCushion: Boolean) {
+        client.from(MONTH_PLANS).upsert(DebtMonthPlanDto(debtId, periodStart.toString(), amount.minor, fromCushion)) {
+            onConflict = "debt_id,period_start"
+        }
     }
 
     override suspend fun changePayment(debtId: String, effectiveFrom: LocalDate, payment: Money, sourceTransactionId: String?) {
@@ -291,6 +301,7 @@ class DebtRepositoryImpl(
     private companion object {
         const val CLOSE_DEBT = "close_debt"
         const val PAYMENT_CHANGES = "debt_payment_changes"
+        const val MONTH_PLANS = "debt_month_plans"
         const val REOPEN_DEBT = "reopen_debt"
     }
 }

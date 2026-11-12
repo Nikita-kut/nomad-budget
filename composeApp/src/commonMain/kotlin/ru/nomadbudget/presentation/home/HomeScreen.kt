@@ -367,6 +367,7 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
                                     onCopyPlan = viewModel::copyPlanFromPreviousPeriod,
                                     onSetSavingsTarget = viewModel::setSavingsTarget,
                                     onSetFund = viewModel::setFund,
+                                    onSetEarlyPlan = viewModel::setEarlyPlan,
                                     onOpenDebts = { navController.navigate(DebtsRoute) },
                                     onOpenAccounts = { navController.switchTo(AccountsRoute) },
                                     twoColumns = twoColumns,
