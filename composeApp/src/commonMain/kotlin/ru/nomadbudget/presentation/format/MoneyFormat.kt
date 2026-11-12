@@ -23,8 +23,14 @@ object MoneyFormat {
     private const val THOUSAND = 1_000.0
     private const val THIN_SPACE = "\u00A0"
 
+    const val MASK = "•••"
+
+    private fun masked(currency: Currency): String =
+        if (currency.symbolBeforeAmount) "${currency.symbol}$MASK" else "$MASK$THIN_SPACE${currency.symbol}"
+
     fun format(money: Money, showFraction: Boolean = true): String {
         val currency = money.currency
+        if (AmountMask.hidden) return masked(currency)
         val absMinor = abs(money.minor)
         val major = absMinor / currency.minorFactor
         val fraction = absMinor % currency.minorFactor
@@ -43,6 +49,7 @@ object MoneyFormat {
     }
 
     fun formatSigned(money: Money, showFraction: Boolean = true): String = when {
+        AmountMask.hidden -> format(money, showFraction)
         money.minor > 0 -> "+" + format(money, showFraction)
         else -> format(money, showFraction)
     }
@@ -113,6 +120,7 @@ object MoneyFormat {
     }
 
     fun formatAxis(value: Double): String {
+        if (AmountMask.hidden) return MASK
         val sign = if (value < 0) MINUS else ""
         val absolute = abs(value)
         return sign + when {
@@ -123,6 +131,7 @@ object MoneyFormat {
     }
 
     fun formatWhole(value: Double): String {
+        if (AmountMask.hidden) return masked(Currency.BASE)
         val rounded = value.roundToLong()
         val sign = if (rounded < 0) MINUS else ""
         return "$sign${groupThousands(abs(rounded))}$THIN_SPACE${Currency.BASE.symbol}"
