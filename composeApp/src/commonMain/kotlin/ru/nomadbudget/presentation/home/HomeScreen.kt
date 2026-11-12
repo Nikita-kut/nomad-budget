@@ -1,16 +1,22 @@
 package ru.nomadbudget.presentation.home
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -18,75 +24,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.SideEffect
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import kotlinx.serialization.Serializable
-import org.koin.compose.getKoin
-import org.koin.compose.viewmodel.koinViewModel
-import ru.nomadbudget.di.DEVICE_STORE
-import ru.nomadbudget.domain.repository.KeyValueStore
-import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.presentation.capital.CapitalScreen
-import ru.nomadbudget.presentation.more.BalanceCheckForm
-import ru.nomadbudget.demo.DemoMode
-import ru.nomadbudget.domain.model.Currency
-import ru.nomadbudget.domain.model.RateSource
-import ru.nomadbudget.presentation.accounts.AccountsScreen
-import ru.nomadbudget.presentation.charts.ChartsScreen
-import ru.nomadbudget.presentation.components.Hints
-import ru.nomadbudget.presentation.components.InfoHint
-import ru.nomadbudget.presentation.entry.EntryScreen
-import ru.nomadbudget.presentation.exchange.ExchangeScreen
-import ru.nomadbudget.presentation.format.DateFormat
-import ru.nomadbudget.presentation.format.MoneyFormat
-import ru.nomadbudget.presentation.month.MonthScreen
-import ru.nomadbudget.presentation.more.BalanceCheckScreen
-import ru.nomadbudget.presentation.more.CategoriesScreen
-import ru.nomadbudget.presentation.more.DebtsScreen
-import ru.nomadbudget.presentation.more.MoreScreen
-import ru.nomadbudget.presentation.planning.PlanningScreen
-import ru.nomadbudget.presentation.rates.BankWatchCallbacks
-import ru.nomadbudget.presentation.rates.RatesScreen
-import ru.nomadbudget.presentation.theme.AppTheme
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarResult
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
-import androidx.compose.material3.FloatingActionButton
-import ru.nomadbudget.presentation.journal.JournalScreen
-import ru.nomadbudget.presentation.entry.EntryFormState
-import ru.nomadbudget.shareTextFile
-import ru.nomadbudget.domain.logic.CsvExporter
-import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -95,17 +53,60 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.foundation.isSystemInDarkTheme
-import ru.nomadbudget.presentation.theme.LocalThemeSettings
-import ru.nomadbudget.presentation.components.LoadingSkeleton
-import ru.nomadbudget.presentation.components.HeaderSkeleton
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import org.koin.compose.getKoin
+import org.koin.compose.viewmodel.koinViewModel
+import ru.nomadbudget.demo.DemoMode
+import ru.nomadbudget.di.DEVICE_STORE
+import ru.nomadbudget.domain.logic.CsvExporter
+import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.model.RateSource
+import ru.nomadbudget.domain.repository.KeyValueStore
+import ru.nomadbudget.presentation.accounts.AccountsScreen
+import ru.nomadbudget.presentation.capital.CapitalScreen
+import ru.nomadbudget.presentation.charts.ChartsScreen
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.HeaderSkeleton
+import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.InfoHint
+import ru.nomadbudget.presentation.components.LoadingSkeleton
 import ru.nomadbudget.presentation.components.Sidebar
-import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.SidebarEntry
 import ru.nomadbudget.presentation.components.SidebarGroup
+import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.entry.EntryFormState
+import ru.nomadbudget.presentation.entry.EntryScreen
+import ru.nomadbudget.presentation.exchange.ExchangeScreen
+import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.LocalAmountPrivacy
+import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.journal.JournalScreen
+import ru.nomadbudget.presentation.month.MonthScreen
+import ru.nomadbudget.presentation.more.BalanceCheckForm
+import ru.nomadbudget.presentation.more.BalanceCheckScreen
+import ru.nomadbudget.presentation.more.CategoriesScreen
+import ru.nomadbudget.presentation.more.DebtsScreen
+import ru.nomadbudget.presentation.more.MoreScreen
 import ru.nomadbudget.presentation.onboarding.OnboardingScreen
+import ru.nomadbudget.presentation.planning.PlanningScreen
+import ru.nomadbudget.presentation.rates.BankWatchCallbacks
+import ru.nomadbudget.presentation.rates.RatesScreen
 import ru.nomadbudget.presentation.settings.SettingsScreen
+import ru.nomadbudget.presentation.theme.AppTheme
+import ru.nomadbudget.presentation.theme.LocalThemeSettings
+import ru.nomadbudget.shareTextFile
 
 @Serializable
 object MonthRoute
@@ -580,6 +581,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     PeriodNavigator(state, viewModel, modifier = Modifier.weight(1f))
                     if (DemoMode.enabled) DemoBadge()
+                    PrivacyButton()
                     ThemeButton()
                     RefreshButton(state, viewModel)
                 }
@@ -644,9 +646,19 @@ private fun RatesWarning(state: HomeState) {
 @Composable
 private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        PrivacyButton()
         ThemeButton()
         RefreshButton(state, viewModel)
         PeriodNavigator(state, viewModel)
+    }
+}
+
+@Composable
+private fun PrivacyButton() {
+    val privacy = LocalAmountPrivacy.current
+    val hidden = privacy.hidden
+    IconButton(onClick = privacy::toggle) {
+        Icon(if (hidden) AppIcons.EyeOff else AppIcons.Eye, contentDescription = if (hidden) "Показать суммы" else "Скрыть суммы")
     }
 }
 

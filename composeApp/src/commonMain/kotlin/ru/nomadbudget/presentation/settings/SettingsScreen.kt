@@ -13,6 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ import ru.nomadbudget.presentation.components.TrashIconButton
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysText
 import ru.nomadbudget.presentation.components.startDayText
+import ru.nomadbudget.presentation.format.LocalAmountPrivacy
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.format.plural
@@ -127,6 +129,24 @@ fun SettingsScreen(
                     ThemeMode.entries.forEach { mode ->
                         FilterChip(selected = theme.mode == mode, onClick = { theme.set(mode) }, label = { Text(themeLabel(mode)) })
                     }
+                }
+            }
+        }
+
+        item { SectionTitle("Суммы на экране", hint = "кнопка с глазом в шапке") }
+        item {
+            val privacy = LocalAmountPrivacy.current
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(Ui.CardPadding), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Скрывать суммы при открытии")
+                        Text(
+                            "Приложение откроется с «•••» вместо сумм. Показать — кнопкой с глазом. Настройка этого устройства.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = privacy.hideOnStart, onCheckedChange = privacy::changeHideOnStart)
                 }
             }
         }
