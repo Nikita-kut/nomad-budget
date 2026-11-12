@@ -347,6 +347,14 @@ class HomeViewModel(
         settings.removeCurrency(code)
     }
 
+    fun changeBase(code: String) {
+        settings.changeBase(code)
+    }
+
+    fun revertBase() {
+        settings.revertBase()
+    }
+
     fun changePassword(newPassword: String) {
         settings.changePassword(newPassword)
     }

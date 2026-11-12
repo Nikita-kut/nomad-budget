@@ -103,6 +103,27 @@ internal class SettingsActions(
         store.message("Валюта $code убрана из списка")
     }
 
+    fun changeBase(code: String) = runner.run("Не удалось сменить базовую валюту", busy = true) {
+        val state = store.value
+        val normalized = code.trim().uppercase()
+        require(IsoCurrencies.find(normalized) != null) { "Неизвестный код валюты" }
+        require(normalized != state.base.code) { "$normalized уже базовая валюта" }
+        require(!state.offline) { "Без сети базовую валюту не сменить" }
+        require(state.pendingCount == 0) { "Сначала отправь операции из очереди: ${state.pendingCount}" }
+        userSettingsRepository.changeBase(normalized)
+        loader.load()
+        store.message("Базовая валюта — $normalized, суммы пересчитаны")
+    }
+
+    fun revertBase() = runner.run("Не удалось вернуть базовую валюту", busy = true) {
+        val state = store.value
+        require(!state.offline) { "Без сети откат недоступен" }
+        require(state.pendingCount == 0) { "Сначала отправь операции из очереди: ${state.pendingCount}" }
+        userSettingsRepository.revertBase()
+        loader.load()
+        store.message("Базовая валюта возвращена")
+    }
+
     fun changePassword(newPassword: String) = runner.run("Не удалось изменить пароль") {
         require(newPassword.length >= HomeDefaults.MIN_PASSWORD_LENGTH) { "Пароль не короче ${HomeDefaults.MIN_PASSWORD_LENGTH} символов" }
         auth.changePassword(newPassword)

@@ -477,6 +477,8 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onSaveCapital = viewModel::saveCapitalSettings,
                                     onAddCurrency = viewModel::addCurrency,
                                     onRemoveCurrency = viewModel::removeCurrency,
+                                    onChangeBase = viewModel::changeBase,
+                                    onRevertBase = viewModel::revertBase,
                                     onChangePassword = viewModel::changePassword,
                                     onSignOut = viewModel::signOut,
                                     onDeleteAccount = viewModel::deleteAccount,

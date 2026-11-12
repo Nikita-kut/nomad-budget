@@ -24,6 +24,7 @@ import ru.nomadbudget.domain.model.BankRateWatchDraft
 import ru.nomadbudget.domain.model.BankWatchData
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.BaseChange
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCloseReason
@@ -161,6 +162,12 @@ private class DemoUserSettingsRepository(private val db: DemoDatabase) : UserSet
         db.settings = settings
         return settings
     }
+
+    override suspend fun lastBaseChange(): BaseChange? = null
+
+    override suspend fun changeBase(code: String) = error("В демо базовую валюту не сменить")
+
+    override suspend fun revertBase() = error("В демо откатывать нечего")
 }
 
 private class DemoCurrencyRepository(private val db: DemoDatabase) : CurrencyRepository {

@@ -50,4 +50,12 @@ class TransactionMapperDebtTest {
         assertTrue("\"debt_principal\":null" in json, json)
         assertTrue("\"debt_early\":false" in json, json)
     }
+
+    @Test
+    fun insertDto_carriesBaseOfAmountBase_soServerCanRebase() {
+        val insert = TransactionMapper.toInsert(payment(null, early = false))
+        assertEquals("RUB", insert.baseCurrency)
+        val json = Json { encodeDefaults = false }.encodeToString(TransactionInsertDto.serializer(), insert)
+        assertTrue("\"base_currency\":\"RUB\"" in json, json)
+    }
 }

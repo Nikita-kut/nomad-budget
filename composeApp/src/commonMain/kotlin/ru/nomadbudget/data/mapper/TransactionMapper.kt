@@ -104,7 +104,9 @@ object TransactionMapper {
         }
     }
 
-    fun toInsert(tx: Transaction): TransactionInsertDto = when (tx) {
+    fun toInsert(tx: Transaction): TransactionInsertDto = insertOf(tx).copy(baseCurrency = tx.amountBase.currency.code)
+
+    private fun insertOf(tx: Transaction): TransactionInsertDto = when (tx) {
         is Transaction.Expense -> TransactionInsertDto(
             txDate = tx.date.toString(),
             type = TYPE_EXPENSE,

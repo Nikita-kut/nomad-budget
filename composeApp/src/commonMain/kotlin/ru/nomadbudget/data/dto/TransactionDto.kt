@@ -45,4 +45,5 @@ data class TransactionInsertDto(
     @SerialName("rate_source") val rateSource: String,
     @EncodeDefault @SerialName("debt_principal") val debtPrincipal: Long? = null,
     @EncodeDefault @SerialName("debt_early") val debtEarly: Boolean = false,
+    @SerialName("base_currency") val baseCurrency: String? = null,
 )
