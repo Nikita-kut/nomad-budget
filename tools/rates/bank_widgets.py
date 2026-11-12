@@ -18,6 +18,7 @@ TREND_EPSILON = 0.001
 MIN_SPAN_SHARE = 0.01
 MIN_LABEL_GAP = 26
 WIDTH = 300
+PLOT_RIGHT = 292
 WEEK_HEIGHT = 96
 DAY_HEIGHT = 80
 AXIS_GAP = 14
@@ -83,7 +84,7 @@ def _scaler(values: list[float], height: int):
     return y, lo, hi
 
 
-def _line(xy: list[tuple[float, float]], color: str, height: int, gradient: str) -> str:
+def _line(xy: list[tuple[float, float]], color: str, height: int, gradient: str, dot: bool = True) -> str:
     points = " ".join(f"{x:g},{y:g}" for x, y in xy)
     base = height - AXIS_GAP
     return (
@@ -91,7 +92,7 @@ def _line(xy: list[tuple[float, float]], color: str, height: int, gradient: str)
         f'<stop offset="1" stop-color="{color}" stop-opacity="0"/></linearGradient></defs>'
         f'<polygon points="{xy[0][0]:g},{base} {points} {xy[-1][0]:g},{base}" fill="url(#{gradient})"/>'
         f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="2.2" stroke-linejoin="round"/>'
-        f'<circle cx="{xy[-1][0]:g}" cy="{xy[-1][1]:g}" r="4" fill="{color}" stroke="var(--tg-theme-bg-color,#fff)" stroke-width="2"/>'
+        + (f'<circle cx="{xy[-1][0]:g}" cy="{xy[-1][1]:g}" r="4" fill="{color}" stroke="var(--tg-theme-bg-color,#fff)" stroke-width="2"/>' if dot else "")
     )
 
 
@@ -105,7 +106,7 @@ def week_chart(days: list[dict], low: float | None, high: float | None) -> str:
     if len(flat) < 2:
         return ""
     y, lo, hi = _scaler(flat + [v for v in (low, high) if v is not None], WEEK_HEIGHT)
-    step = WIDTH / (len(flat) - 1)
+    step = PLOT_RIGHT / (len(flat) - 1)
     parts = [f'<svg viewBox="0 0 {WIDTH} {WEEK_HEIGHT}">']
     if high is not None:
         parts.append(f'<rect x="0" y="{y(hi):g}" width="{WIDTH}" height="{max(y(high) - y(hi), 0):g}" fill="{UP}" opacity=".12"/>')
@@ -136,22 +137,27 @@ def day_chart(values: list[float], night_from: int | None, start_label: str, end
     if len(values) < 2:
         return ""
     if night_from is not None:
-        day_part = downsample(values[:night_from], MAX_LINE_POINTS - 8)
-        night_part = downsample(values[night_from:], 8)
+        day_part = downsample(values[:night_from], MAX_LINE_POINTS // 2)
+        night_part = downsample(values[night_from:], MAX_LINE_POINTS // 4)
         night_from = len(day_part)
         values = day_part + night_part
     else:
         values = downsample(values, MAX_LINE_POINTS)
     y, _, _ = _scaler(values, DAY_HEIGHT)
-    step = WIDTH / (len(values) - 1)
+    step = PLOT_RIGHT / (len(values) - 1)
     parts = [f'<svg viewBox="0 0 {WIDTH} {DAY_HEIGHT}">']
-    if night_from is not None and night_from < len(values):
-        x = round(max(night_from - 1, 0) * step, 1)
-        parts.append(f'<rect x="{x:g}" y="0" width="{WIDTH - x:g}" height="{DAY_HEIGHT - AXIS_GAP}" fill="{FLAT}" opacity=".14"/>')
     xy = [(round(i * step, 1), y(v)) for i, v in enumerate(values)]
-    parts.append(_line(xy, TRENDS[trend(values[0], values[-1])], DAY_HEIGHT, "d"))
+    color = TRENDS[trend(values[0], values[-1])]
+    if night_from is not None and 0 < night_from < len(values):
+        parts.append(_line(xy[:night_from], color, DAY_HEIGHT, "d", dot=False))
+        night = " ".join(f"{x:g},{y_:g}" for x, y_ in xy[night_from - 1:])
+        parts.append(f'<polyline points="{night}" fill="none" stroke="{FLAT}" stroke-width="2" stroke-dasharray="4 3"/>')
+        parts.append(f'<circle cx="{xy[-1][0]:g}" cy="{xy[-1][1]:g}" r="4" fill="{FLAT}" stroke="var(--tg-theme-bg-color,#fff)" stroke-width="2"/>')
+        parts.append(f'<text x="{PLOT_RIGHT}" y="{max(xy[-1][1] - 8, 10):g}" font-size="10" text-anchor="end" fill="var(--tg-theme-hint-color,#8b98a5)">ночной курс</text>')
+    else:
+        parts.append(_line(xy, color, DAY_HEIGHT, "d"))
     parts.append(_label(0, DAY_HEIGHT, start_label, "start"))
-    parts.append(_label(WIDTH, DAY_HEIGHT, end_label, "end"))
+    parts.append(_label(PLOT_RIGHT, DAY_HEIGHT, end_label, "end"))
     parts.append("</svg>")
     return "".join(parts)
 

@@ -539,6 +539,18 @@ def plural(count: int, one: str, few: str, many: str) -> str:
 
 # ---------- Сообщения ----------
 
+ZONE_LABELS = {"Europe/Moscow": "МСК"}
+
+
+def clock(local: dt.datetime) -> str:
+    zone = getattr(local.tzinfo, "key", None)
+    label = ZONE_LABELS.get(zone) if zone else None
+    if label is None:
+        offset = local.utcoffset()
+        label = "МСК" if offset == dt.timedelta(hours=3) else local.strftime("UTC%z")[:-2]
+    return f"{local.strftime('%H:%M')} {label}"
+
+
 def pair_title(watch: dict) -> str:
     return f"{watch['from_currency']} → {watch['to_currency']}"
 
@@ -612,14 +624,14 @@ def notes_line(notes: dict, unit: int) -> str | None:
 def message_digest(watch: dict, rate: float, cbr: float | None, event: dict, local: dt.datetime) -> str:
     code = event["verdict"]
     title = "утренняя сводка" if code in (VERDICT_NIGHT, VERDICT_WEEKEND) else "курс на начало торгов"
-    lines = [f"☀️ <b>{pair_title(watch)}</b> · {title}, {local.strftime('%H:%M')}"]
+    lines = [f"☀️ <b>{pair_title(watch)}</b> · {title}, {clock(local)}"]
     lines += rate_summary(watch, rate, cbr, code, event.get("assessment"), event.get("target"))
     lines.append(notes_line(event.get("notes") or {}, quote_unit(rate)))
     return "\n".join(line for line in lines if line)
 
 
 def message_now(watch: dict, rate: float, cbr: float | None, code: str, assessment: dict | None, local: dt.datetime) -> str:
-    lines = [f"💱 <b>{pair_title(watch)}</b> · курс на {local.strftime('%H:%M')}"]
+    lines = [f"💱 <b>{pair_title(watch)}</b> · курс на {clock(local)}"]
     lines += rate_summary(watch, rate, cbr, code, assessment, _float_or_none(watch.get("target")))
     return "\n".join(lines)
 
@@ -738,7 +750,7 @@ def widget_digest(watch: dict, rate: float, cbr: float | None, event: dict, loca
     view = base_view(watch, rate, cbr, charts.history)
     low, high = band(watch, charts.history) if comparable(assessment) else (None, None)
     view.update({
-        "subtitle": f"{'утренняя сводка' if closed else 'начало торгов'} · {local.strftime('%H:%M')}",
+        "subtitle": f"{'утренняя сводка' if closed else 'начало торгов'} · {clock(local)}",
         "verdict": code,
         "note": position_text(None, assessment) if comparable(assessment) else ("курс выходного дня" if code == VERDICT_WEEKEND else ""),
         "position": assessment["below"] if comparable(assessment) else None,
@@ -760,7 +772,7 @@ def widget_signal(watch: dict, rate: float, cbr: float | None, event: dict, loca
     morning = charts.first_trading_today()
     view.update({
         "headline": f"{icon} {headline}",
-        "subtitle": f"{pair_title(watch)} · {local.strftime('%H:%M')}",
+        "subtitle": f"{pair_title(watch)} · {clock(local)}",
         "verdict": kind,
         "note": position_text(kind, event["assessment"]),
         "position": event["assessment"]["below"],
@@ -775,7 +787,7 @@ def widget_now(watch: dict, rate: float, cbr: float | None, code: str, assessmen
     view = base_view(watch, rate, cbr, charts.history)
     notes = {VERDICT_NIGHT: "ночной курс", VERDICT_WEEKEND: "курс выходного дня"}
     view.update({
-        "subtitle": f"курс на {local.strftime('%H:%M')}",
+        "subtitle": f"курс на {clock(local)}",
         "verdict": code,
         "note": position_text(None, assessment) if comparable(assessment) else notes.get(code, ""),
         "position": None,
