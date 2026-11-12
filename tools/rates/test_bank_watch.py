@@ -34,6 +34,10 @@ def msk(hour: int, minute: int = 0, day: int = 10) -> dt.datetime:
     return dt.datetime(2026, 11, day, hour, minute, tzinfo=dt.timezone(dt.timedelta(hours=3))).astimezone(dt.timezone.utc)
 
 
+def json_literal(text: str) -> str:
+    return '"' + text.replace("\n", "\\n") + '"'
+
+
 def local(moment: dt.datetime) -> dt.datetime:
     return bw.local_now(moment, "Europe/Moscow")
 
@@ -104,37 +108,44 @@ class QuietHoursTest(unittest.TestCase):
 
 
 class TradingHoursTest(unittest.TestCase):
-    def test_weekdays_ten_to_nineteen_exchange_time(self):
-        self.assertFalse(bw.in_trading_hours(msk(9, 59), 10, 19, set()))
-        self.assertTrue(bw.in_trading_hours(msk(10), 10, 19, set()))
-        self.assertTrue(bw.in_trading_hours(msk(18, 59), 10, 19, set()))
-        self.assertFalse(bw.in_trading_hours(msk(19), 10, 19, set()))
-        self.assertFalse(bw.in_trading_hours(msk(2), 10, 19, set()))
+    def test_weekdays_by_minutes_of_exchange_time(self):
+        self.assertFalse(bw.in_trading_hours(msk(10, 15), 630, 1110, set()))
+        self.assertTrue(bw.in_trading_hours(msk(10, 30), 630, 1110, set()))
+        self.assertTrue(bw.in_trading_hours(msk(18, 15), 630, 1110, set()))
+        self.assertFalse(bw.in_trading_hours(msk(18, 30), 630, 1110, set()))
+        self.assertFalse(bw.in_trading_hours(msk(2), 630, 1110, set()))
 
     def test_no_trading_on_weekend_and_holidays(self):
-        self.assertFalse(bw.in_trading_hours(msk(12, day=SATURDAY), 10, 19, set()))
-        self.assertFalse(bw.in_trading_hours(msk(12, day=SUNDAY), 10, 19, set()))
-        self.assertTrue(bw.in_trading_hours(msk(12, day=4), 10, 19, set()))
-        self.assertFalse(bw.in_trading_hours(msk(12, day=4), 10, 19, HOLIDAYS))
+        self.assertFalse(bw.in_trading_hours(msk(12, day=SATURDAY), 600, 1140, set()))
+        self.assertFalse(bw.in_trading_hours(msk(12, day=SUNDAY), 600, 1140, set()))
+        self.assertTrue(bw.in_trading_hours(msk(12, day=4), 600, 1140, set()))
+        self.assertFalse(bw.in_trading_hours(msk(12, day=4), 600, 1140, HOLIDAYS))
         self.assertTrue(bw.is_trading_day(dt.date(2026, 11, 10), HOLIDAYS))
         self.assertFalse(bw.is_trading_day(dt.date(2026, 11, 4), HOLIDAYS))
         self.assertFalse(bw.is_trading_day(dt.date(2026, 11, 14), set()))
 
     def test_hours_come_from_watch_with_defaults(self):
-        self.assertEqual((10, 19), bw.trade_hours({}))
-        self.assertEqual((9, 24), bw.trade_hours({"trade_from": 9, "trade_to": 24}))
-        self.assertEqual((0, 19), bw.trade_hours({"trade_from": 0, "trade_to": None}))
-        self.assertTrue(bw.in_trading_hours(msk(9, 30), 9, 12, set()))
-        self.assertFalse(bw.in_trading_hours(msk(12), 9, 12, set()))
+        self.assertEqual((630, 1110), bw.trade_hours({}))
+        self.assertEqual((615, 1125), bw.trade_hours({"trade_open": 615, "trade_close": 1125, "trade_from": 9, "trade_to": 24}))
+        self.assertEqual((540, 1440), bw.trade_hours({"trade_from": 9, "trade_to": 24}))
+        self.assertEqual((0, 1110), bw.trade_hours({"trade_from": 0, "trade_to": None}))
+        self.assertTrue(bw.in_trading_hours(msk(9, 30), 540, 720, set()))
+        self.assertFalse(bw.in_trading_hours(msk(12), 540, 720, set()))
+
+    def test_digest_minute_prefers_new_column(self):
+        self.assertEqual(630, bw.digest_minute({"digest_at": 630, "digest_hour": 10}))
+        self.assertIsNone(bw.digest_minute({"digest_at": None, "digest_hour": 10}))
+        self.assertEqual(600, bw.digest_minute({"digest_hour": 10}))
+        self.assertIsNone(bw.digest_minute({}))
 
     def test_warmup_is_two_trading_days_of_checks(self):
-        self.assertEqual(72, bw.warmup_samples(10, 19))
-        self.assertEqual(32, bw.warmup_samples(10, 14))
+        self.assertEqual(72, bw.warmup_samples(600, 1140))
+        self.assertEqual(64, bw.warmup_samples(630, 1110))
 
     def test_pair_hours_cover_every_watch_of_the_pair(self):
         hours = bw.pair_trade_hours([watch(), watch(trade_from=9, trade_to=15), watch(to_currency="XTS", trade_from=11, trade_to=12)])
-        self.assertEqual((9, 19), hours[("tbank", "RUB", "USD")])
-        self.assertEqual((11, 12), hours[("tbank", "RUB", "XTS")])
+        self.assertEqual((540, 1140), hours[("tbank", "RUB", "USD")])
+        self.assertEqual((660, 720), hours[("tbank", "RUB", "XTS")])
 
     def test_snapshot_rows_carry_in_hours_flag(self):
         rates = {bw.CATEGORY_EXCHANGE: {"buy": 0.0115, "sell": 0.0122}, bw.CATEGORY_CARD: {"buy": 0.0118, "sell": None}}
@@ -304,7 +315,7 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(["digest"], self.kinds(events))
         self.assertEqual({"good": True, "best": 97.0, "bad": True, "worst": 3.0}, events[0]["notes"])
         self.assertEqual({}, state["notes"])
-        text = bw.message_digest(w, 50.0, None, None, events[0], local(msk(10, 0, day=11)))
+        text = bw.message_digest(w, 50.0, None, events[0], local(msk(10, 0, day=11)))
         self.assertIn("Вне окна отправки: было выгодно, до 97,00; было невыгодно, до 3,00", text)
 
     def test_without_digest_nothing_is_kept_for_later(self):
@@ -353,7 +364,8 @@ class EvaluateTest(unittest.TestCase):
         state, events = self.step(w, 95.0, {}, msk(10, day=SATURDAY))
         self.assertIsNone(events[0]["assessment"])
         self.assertIsNone(state["window"])
-        text = bw.message_digest(w, 95.0, 96.0, 100.0, events[0], local(msk(10, day=SATURDAY)))
+        text = bw.message_digest(w, 95.0, 100.0, events[0], local(msk(10, day=SATURDAY)))
+        self.assertIn("☀️ <b>RUB → USD</b> · утренняя сводка, 10:00", text)
         self.assertIn("биржа закрыта, курс выходного дня", text)
         self.assertNotIn("замеров", text)
         self.assertIn(f"Обмен: 1{NBSP}RUB = 95,00{NBSP}USD", text)
@@ -366,8 +378,9 @@ class EvaluateTest(unittest.TestCase):
         state, events = self.step(w, 1.0, state, msk(11, 15), history=short)
         self.assertEqual([], events)
         _, events = self.step(w, 95.0, {}, msk(10), history=short)
-        text = bw.message_digest(w, 95.0, None, None, events[0], local(msk(10)))
-        self.assertIn(f"копим историю: 12{NBSP}замеров", text)
+        text = bw.message_digest(w, 95.0, None, events[0], local(msk(10)))
+        self.assertIn("мало данных для сравнения", text)
+        self.assertNotIn("копим", text)
         self.assertNotIn("замеров недели", text)
 
     def test_target_sends_on_every_change_while_above_and_stops_below(self):
@@ -405,7 +418,7 @@ class EvaluateTest(unittest.TestCase):
         state, events = self.step(w, 51.0, state, msk(10, 0, day=11))
         self.assertEqual(["digest"], self.kinds(events))
         self.assertEqual(40.0, events[0]["target"])
-        text = bw.message_digest(w, 51.0, None, None, events[0], local(msk(10, 0, day=11)))
+        text = bw.message_digest(w, 51.0, None, events[0], local(msk(10, 0, day=11)))
         self.assertIn("Вне окна отправки: выше цели было: макс 52,00", text)
         self.assertIn("Выше цели 40,00", text)
         self.assertEqual({}, state["notes"])
@@ -478,20 +491,19 @@ class MessageTest(unittest.TestCase):
         event = {"kind": "good", "repeat": False, "previous": None, "assessment": bw.assess(watch(**overrides), rate, None, SMALL_WEEK)}
         return event
 
-    def test_good_message_has_rate_position_card_and_cbr(self):
+    def test_good_message_has_rate_position_and_cbr(self):
         w = watch()
-        text = bw.message_signal(w, 0.0121, 0.01225, 0.0125, self.good(0.0121))
+        text = bw.message_signal(w, 0.0121, 0.0125, self.good(0.0121))
         lines = text.split("\n")
         self.assertEqual("🟢 <b>RUB → USD</b>: выгодно менять", lines[0])
         self.assertEqual(f"100{NBSP}RUB = 1,21{NBSP}USD · лучше 92{NBSP}% замеров недели", lines[1])
-        self.assertEqual(f"Картой выгоднее на 1,2{NBSP}%", lines[2])
-        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[3])
-        self.assertEqual(4, len(lines))
+        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[2])
+        self.assertEqual(3, len(lines))
 
     def test_repeat_message_names_previous_rate(self):
         event = self.good(0.0122)
         event.update(repeat=True, previous=0.0121)
-        text = bw.message_signal(watch(), 0.0122, None, None, event)
+        text = bw.message_signal(watch(), 0.0122, None, event)
         self.assertIn("стало ещё выгоднее, было 1,21", text)
         self.assertNotIn("Картой", text)
         self.assertIn("ЦБ: курса нет", text)
@@ -503,35 +515,29 @@ class MessageTest(unittest.TestCase):
 
     def test_bad_message(self):
         assessment = bw.assess(watch(), 0.0101, None, SMALL_WEEK)
-        text = bw.message_signal(watch(), 0.0101, 0.0100, None, {"kind": "bad", "repeat": False, "previous": None, "assessment": assessment})
+        text = bw.message_signal(watch(), 0.0101, None, {"kind": "bad", "repeat": False, "previous": None, "assessment": assessment})
         self.assertTrue(text.startswith("🔴 <b>RUB → USD</b>: сейчас не меняй"))
         self.assertIn(f"хуже 88{NBSP}% замеров недели", text)
-        self.assertIn(f"Картой хуже на 1{NBSP}%", text)
-        text = bw.message_signal(watch(), 0.0100, None, None, {"kind": "bad", "repeat": True, "previous": 0.0101, "assessment": assessment})
+        self.assertNotIn("Картой", text)
+        text = bw.message_signal(watch(), 0.0100, None, {"kind": "bad", "repeat": True, "previous": 0.0101, "assessment": assessment})
         self.assertIn("стало ещё хуже, было 1,01", text)
-
-    def test_card_line(self):
-        self.assertEqual("Картой так же", bw.card_line(1.0, 1.0002))
-        self.assertIsNone(bw.card_line(1.0, None))
-        self.assertEqual(f"Картой хуже на 2,5{NBSP}%", bw.card_line(1.0, 0.975))
 
     def test_digest_is_one_message_with_verdict_and_position(self):
         w = watch(digest_hour=10)
         event = {"kind": "digest", "verdict": "good", "assessment": bw.assess(w, 0.0121, 0.0125, SMALL_WEEK), "notes": {}}
-        lines = bw.message_digest(w, 0.0121, 0.0120, 0.0125, event, local(msk(10))).split("\n")
-        self.assertEqual("☀️ <b>RUB → USD</b>, 10:00 · выгодно", lines[0])
-        self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD", lines[1])
-        self.assertEqual(f"Картой хуже на 0,8{NBSP}%", lines[2])
-        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[3])
-        self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[4])
-        self.assertEqual(5, len(lines))
+        lines = bw.message_digest(w, 0.0121, 0.0125, event, local(msk(10, 30))).split("\n")
+        self.assertEqual("☀️ <b>RUB → USD</b> · курс на начало торгов, 10:30", lines[0])
+        self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD · выгодно", lines[1])
+        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[2])
+        self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[3])
+        self.assertEqual(4, len(lines))
 
     def test_digest_verdict_texts(self):
         w = watch(digest_hour=10)
         assessment = bw.assess(w, 0.0115, None, SMALL_WEEK)
         for code, expected in (("normal", "· обычно"), ("bad", "· не меняй"), ("night", "· биржа закрыта, ночной курс")):
             event = {"kind": "digest", "verdict": code, "assessment": assessment if code != "night" else None, "notes": {}}
-            self.assertIn(expected, bw.message_digest(w, 0.0115, None, None, event, local(msk(10))))
+            self.assertIn(expected, bw.message_digest(w, 0.0115, None, event, local(msk(10))))
 
     def test_notes_line(self):
         self.assertIsNone(bw.notes_line({}, 1))
@@ -550,6 +556,35 @@ class MessageTest(unittest.TestCase):
     def test_subscribe_text_names_pair(self):
         self.assertIn("RUB → USD", bw.subscribe_text(watch()))
         self.assertIn("обмен в приложении", bw.subscribe_text(watch()))
+        self.assertIn("/rate", bw.subscribe_text(watch()))
+
+    def test_now_message_shows_rate_verdict_and_position(self):
+        w = watch(target=0.012)
+        assessment = bw.assess(w, 0.0121, 0.0125, SMALL_WEEK)
+        lines = bw.message_now(w, 0.0121, 0.0125, "good", assessment, local(msk(13, 26))).split("\n")
+        self.assertEqual("💱 <b>RUB → USD</b> · курс на 13:26", lines[0])
+        self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD · выгодно", lines[1])
+        self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[3])
+        self.assertEqual("Выше цели 1,20", lines[4])
+        night = bw.message_now(watch(), 0.0115, None, "night", None, local(msk(22)))
+        self.assertIn("биржа закрыта, ночной курс", night)
+        self.assertNotIn("замеров", night)
+
+    def test_digest_waits_for_digest_minute_and_sends_once(self):
+        w = watch(digest_at=630, trade_open=630, trade_close=1110)
+        self.assertEqual([], EvaluateTest.step(None, w, 95.0, {}, msk(10, 15))[1])
+        state, events = EvaluateTest.step(None, w, 95.0, {}, msk(10, 30))
+        self.assertEqual(["digest"], [e["kind"] for e in events])
+        self.assertEqual([], EvaluateTest.step(None, w, 95.0, state, msk(10, 45))[1])
+        late = EvaluateTest.step(None, w, 95.0, {}, msk(11, 15))[1]
+        self.assertEqual(["digest"], [e["kind"] for e in late])
+        self.assertEqual([], [e for e in EvaluateTest.step(None, w, 95.0, {}, msk(11, 30))[1] if e["kind"] == "digest"])
+
+    def test_webhook_texts_match_worker(self):
+        source = (Path(__file__).resolve().parents[2] / "supabase" / "functions" / "telegram-webhook" / "index.ts").read_text()
+        for text in (bw.HELP_TEXT, bw.STOP_TEXT, bw.NOT_SUBSCRIBED_TEXT):
+            self.assertIn(json_literal(text), source)
+        self.assertIn("Курс сейчас — /rate, отписаться — /stop", source)
 
 
 class RetryTest(unittest.TestCase):
@@ -619,6 +654,56 @@ class FakeDb:
 class BrokenTelegram:
     def call(self, method, **params):
         raise bw.urllib.error.URLError(ConnectionResetError(104, "reset"))
+
+
+class RecordingTelegram:
+    def __init__(self):
+        self.calls = []
+
+    def call(self, method, **params):
+        self.calls.append(method)
+        return {"username": "bot"} if method == "getMe" else True
+
+
+class BotInfoDb(FakeDb):
+    def __init__(self, info):
+        super().__init__()
+        self.info = info
+        self.rows = []
+
+    def select(self, table, query=""):
+        return [self.info] if table == "bot_info" else []
+
+    def upsert(self, table, rows, prefer=""):
+        self.rows.append(rows)
+
+
+class WebhookTest(unittest.TestCase):
+    WEBHOOK = ("https://example.supabase.co/functions/v1/telegram-webhook", "secret")
+
+    def test_webhook_mode_sets_webhook_and_commands_once(self):
+        tg = RecordingTelegram()
+        db = BotInfoDb({"id": 1})
+        bw.sync_bot(db, tg, at(9), self.WEBHOOK)
+        self.assertEqual(["getMe", "setWebhook", "setMyCommands"], tg.calls)
+        signature = db.rows[0]["webhook_signature"]
+        tg = RecordingTelegram()
+        bw.sync_bot(BotInfoDb({"id": 1, "webhook_signature": signature}), tg, at(9, 15), self.WEBHOOK)
+        self.assertEqual(["getMe"], tg.calls)
+
+    def test_new_secret_resets_webhook(self):
+        old = bw.webhook_signature(self.WEBHOOK[0], "old")
+        tg = RecordingTelegram()
+        bw.sync_bot(BotInfoDb({"id": 1, "webhook_signature": old}), tg, at(9), self.WEBHOOK)
+        self.assertIn("setWebhook", tg.calls)
+
+    def test_polling_mode_reads_updates(self):
+        tg = RecordingTelegram()
+        tg.call = lambda method, **params: (tg.calls.append(method), [] if method == "getUpdates" else {"username": "bot"})[1]
+        db = BotInfoDb({"id": 1, "update_offset": 5})
+        bw.sync_bot(db, tg, at(9))
+        self.assertEqual(["getMe", "getUpdates"], tg.calls)
+        self.assertEqual(5, db.rows[0]["update_offset"])
 
 
 class RunTest(unittest.TestCase):

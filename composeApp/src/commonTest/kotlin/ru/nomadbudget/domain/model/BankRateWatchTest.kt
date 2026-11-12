@@ -9,17 +9,17 @@ import kotlin.test.assertTrue
 class BankRateWatchTest {
 
     private fun watch(
-        digestHour: Int? = 10,
+        digestAt: Int? = 630,
         quietFrom: Int = 18,
         quietTo: Int = 10,
         goodPercentile: Int = 85,
         improvePercent: Double = 0.5,
-        tradeFrom: Int = 10,
-        tradeTo: Int = 19,
+        tradeOpen: Int = 630,
+        tradeClose: Int = 1110,
     ) = BankRateWatch(
         id = "w", provider = "tbank", from = Currency.RUB, to = Currency.USD, category = BankRateCategory.EXCHANGE,
-        target = null, goodPercentile = goodPercentile, improvePercent = improvePercent, tradeFrom = tradeFrom, tradeTo = tradeTo,
-        digestHour = digestHour, quietFrom = quietFrom, quietTo = quietTo,
+        target = null, goodPercentile = goodPercentile, improvePercent = improvePercent, tradeOpen = tradeOpen, tradeClose = tradeClose,
+        digestAt = digestAt, quietFrom = quietFrom, quietTo = quietTo,
         timezone = BankRateWatch.DEFAULT_TIMEZONE, enabled = true, linkCode = "code",
     )
 
@@ -30,27 +30,28 @@ class BankRateWatchTest {
         assertEquals(18, w.sendTo)
         assertEquals("Europe/Moscow", w.timezone)
         assertFalse(w.sendsAllDay)
-        assertTrue(watch(digestHour = null, quietFrom = 9, quietTo = 9).sendsAllDay)
+        assertTrue(watch(digestAt = null, quietFrom = 9, quietTo = 9).sendsAllDay)
     }
 
     @Test
     fun inSendWindow_matchesWorkerQuietHours() {
-        assertTrue(BankRateWatch.inSendWindow(10, quietFrom = 18, quietTo = 10))
-        assertTrue(BankRateWatch.inSendWindow(17, quietFrom = 18, quietTo = 10))
-        assertFalse(BankRateWatch.inSendWindow(18, quietFrom = 18, quietTo = 10))
-        assertFalse(BankRateWatch.inSendWindow(9, quietFrom = 18, quietTo = 10))
+        assertTrue(BankRateWatch.inSendWindow(600, quietFrom = 18, quietTo = 10))
+        assertTrue(BankRateWatch.inSendWindow(1079, quietFrom = 18, quietTo = 10))
+        assertFalse(BankRateWatch.inSendWindow(1080, quietFrom = 18, quietTo = 10))
+        assertFalse(BankRateWatch.inSendWindow(599, quietFrom = 18, quietTo = 10))
         assertFalse(BankRateWatch.inSendWindow(0, quietFrom = 18, quietTo = 10))
-        assertTrue(BankRateWatch.inSendWindow(23, quietFrom = 8, quietTo = 22))
-        assertFalse(BankRateWatch.inSendWindow(12, quietFrom = 8, quietTo = 22))
-        assertTrue(BankRateWatch.inSendWindow(3, quietFrom = 9, quietTo = 9))
+        assertTrue(BankRateWatch.inSendWindow(1380, quietFrom = 8, quietTo = 22))
+        assertFalse(BankRateWatch.inSendWindow(720, quietFrom = 8, quietTo = 22))
+        assertTrue(BankRateWatch.inSendWindow(180, quietFrom = 9, quietTo = 9))
     }
 
     @Test
-    fun digestHour_mustBeInsideSendWindow() {
-        watch(digestHour = 17)
-        assertFailsWith<IllegalArgumentException> { watch(digestHour = 9) }
-        assertFailsWith<IllegalArgumentException> { watch(digestHour = 18) }
-        watch(digestHour = null)
+    fun digestAt_mustBeInsideSendWindow() {
+        watch(digestAt = 1065)
+        assertFailsWith<IllegalArgumentException> { watch(digestAt = 585) }
+        assertFailsWith<IllegalArgumentException> { watch(digestAt = 1080) }
+        assertFailsWith<IllegalArgumentException> { watch(digestAt = 1440) }
+        watch(digestAt = null)
     }
 
     @Test
@@ -58,19 +59,27 @@ class BankRateWatchTest {
         val draft = BankRateWatchDraft(Currency.RUB, Currency.USD)
         assertEquals(85, draft.goodPercentile)
         assertEquals(0.5, draft.improvePercent)
-        assertEquals(10, draft.tradeFrom)
-        assertEquals(19, draft.tradeTo)
+        assertEquals(630, draft.tradeOpen)
+        assertEquals(1110, draft.tradeClose)
+        assertEquals(630, draft.digestAt)
         assertEquals(null, draft.target)
     }
 
     @Test
     fun tradeHours_startBeforeEndWithinDay() {
-        watch(tradeFrom = 0, tradeTo = 24)
-        assertTrue(BankRateWatch.validTradeHours(10, 19))
-        assertFalse(BankRateWatch.validTradeHours(19, 19))
-        assertFalse(BankRateWatch.validTradeHours(20, 10))
-        assertFalse(BankRateWatch.validTradeHours(10, 25))
-        assertFailsWith<IllegalArgumentException> { watch(tradeFrom = 19, tradeTo = 10) }
+        watch(tradeOpen = 0, tradeClose = 1440)
+        assertTrue(BankRateWatch.validTradeMinutes(630, 1110))
+        assertFalse(BankRateWatch.validTradeMinutes(1110, 1110))
+        assertFalse(BankRateWatch.validTradeMinutes(1200, 600))
+        assertFalse(BankRateWatch.validTradeMinutes(600, 1441))
+        assertFailsWith<IllegalArgumentException> { watch(tradeOpen = 1110, tradeClose = 630) }
+    }
+
+    @Test
+    fun legacyHours_coverTheMinuteWindow() {
+        assertEquals(10, BankRateWatch.legacyHour(630))
+        assertEquals(19, BankRateWatch.legacyEndHour(1110))
+        assertEquals(18, BankRateWatch.legacyEndHour(1080))
     }
 
     @Test

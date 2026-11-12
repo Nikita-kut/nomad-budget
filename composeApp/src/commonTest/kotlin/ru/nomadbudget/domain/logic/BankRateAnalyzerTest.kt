@@ -64,9 +64,10 @@ class BankRateAnalyzerTest {
 
     @Test
     fun verdict_warmupUntilTwoTradingDaysOfChecks() {
-        assertEquals(72, BankRateAnalyzer.warmupSamples(10, 19))
-        assertEquals(RateVerdict.WARMUP, verdict(99.0, week(71)))
-        assertEquals(RateVerdict.GOOD, verdict(99.0, week(72)))
+        assertEquals(72, BankRateAnalyzer.warmupSamples(600, 1140))
+        assertEquals(64, BankRateAnalyzer.warmupSamples(630, 1110))
+        assertEquals(RateVerdict.WARMUP, verdict(99.0, week(63)))
+        assertEquals(RateVerdict.GOOD, verdict(99.0, week(64)))
         assertEquals(71, BankRateAnalyzer.assess(snapshot(99.0, 0.hours), week(71), now).samples)
     }
 
@@ -87,11 +88,11 @@ class BankRateAnalyzerTest {
     }
 
     @Test
-    fun inStandardHours_weekdaysTenToNineteenExchangeTime() {
-        assertTrue(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T07:00:00Z")))
-        assertFalse(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T06:59:00Z")))
-        assertTrue(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T15:59:00Z")))
-        assertFalse(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T16:00:00Z")))
+    fun inStandardHours_weekdaysHalfPastTenToHalfPastSixExchangeTime() {
+        assertTrue(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T07:30:00Z")))
+        assertFalse(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T07:15:00Z")))
+        assertTrue(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T15:29:00Z")))
+        assertFalse(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-10T15:30:00Z")))
         assertFalse(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-14T09:00:00Z")))
         assertFalse(BankRateAnalyzer.inStandardHours(Instant.parse("2026-11-15T09:00:00Z")))
     }

@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 import ssl
@@ -34,6 +35,7 @@ PROVIDER_CA = HERE / "ca" / "russian_trusted.pem"
 TBANK_URL = "https://api.tinkoff.ru/v1/currency_rates"
 CBR_URL = "https://www.cbr.ru/scripts/XML_daily.asp"
 TELEGRAM_URL = "https://api.telegram.org/bot{token}/{method}"
+WEBHOOK_PATH = "/functions/v1/telegram-webhook"
 
 CATEGORY_EXCHANGE = "DebitCardsTransfers"
 CATEGORY_CARD = "DebitCardsOperations"
@@ -44,12 +46,13 @@ DEFAULT_TIMEZONE = "Europe/Moscow"
 DEFAULT_QUIET_FROM = 18
 DEFAULT_QUIET_TO = 10
 EXCHANGE_TIMEZONE = "Europe/Moscow"
-DEFAULT_TRADE_FROM = 10
-DEFAULT_TRADE_TO = 19
+DEFAULT_TRADE_OPEN = 10 * 60 + 30
+DEFAULT_TRADE_CLOSE = 18 * 60 + 30
+DIGEST_GRACE_MINUTES = 60
+MINUTES_PER_CHECK = 15
 DEFAULT_GOOD_PERCENTILE = 85
 DEFAULT_IMPROVE_PERCENT = 0.5
 WARMUP_TRADING_DAYS = 2
-CHECKS_PER_HOUR = 4
 RETENTION_DAYS = 180
 HISTORY_DAYS = 7
 CARD_SANITY_RATIO = 0.5
@@ -66,7 +69,7 @@ VERDICT_TEXTS = {
     KIND_GOOD: "выгодно",
     KIND_BAD: "не меняй",
     VERDICT_NORMAL: "обычно",
-    VERDICT_WARMUP: "копим историю",
+    VERDICT_WARMUP: "мало данных для сравнения",
     VERDICT_NIGHT: "биржа закрыта, ночной курс",
     VERDICT_WEEKEND: "биржа закрыта, курс выходного дня",
 }
@@ -264,22 +267,38 @@ def is_trading_day(day: dt.date, holidays: set[str]) -> bool:
     return day.weekday() < 5 and day.isoformat() not in holidays
 
 
-def in_trading_hours(now_utc: dt.datetime, trade_from: int, trade_to: int, holidays: set[str]) -> bool:
+def minute_of_day(moment: dt.datetime) -> int:
+    return moment.hour * 60 + moment.minute
+
+
+def in_trading_hours(now_utc: dt.datetime, trade_open: int, trade_close: int, holidays: set[str]) -> bool:
     moment = exchange_now(now_utc)
-    return is_trading_day(moment.date(), holidays) and trade_from <= moment.hour < trade_to
+    return is_trading_day(moment.date(), holidays) and trade_open <= minute_of_day(moment) < trade_close
+
+
+def _minutes(watch: dict, column: str, legacy: str, default: int | None) -> int | None:
+    if watch.get(column) is not None:
+        return int(watch[column])
+    if watch.get(legacy) is not None:
+        return int(watch[legacy]) * 60
+    return default
 
 
 def trade_hours(watch: dict) -> tuple[int, int]:
-    trade_from = watch.get("trade_from")
-    trade_to = watch.get("trade_to")
     return (
-        DEFAULT_TRADE_FROM if trade_from is None else int(trade_from),
-        DEFAULT_TRADE_TO if trade_to is None else int(trade_to),
+        _minutes(watch, "trade_open", "trade_from", DEFAULT_TRADE_OPEN),
+        _minutes(watch, "trade_close", "trade_to", DEFAULT_TRADE_CLOSE),
     )
 
 
-def warmup_samples(trade_from: int, trade_to: int) -> int:
-    return WARMUP_TRADING_DAYS * max(trade_to - trade_from, 1) * CHECKS_PER_HOUR
+def digest_minute(watch: dict) -> int | None:
+    if "digest_at" in watch:
+        return None if watch["digest_at"] is None else int(watch["digest_at"])
+    return _minutes(watch, "digest_at", "digest_hour", None)
+
+
+def warmup_samples(trade_open: int, trade_close: int) -> int:
+    return WARMUP_TRADING_DAYS * max((trade_close - trade_open) // MINUTES_PER_CHECK, 1)
 
 
 # ---------- Оценка курса ----------
@@ -353,12 +372,12 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
     trade_from, trade_to = trade_hours(watch)
     trading = in_trading_hours(now_utc, trade_from, trade_to, holidays)
     improve_percent = float(watch.get("improve_percent") or DEFAULT_IMPROVE_PERCENT)
-    digest_hour = watch.get("digest_hour")
+    digest_at = digest_minute(watch)
 
     assessment = assess(watch, rate, cbr, history) if trading else None
     kind = assessment["kind"] if assessment else None
     window = dict(state.get("window") or {}) or None
-    notes = dict(state.get("notes") or {}) if digest_hour is not None else {}
+    notes = dict(state.get("notes") or {}) if digest_at is not None else {}
     signal = None
 
     target = _float_or_none(watch.get("target"))
@@ -368,7 +387,7 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
     if above_target and rate_changed(rate, last):
         if not quiet:
             target_event = {"kind": "target", "target": target, "previous": last}
-        elif digest_hour is not None:
+        elif digest_at is not None:
             notes["target_max"] = max(rate, notes.get("target_max", rate))
 
     if kind is None:
@@ -379,7 +398,7 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
         sent = _float_or_none(window.get("sent"))
         improved = sent is not None and is_improved(kind, rate, sent, improve_percent)
         if quiet:
-            if digest_hour is not None:
+            if digest_at is not None:
                 notes[kind] = True
                 if kind == KIND_GOOD:
                     notes["best"] = max(rate, notes.get("best", rate))
@@ -398,7 +417,8 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
     events: list[dict] = []
     today = local.date().isoformat()
     last_digest = state.get("last_digest_date")
-    if digest_hour is not None and not quiet and local.hour == int(digest_hour) and last_digest != today:
+    due = digest_at is not None and digest_at <= minute_of_day(local) < digest_at + DIGEST_GRACE_MINUTES
+    if due and not quiet and last_digest != today:
         events.append({
             "kind": "digest", "verdict": verdict(assessment, exchange_now(now_utc).date(), holidays), "assessment": assessment,
             "notes": notes, "target": target if above_target else None,
@@ -525,15 +545,6 @@ def cbr_line(from_code: str, to_code: str, bank: float, cbr: float | None, unit:
     return f"ЦБ: {rate_text(from_code, to_code, cbr, unit)} · разница {format_percent(spread(bank, cbr) or 0.0)}"
 
 
-def card_line(rate: float, card: float | None) -> str | None:
-    if card is None or rate <= 0:
-        return None
-    difference = card / rate - 1.0
-    if int(round(difference * 1000)) == 0:
-        return "Картой так же"
-    word = "выгоднее" if difference > 0 else "хуже"
-    return f"Картой {word} на {format_percent_abs(difference)}"
-
 
 def position_text(kind: str | None, assessment: dict) -> str:
     if kind == KIND_BAD:
@@ -541,7 +552,7 @@ def position_text(kind: str | None, assessment: dict) -> str:
     return f"лучше {format_share(assessment['below'])} замеров недели"
 
 
-def message_signal(watch: dict, rate: float, card: float | None, cbr: float | None, event: dict) -> str:
+def message_signal(watch: dict, rate: float, cbr: float | None, event: dict) -> str:
     f, t = watch["from_currency"], watch["to_currency"]
     unit = quote_unit(rate)
     kind = event["kind"]
@@ -555,7 +566,6 @@ def message_signal(watch: dict, rate: float, card: float | None, cbr: float | No
     lines = [
         f"{icon} <b>{pair_title(watch)}</b>: {headline}",
         f"{rate_text(f, t, rate, unit)} · {position_text(kind, event['assessment'])}",
-        card_line(rate, card),
         cbr_line(f, t, rate, cbr, unit),
     ]
     return "\n".join(line for line in lines if line)
@@ -569,10 +579,19 @@ def message_target(rate: float, target: float, previous: float | None) -> str:
     return f"🎯 Курс выше цели {goal}: {format_precise(rate * unit)}{was}"
 
 
-def verdict_text(code: str, assessment: dict | None) -> str:
-    if code == VERDICT_WARMUP and assessment is not None:
-        return f"копим историю: {plural(assessment['samples'], 'замер', 'замера', 'замеров')}"
+def verdict_text(code: str) -> str:
     return VERDICT_TEXTS[code]
+
+
+def rate_summary(watch: dict, rate: float, cbr: float | None, code: str, assessment: dict | None, target: float | None) -> list[str]:
+    f, t = watch["from_currency"], watch["to_currency"]
+    unit = quote_unit(rate)
+    lines = [f"Обмен: {rate_text(f, t, rate, unit)} · {verdict_text(code)}", cbr_line(f, t, rate, cbr, unit)]
+    if assessment is not None and not assessment["warmup"]:
+        lines.append(f"Лучше {format_share(assessment['below'])} замеров недели")
+    if target is not None and rate >= target:
+        lines.append(f"Выше цели {format_quote(target * unit)}")
+    return lines
 
 
 def notes_line(notes: dict, unit: int) -> str | None:
@@ -586,31 +605,36 @@ def notes_line(notes: dict, unit: int) -> str | None:
     return f"Вне окна отправки: {'; '.join(parts)}" if parts else None
 
 
-def message_digest(watch: dict, rate: float, card: float | None, cbr: float | None, event: dict, local: dt.datetime) -> str:
-    f, t = watch["from_currency"], watch["to_currency"]
-    unit = quote_unit(rate)
-    assessment = event.get("assessment")
+def message_digest(watch: dict, rate: float, cbr: float | None, event: dict, local: dt.datetime) -> str:
     code = event["verdict"]
-    lines = [
-        f"☀️ <b>{pair_title(watch)}</b>, {local.strftime('%H:%M')} · {verdict_text(code, assessment)}",
-        f"Обмен: {rate_text(f, t, rate, unit)}",
-        card_line(rate, card),
-        cbr_line(f, t, rate, cbr, unit),
-    ]
-    if assessment is not None and not assessment["warmup"]:
-        lines.append(f"Лучше {format_share(assessment['below'])} замеров недели")
-    if event.get("target") is not None:
-        lines.append(f"Выше цели {format_quote(event['target'] * unit)}")
-    lines.append(notes_line(event.get("notes") or {}, unit))
+    title = "утренняя сводка" if code in (VERDICT_NIGHT, VERDICT_WEEKEND) else "курс на начало торгов"
+    lines = [f"☀️ <b>{pair_title(watch)}</b> · {title}, {local.strftime('%H:%M')}"]
+    lines += rate_summary(watch, rate, cbr, code, event.get("assessment"), event.get("target"))
+    lines.append(notes_line(event.get("notes") or {}, quote_unit(rate)))
     return "\n".join(line for line in lines if line)
 
 
+def message_now(watch: dict, rate: float, cbr: float | None, code: str, assessment: dict | None, local: dt.datetime) -> str:
+    lines = [f"💱 <b>{pair_title(watch)}</b> · курс на {local.strftime('%H:%M')}"]
+    lines += rate_summary(watch, rate, cbr, code, assessment, _float_or_none(watch.get("target")))
+    return "\n".join(lines)
+
+
 def subscribe_text(watch: dict) -> str:
-    return f"Подписка на курс включена: <b>{pair_title(watch)}</b>, обмен в приложении.\nОтписаться — /stop"
+    return (f"Подписка на курс включена: <b>{pair_title(watch)}</b>, обмен в приложении.\n"
+            f"Курс сейчас — /rate, отписаться — /stop")
 
 
-HELP_TEXT = "Это бот уведомлений о курсе банка. Подписка включается по ссылке из приложения, /stop — выключает."
+HELP_TEXT = ("Бот присылает курс банка и сигналы, когда менять выгодно.\n"
+             "/rate — курс сейчас\n/stop — отписаться\n"
+             "Подписка включается по ссылке из приложения.")
 STOP_TEXT = "Подписка выключена."
+NOT_SUBSCRIBED_TEXT = "Ты пока не подписан. Подписка включается по ссылке из приложения."
+BOT_COMMANDS = [
+    {"command": "rate", "description": "Курс сейчас"},
+    {"command": "stop", "description": "Отписаться"},
+    {"command": "help", "description": "Что умеет бот"},
+]
 
 
 # ---------- Провайдеры ----------
@@ -666,8 +690,18 @@ def handle_command(db: Supabase, tg: Telegram, chat: dict, text: str) -> None:
     elif command == "/stop":
         db.delete("telegram_subscribers", f"chat_id=eq.{chat_id}")
         tg.send(chat_id, STOP_TEXT)
-    else:
+    elif command in ("/help", "/start"):
         tg.send(chat_id, HELP_TEXT)
+    else:
+        for text in now_texts(db, chat_id):
+            tg.send(chat_id, text)
+
+
+def now_texts(db: Supabase, chat_id: int) -> list[str]:
+    rows = db.select("telegram_subscribers", f"select=rate_watches(state)&chat_id=eq.{chat_id}")
+    texts = [((row.get("rate_watches") or {}).get("state") or {}).get("now_text") for row in rows]
+    texts = [text for text in texts if text]
+    return texts or [NOT_SUBSCRIBED_TEXT if not rows else "Курс ещё не проверялся, загляни через 15 минут."]
 
 
 def load_history(db: Supabase, watch: dict, since: dt.datetime) -> list[dict]:
@@ -692,17 +726,30 @@ def pair_trade_hours(watches: list[dict]) -> dict[tuple[str, str, str], tuple[in
     return hours
 
 
-def sync_bot(db: Supabase, tg: Telegram, now_utc: dt.datetime) -> None:
+def webhook_signature(url: str, secret: str) -> str:
+    return hashlib.sha256(f"{url}\n{secret}\n{json.dumps(BOT_COMMANDS, ensure_ascii=False)}".encode()).hexdigest()
+
+
+def sync_bot(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, str] | None = None) -> None:
     me = tg.call("getMe")
     rows = db.select("bot_info", "select=*&id=eq.1")
     info = rows[0] if rows else {}
-    offset = handle_updates(db, tg, info)
-    db.upsert("bot_info", {"id": 1, "username": me.get("username"), "update_offset": offset, "updated_at": now_utc.isoformat()})
+    row = {"id": 1, "username": me.get("username"), "updated_at": now_utc.isoformat()}
+    if webhook is None:
+        row["update_offset"] = handle_updates(db, tg, info)
+    else:
+        url, secret = webhook
+        signature = webhook_signature(url, secret)
+        if info.get("webhook_signature") != signature:
+            tg.call("setWebhook", url=url, secret_token=secret, allowed_updates=["message"], drop_pending_updates=False)
+            tg.call("setMyCommands", commands=BOT_COMMANDS)
+            row["webhook_signature"] = signature
+    db.upsert("bot_info", row)
 
 
-def run(db: Supabase, tg: Telegram, now_utc: dt.datetime) -> None:
+def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, str] | None = None) -> None:
     try:
-        sync_bot(db, tg, now_utc)
+        sync_bot(db, tg, now_utc, webhook)
     except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
         print(f"bot updates skipped: {type(e).__name__}", file=sys.stderr)
 
@@ -779,22 +826,25 @@ def process_watch(db: Supabase, tg: Telegram, watch: dict, pair: dict, chats: li
     if rate is None:
         return
     cbr = pair["cbr"]
-    card = pair["card"]
     history = load_history(db, watch, now_utc - dt.timedelta(days=HISTORY_DAYS))
     new_state, events = evaluate(watch, rate, cbr, watch.get("state") or {}, now_utc, history, holidays)
     local = local_now(now_utc, watch.get("timezone") or DEFAULT_TIMEZONE)
     for event in events:
         if event["kind"] == "digest":
-            text = message_digest(watch, rate, card, cbr, event, local)
+            text = message_digest(watch, rate, cbr, event, local)
         elif event["kind"] == "target":
             text = message_target(rate, event["target"], event.get("previous"))
         else:
-            text = message_signal(watch, rate, card, cbr, event)
+            text = message_signal(watch, rate, cbr, event)
         for chat_id in chats:
             try:
                 tg.send(chat_id, text)
             except (urllib.error.URLError, RuntimeError, OSError) as e:
                 print(f"send failed: {type(e).__name__}", file=sys.stderr)
+    trade_open, trade_close = trade_hours(watch)
+    assessment = assess(watch, rate, cbr, history) if in_trading_hours(now_utc, trade_open, trade_close, holidays) else None
+    code = verdict(assessment, exchange_now(now_utc).date(), holidays)
+    new_state["now_text"] = message_now(watch, rate, cbr, code, assessment, local)
     db.patch("rate_watches", f"id=eq.{watch['id']}", {"state": new_state})
     print(f"watch checked, {len(events)} event(s)")
 
@@ -835,7 +885,9 @@ def main() -> int:
     if not url or not key:
         print("SUPABASE_URL or SUPABASE_SERVICE_KEY is not set", file=sys.stderr)
         return 1
-    run(Supabase(url, key), Telegram(token), dt.datetime.now(dt.timezone.utc).replace(microsecond=0))
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET")
+    webhook = (url.rstrip("/") + WEBHOOK_PATH, secret) if secret else None
+    run(Supabase(url, key), Telegram(token), dt.datetime.now(dt.timezone.utc).replace(microsecond=0), webhook)
     return 0
 
 

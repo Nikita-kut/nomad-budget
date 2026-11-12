@@ -218,6 +218,10 @@ object DateFormat {
         return "${twoDigits(local.hour)}:${twoDigits(local.minute)}"
     }
 
+    fun minuteOfDay(minute: Int): String = "${twoDigits(minute / 60 % 24)}:${twoDigits(minute % 60)}"
+
+    fun hourOfDay(hour: Int): String = "${twoDigits(hour)}:00"
+
     fun weekdayFull(date: LocalDate): String = weekdaysFull[date.dayOfWeek.ordinal]
 
     private fun twoDigits(value: Int): String = value.toString().padStart(2, '0')

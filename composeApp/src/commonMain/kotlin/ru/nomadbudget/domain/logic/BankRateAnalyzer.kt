@@ -28,7 +28,6 @@ object BankRateAnalyzer {
 
     const val RANGE_DAYS = 7
     const val WARMUP_TRADING_DAYS = 2
-    const val CHECKS_PER_HOUR = 4
     private const val SHARE_EPSILON = 1e-9
     private val EXCHANGE_ZONE = FixedOffsetTimeZone(UtcOffset(hours = 3))
 
@@ -67,15 +66,16 @@ object BankRateAnalyzer {
 
     fun medianSpread(week: List<BankRateSnapshot>): Double? = median(week.mapNotNull { spread(it.buy, it.cbr) })
 
-    fun warmupSamples(tradeFrom: Int, tradeTo: Int): Int = WARMUP_TRADING_DAYS * (tradeTo - tradeFrom).coerceAtLeast(1) * CHECKS_PER_HOUR
+    fun warmupSamples(tradeOpen: Int, tradeClose: Int): Int =
+        WARMUP_TRADING_DAYS * ((tradeClose - tradeOpen) / BankRateWatch.TIME_STEP_MINUTES).coerceAtLeast(1)
 
     fun assess(
         current: BankRateSnapshot,
         week: List<BankRateSnapshot>,
         now: Instant,
         goodPercentile: Int = BankRateWatch.DEFAULT_GOOD_PERCENTILE,
-        tradeFrom: Int = BankRateWatch.DEFAULT_TRADE_FROM,
-        tradeTo: Int = BankRateWatch.DEFAULT_TRADE_TO,
+        tradeOpen: Int = BankRateWatch.DEFAULT_TRADE_OPEN,
+        tradeClose: Int = BankRateWatch.DEFAULT_TRADE_CLOSE,
     ): RateAssessment {
         val samples = inHoursWeek(week, now)
         val values = samples.map { it.buy }
@@ -87,7 +87,7 @@ object BankRateAnalyzer {
         val spreadOk = weekSpread == null || nowSpread == null || nowSpread > weekSpread
         val verdict = when {
             !current.inHours -> RateVerdict.CLOSED
-            values.size < warmupSamples(tradeFrom, tradeTo) -> RateVerdict.WARMUP
+            values.size < warmupSamples(tradeOpen, tradeClose) -> RateVerdict.WARMUP
             below >= threshold - SHARE_EPSILON && spreadOk -> RateVerdict.GOOD
             above >= threshold - SHARE_EPSILON -> RateVerdict.BAD
             else -> RateVerdict.NORMAL
@@ -95,10 +95,11 @@ object BankRateAnalyzer {
         return RateAssessment(verdict, values.size, below, above, nowSpread, weekSpread)
     }
 
-    fun inStandardHours(at: Instant, tradeFrom: Int = BankRateWatch.DEFAULT_TRADE_FROM, tradeTo: Int = BankRateWatch.DEFAULT_TRADE_TO): Boolean {
+    fun inStandardHours(at: Instant, tradeOpen: Int = BankRateWatch.DEFAULT_TRADE_OPEN, tradeClose: Int = BankRateWatch.DEFAULT_TRADE_CLOSE): Boolean {
         val local = at.toLocalDateTime(EXCHANGE_ZONE)
         val weekday = local.dayOfWeek != DayOfWeek.SATURDAY && local.dayOfWeek != DayOfWeek.SUNDAY
-        return weekday && local.hour >= tradeFrom && local.hour < tradeTo
+        val minute = local.hour * BankRateWatch.MINUTES_PER_HOUR + local.minute
+        return weekday && minute >= tradeOpen && minute < tradeClose
     }
 
     fun points(history: List<BankRateSnapshot>): List<BankRatePoint> =

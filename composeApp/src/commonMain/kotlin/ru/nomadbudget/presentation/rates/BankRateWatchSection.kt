@@ -63,7 +63,6 @@ import kotlin.time.Clock
 
 private val WATCH_PERIODS = listOf(ChartPeriod("1 день", 24), ChartPeriod("7 дней", 24 * 7), ChartPeriod("30 дней", null))
 private val HOURS = BankRateWatch.HOURS.toList()
-private val TRADE_END_HOURS = BankRateWatch.TRADE_END_HOURS.toList()
 private val TOP_SHARES = listOf(10, 15, 25)
 private const val DIGEST_OFF = -1
 
@@ -99,7 +98,7 @@ private fun WatchTiles(data: BankWatchData, watch: BankRateWatch, wide: Boolean)
     val range = BankRateAnalyzer.range(data.week, now)
     val unit = MoneyFormat.quoteUnit(current?.buy ?: watch.target ?: 1.0)
     val cbr = current?.cbr
-    val assessment = current?.let { BankRateAnalyzer.assess(it, data.week, now, watch.goodPercentile, watch.tradeFrom, watch.tradeTo) }
+    val assessment = current?.let { BankRateAnalyzer.assess(it, data.week, now, watch.goodPercentile, watch.tradeOpen, watch.tradeClose) }
     val compared = assessment?.takeIf { it.verdict in COMPARED_VERDICTS }
     TileRow(
         wide,
@@ -156,7 +155,7 @@ private fun verdictText(assessment: RateAssessment): String = when (assessment.v
     RateVerdict.GOOD -> "выгодно"
     RateVerdict.NORMAL -> "обычно"
     RateVerdict.BAD -> "не меняй"
-    RateVerdict.WARMUP -> "копим историю: ${plural(assessment.samples, "замер", "замера", "замеров")}"
+    RateVerdict.WARMUP -> "мало данных для сравнения"
     RateVerdict.CLOSED -> "биржа закрыта, ночной курс"
 }
 
@@ -273,13 +272,15 @@ private fun TelegramCard(data: BankWatchData, watch: BankRateWatch, callbacks: B
 private fun settingsSummary(watch: BankRateWatch): String = listOfNotNull(
     "верхние ${MoneyFormat.formatPercentValue((100 - watch.goodPercentile).toDouble())} недели",
     "повтор при улучшении на ${MoneyFormat.formatPercentValue(watch.improvePercent)}",
-    "биржа ${hourText(watch.tradeFrom)}–${hourText(watch.tradeTo)} МСК",
-    watch.digestHour?.let { "сводка в ${hourText(it)}" } ?: "без сводки",
+    "биржа ${timeText(watch.tradeOpen)}–${timeText(watch.tradeClose)} МСК",
+    watch.digestAt?.let { "сводка в ${timeText(it)}" } ?: "без сводки",
     if (watch.sendsAllDay) "присылать круглосуточно" else "присылать с ${hourText(watch.sendFrom)} до ${hourText(watch.sendTo)}",
     watch.timezone,
 ).joinToString(" · ")
 
-private fun hourText(hour: Int): String = "${hour.toString().padStart(2, '0')}:00"
+private fun hourText(hour: Int): String = DateFormat.hourOfDay(hour)
+
+private fun timeText(minute: Int): String = DateFormat.minuteOfDay(minute)
 
 @Composable
 fun BankRateWatchDialog(
@@ -296,20 +297,20 @@ fun BankRateWatchDialog(
     var target by remember { mutableStateOf(initial?.target?.let { MoneyFormat.formatQuote(it * unit) }.orEmpty()) }
     var topShare by remember { mutableStateOf(100 - (initial?.goodPercentile ?: BankRateWatch.DEFAULT_GOOD_PERCENTILE)) }
     var improve by remember { mutableStateOf(MoneyFormat.formatTenths(initial?.improvePercent ?: BankRateWatch.DEFAULT_IMPROVE_PERCENT)) }
-    var tradeFrom by remember { mutableStateOf(initial?.tradeFrom ?: BankRateWatch.DEFAULT_TRADE_FROM) }
-    var tradeTo by remember { mutableStateOf(initial?.tradeTo ?: BankRateWatch.DEFAULT_TRADE_TO) }
+    var tradeOpen by remember { mutableStateOf(initial?.tradeOpen ?: BankRateWatch.DEFAULT_TRADE_OPEN) }
+    var tradeClose by remember { mutableStateOf(initial?.tradeClose ?: BankRateWatch.DEFAULT_TRADE_CLOSE) }
     var sendFrom by remember { mutableStateOf(initial?.sendFrom ?: BankRateWatch.DEFAULT_QUIET_TO) }
     var sendTo by remember { mutableStateOf(initial?.sendTo ?: BankRateWatch.DEFAULT_QUIET_FROM) }
-    var digest by remember { mutableStateOf(if (initial == null) BankRateWatch.DEFAULT_DIGEST_HOUR else initial.digestHour ?: DIGEST_OFF) }
+    var digest by remember { mutableStateOf(if (initial == null) BankRateWatch.DEFAULT_DIGEST_AT else initial.digestAt ?: DIGEST_OFF) }
     var timezone by remember { mutableStateOf(initial?.timezone ?: BankRateWatch.DEFAULT_TIMEZONE) }
 
     val targetValue = parseDecimal(target)?.let { it / unit }
     val improveValue = parseDecimal(improve)
     val topShares = (TOP_SHARES + topShare).distinct().sorted()
-    val digestHours = HOURS.filter { BankRateWatch.inSendWindow(it, quietFrom = sendTo, quietTo = sendFrom) }
-    val digestValid = digest == DIGEST_OFF || digest in digestHours
+    val digestTimes = BankRateWatch.TIME_STEPS.filter { BankRateWatch.inSendWindow(it, quietFrom = sendTo, quietTo = sendFrom) }
+    val digestValid = digest == DIGEST_OFF || digest in digestTimes
     val valid = from != to && (target.isBlank() || (targetValue != null && targetValue > 0.0)) && improveValue != null && improveValue > 0.0 &&
-        BankRateWatch.validTradeHours(tradeFrom, tradeTo) && digestValid && timezone.isNotBlank()
+        BankRateWatch.validTradeMinutes(tradeOpen, tradeClose) && digestValid && timezone.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -330,8 +331,8 @@ fun BankRateWatchDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Dropdown("Часы биржи с, МСК", HOURS, tradeFrom, ::hourText, { tradeFrom = it }, modifier = Modifier.weight(1f))
-                    Dropdown("по", TRADE_END_HOURS, tradeTo, ::hourText, { tradeTo = it }, modifier = Modifier.weight(1f))
+                    Dropdown("Часы биржи с, МСК", BankRateWatch.TIME_STEPS, tradeOpen, ::timeText, { tradeOpen = it }, modifier = Modifier.weight(1f))
+                    Dropdown("по", BankRateWatch.CLOSE_STEPS, tradeClose, ::timeText, { tradeClose = it }, modifier = Modifier.weight(1f))
                 }
                 OutlinedTextField(
                     value = target,
@@ -346,7 +347,7 @@ fun BankRateWatchDialog(
                     Dropdown("Присылать с", HOURS, sendFrom, ::hourText, { sendFrom = it }, modifier = Modifier.weight(1f))
                     Dropdown("до", HOURS, sendTo, ::hourText, { sendTo = it }, modifier = Modifier.weight(1f))
                 }
-                Dropdown("Сводка каждый день", listOf(DIGEST_OFF) + digestHours, digest, { if (it == DIGEST_OFF) "выключена" else hourText(it) }, { digest = it })
+                Dropdown("Сводка каждый день", listOf(DIGEST_OFF) + digestTimes, digest, { if (it == DIGEST_OFF) "выключена" else timeText(it) }, { digest = it })
                 OutlinedTextField(
                     value = timezone,
                     onValueChange = { timezone = it.trim() },
@@ -372,9 +373,9 @@ fun BankRateWatchDialog(
                             target = targetValue,
                             goodPercentile = 100 - topShare,
                             improvePercent = improveValue ?: BankRateWatch.DEFAULT_IMPROVE_PERCENT,
-                            tradeFrom = tradeFrom,
-                            tradeTo = tradeTo,
-                            digestHour = digest.takeIf { it != DIGEST_OFF },
+                            tradeOpen = tradeOpen,
+                            tradeClose = tradeClose,
+                            digestAt = digest.takeIf { it != DIGEST_OFF },
                             quietFrom = sendTo,
                             quietTo = sendFrom,
                             timezone = timezone,

@@ -110,7 +110,7 @@ private class DemoBankRateWatchRepository(private val db: DemoDatabase) : BankRa
 
     private fun fromDraft(id: String, draft: BankRateWatchDraft, linkCode: String) = BankRateWatch(
         id = id, provider = draft.provider, from = draft.from, to = draft.to, category = draft.category, target = draft.target,
-        goodPercentile = draft.goodPercentile, improvePercent = draft.improvePercent, tradeFrom = draft.tradeFrom, tradeTo = draft.tradeTo, digestHour = draft.digestHour, quietFrom = draft.quietFrom, quietTo = draft.quietTo,
+        goodPercentile = draft.goodPercentile, improvePercent = draft.improvePercent, tradeOpen = draft.tradeOpen, tradeClose = draft.tradeClose, digestAt = draft.digestAt, quietFrom = draft.quietFrom, quietTo = draft.quietTo,
         timezone = draft.timezone, enabled = true, linkCode = linkCode,
     )
 
