@@ -1,13 +1,18 @@
+import { MAX_PAUSE_HOURS, parsePause, pauseText } from "./pause.ts";
+
 const SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const HELP_TEXT = "Бот присылает курс банка и сигналы, когда менять выгодно.\n/rate — курс сейчас\n/stop — отписаться\nПодписка включается по ссылке из приложения.";
+const HELP_TEXT = "Бот присылает курс банка и сигналы, когда менять выгодно.\n/rate — курс сейчас\n/pause 3д — помолчать (12ч, 3д, 2н; до 30 дней)\n/resume — снова присылать\n/stop — отписаться\nПодписка включается по ссылке из приложения.";
 const STOP_TEXT = "Подписка выключена.";
 const NOT_SUBSCRIBED_TEXT = "Ты пока не подписан. Подписка включается по ссылке из приложения.";
 const NOT_CHECKED_TEXT = "Курс ещё не проверялся, загляни через 15 минут.";
 const BAD_LINK_TEXT = "Ссылка не подошла: открой приложение и нажми «Подписаться в Telegram» ещё раз.";
 const TITLE_LIMIT = 64;
+const RESUME_TEXT = "Пауза снята, сигналы и сводки снова приходят.";
+const NOT_PAUSED_TEXT = "Паузы нет, сигналы и сводки приходят.";
+const HOUR_MS = 3_600_000;
 
 type Chat = { id: number; first_name?: string; username?: string; title?: string };
 type WatchState = { now_text?: string; now_widget?: string; now_caption?: string; widgets_ok?: boolean };
@@ -61,14 +66,46 @@ async function subscribe(chat: Chat, code: string): Promise<string> {
   return now ? `${subscribeText(watch)}\n\n${now}` : subscribeText(watch);
 }
 
+async function isSubscribed(chatId: number): Promise<boolean> {
+  const rows = await rest(`telegram_subscribers?select=id&chat_id=eq.${chatId}&limit=1`) as unknown[];
+  return rows.length > 0;
+}
+
+async function setPause(chatId: number, until: Date | null): Promise<void> {
+  await rest("telegram_chat_prefs?on_conflict=chat_id", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ chat_id: chatId, paused_until: until?.toISOString() ?? null, updated_at: new Date().toISOString() }),
+  });
+}
+
+async function pause(chatId: number, argument: string): Promise<string> {
+  if (!(await isSubscribed(chatId))) return NOT_SUBSCRIBED_TEXT;
+  const request = parsePause(argument);
+  if ("error" in request) return request.error;
+  const until = new Date(Date.now() + Math.min(request.hours, MAX_PAUSE_HOURS) * HOUR_MS);
+  await setPause(chatId, until);
+  return pauseText(until);
+}
+
+async function resume(chatId: number): Promise<string> {
+  const rows = await rest(`telegram_chat_prefs?select=paused_until&chat_id=eq.${chatId}&paused_until=gt.${encodeURIComponent(new Date().toISOString())}`) as unknown[];
+  if (rows.length === 0) return NOT_PAUSED_TEXT;
+  await setPause(chatId, null);
+  return RESUME_TEXT;
+}
+
 async function reply(chat: Chat, text: string): Promise<Answer> {
   const [head, ...rest_] = text.trim().split(/\s+/);
   const command = (head ?? "").split("@")[0].toLowerCase();
   const argument = rest_.join(" ").trim();
   if (command === "/start" && argument) return { text: await subscribe(chat, argument) };
   if (command === "/start" || command === "/help") return { text: HELP_TEXT };
+  if (command === "/pause") return { text: await pause(chat.id, argument) };
+  if (command === "/resume") return { text: await resume(chat.id) };
   if (command === "/stop") {
     await rest(`telegram_subscribers?chat_id=eq.${chat.id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+    await rest(`telegram_chat_prefs?chat_id=eq.${chat.id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
     return { text: STOP_TEXT };
   }
   return await nowAnswer(chat.id);

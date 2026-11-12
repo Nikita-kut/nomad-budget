@@ -19,6 +19,11 @@ jobs:
         run: bash tools/check_rules.sh
       - name: Worker unit tests
         run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Webhook unit tests
+        run: node --test supabase/functions/telegram-webhook/*_test.ts
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
