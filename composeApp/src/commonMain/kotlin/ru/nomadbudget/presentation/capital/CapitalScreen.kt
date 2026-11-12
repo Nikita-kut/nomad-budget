@@ -264,12 +264,11 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 8.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text("Месяц", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(MONTH_WEIGHT))
-                HeaderCell("Внесено", width = null)
-                HeaderCell("Снято", width = null)
-                HeaderCell("Потрачено", width = null)
-                HeaderCell("Итого «Себе»", width = null)
+                HeaderCell("Пришло", width = null)
+                HeaderCell("Ушло", width = null)
+                HeaderCell("Итого", width = null)
                 if (wide) {
-                    HeaderCell("Тело кредитов", width = null)
+                    HeaderCell("из них на кредиты", width = null)
                     HeaderCell("Рост капитала", width = null)
                 }
             }
@@ -283,11 +282,10 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
                         color = if (month.isCurrent) muted else MaterialTheme.colorScheme.onSurface,
                     )
                     AmountCell(MoneyFormat.format(month.cushionIn, false), width = null)
-                    AmountCell(outflowText(month.cushionOut), color = if (month.cushionOut.isZero) muted else colors.warning, width = null)
-                    AmountCell(outflowText(month.cushionSpent), color = if (month.cushionSpent.isZero) muted else colors.warning, width = null)
-                    AmountCell(MoneyFormat.formatSigned(month.saved, false), bold = true, color = if (month.saved.isNegative) colors.bad else null, width = null)
+                    AmountCell(outflowText(month.cushionGone), color = if (month.cushionGone.isZero) muted else colors.warning, width = null)
+                    AmountCell(MoneyFormat.formatSigned(month.saved, false), bold = true, width = null)
                     if (wide) {
-                        AmountCell(MoneyFormat.format(month.principalPaid, false), color = muted, width = null)
+                        AmountCell(outflowText(month.cushionToDebts), color = muted, width = null)
                         AmountCell(MoneyFormat.formatSigned(month.capitalGrowth, false), color = if (month.capitalGrowth.isNegative) colors.bad else colors.good, width = null)
                     }
                 }

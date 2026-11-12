@@ -95,6 +95,47 @@ class MonthModelTest {
     }
 
     @Test
+    fun earlyRepaymentFromCushion_isNotSpendingFromSavings() {
+        val early = Transaction.Expense(
+            "early", LocalDate(2026, 11, 12), "cushion", Money.rub(7_037_200L), "loans", null, Money.rub(7_037_200L), RateSource.API,
+            debtId = "loan", debtEarly = true,
+        )
+        val tx = listOf(transfer("t1", "card", "cushion", 6_000_000L), early)
+        val m = build(tx = tx, debts = listOf(loan), target = Money.rub(9_000_000L))
+        assertEquals(Money.rub(-1_037_200L), m.cushionNet)
+        assertEquals(Money.rub(7_037_200L), m.cushionToDebts)
+        assertEquals(Money.rub(6_000_000L), m.saved)
+        assertEquals(Money.rub(3_000_000L), m.savingsLeft)
+        assertEquals(SavingsProgress.PENDING, m.savingsProgress)
+    }
+
+    @Test
+    fun earlyRepayment_doesNotMarkRegularPaymentPaid() {
+        val early = Transaction.Expense(
+            "early", LocalDate(2026, 11, 12), "card", Money.rub(5_000_000L), "loans", null, Money.rub(5_000_000L), RateSource.API,
+            debtId = "loan", debtEarly = true,
+        )
+        val obligation = build(tx = listOf(early), debts = listOf(loan)).debts.single()
+        assertEquals(Money.rub(5_000_000L), obligation.earlyPaid)
+        assertTrue(obligation.regularPaid.isZero)
+        assertTrue(obligation.status != ObligationStatus.PAID)
+        val regular = expense("r", "loans", 2_000_000L, debtId = "loan")
+        assertEquals(ObligationStatus.PAID, build(tx = listOf(early, regular), debts = listOf(loan)).debts.single().status)
+    }
+
+    @Test
+    fun earlyRepaymentLeavingLessThanOnePayment_isPaidOff() {
+        val almostDone = loan.copy(principalRemaining = Money.rub(2_200L))
+        val early = Transaction.Expense(
+            "early", LocalDate(2026, 11, 12), "card", Money.rub(2_166_800L), "loans", null, Money.rub(2_166_800L), RateSource.API,
+            debtId = "loan", debtEarly = true,
+        )
+        val obligation = build(tx = listOf(early), debts = listOf(almostDone)).debts.single()
+        assertTrue(obligation.paidOff)
+        assertEquals(ObligationStatus.PAID, obligation.status)
+    }
+
+    @Test
     fun perDay_dividesWholeRemainderByDaysLeft() {
         val m = build(listOf(BudgetLine("food", Money.rub(3_000_000L))), listOf(expense("a", "food", 1_000_000L)))
         assertEquals(period.lengthDays - period.dayNumber(today) + 1, m.daysLeft)

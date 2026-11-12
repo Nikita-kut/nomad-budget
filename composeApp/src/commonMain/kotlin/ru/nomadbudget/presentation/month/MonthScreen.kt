@@ -561,16 +561,20 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
     val target = month.savingsTarget
     tiles += { m ->
         StatTile(
-            label = "Отложено в подушку",
-            value = MoneyFormat.format(month.saved, false),
+            label = "Подушка за месяц",
+            value = MoneyFormat.formatSigned(month.cushionNet, false),
             sub = listOfNotNull(
-                target?.let { "из ${MoneyFormat.format(it, false)} по плану «Себе»" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "план «Себе» не задан",
-                month.takenFromCushion.takeUnless { it.isZero }?.let { "взято из подушки ${MoneyFormat.format(it, false)}" },
-            ).joinToString(" · "),
+                listOfNotNull(
+                    "внесено ${MoneyFormat.format(month.savedIn, false)}",
+                    month.cushionToDebts.takeUnless { it.isZero }?.let { "на кредиты ${MoneyFormat.format(it, false)}" },
+                    month.cushionOtherOut.takeUnless { it.isZero }?.let { "снято ${MoneyFormat.format(it, false)}" },
+                ).joinToString(" · "),
+                target?.let { "«Себе» ${MoneyFormat.format(month.saved.coerceAtLeastZero(), false)} из ${MoneyFormat.format(it, false)}" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "план «Себе» не задан",
+            ).joinToString("\n"),
             modifier = m,
             progress = target?.let { month.saved.shareOf(it).toFloat() } ?: 0f,
             progressColor = colors.save,
-            valueColor = if (month.saved.isNegative) colors.bad else null,
+            valueColor = null,
             info = Hints.SAVED,
             subColor = if (month.savingsProgress == SavingsProgress.MISSED) colors.bad else null,
         )

@@ -41,8 +41,11 @@ data class CapitalMonth(
     val principalPaid: Money,
     val expenses: Money,
     val isCurrent: Boolean,
+    val cushionToDebts: Money = Money.zero(Currency.BASE),
 ) {
-    val saved: Money get() = cushionIn - cushionOut - cushionSpent
+    val cushionGone: Money get() = cushionOut + cushionSpent
+
+    val saved: Money get() = cushionIn - cushionGone
 
     val capitalGrowth: Money get() = saved + principalPaid
 }
@@ -179,6 +182,7 @@ data class CapitalModel(
                     cushionIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemCategoryIds),
                     cushionOut = BudgetCalculator.cushionOutflow(inPeriod, cushionIds),
                     cushionSpent = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemCategoryIds),
+                    cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemCategoryIds),
                     principalPaid = expenses.mapNotNull { tx -> tx.debtPrincipal?.let(rates::toBaseOrNull) }.sumIn(Currency.BASE),
                     expenses = expenses.map { it.amountBase }.sumIn(Currency.BASE),
                     isCurrent = period == current,
