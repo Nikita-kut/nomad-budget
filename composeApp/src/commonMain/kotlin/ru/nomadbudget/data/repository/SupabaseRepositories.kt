@@ -522,7 +522,7 @@ class ExchangeRateRepositoryImpl(
             client.from(Tables.EXCHANGE_RATES)
                 .select {
                     filter {
-                        eq("base", Currency.BASE.code)
+                        eq("base", Currency.RATE_PIVOT.code)
                         lte("rate_date", date.toString())
                     }
                     order("rate_date", Order.DESCENDING)
@@ -539,7 +539,7 @@ class ExchangeRateRepositoryImpl(
         return cache.throughOrDefault("rate_history", ListSerializer(ExchangeRateDto.serializer()), emptyList()) {
             client.from(Tables.EXCHANGE_RATES)
                 .select {
-                    filter { eq("base", Currency.BASE.code) }
+                    filter { eq("base", Currency.RATE_PIVOT.code) }
                     order("rate_date", Order.ASCENDING)
                     limit(HISTORY_ROWS)
                 }

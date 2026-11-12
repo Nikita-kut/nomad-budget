@@ -12,15 +12,15 @@ class MarketRates(history: List<ExchangeRate>, private val current: RateTable) {
     private val byQuote: Map<Currency, List<ExchangeRate>> = history.groupBy { it.quote }.mapValues { (_, list) -> list.sortedBy { it.date } }
 
     fun basePerUnit(currency: Currency, date: LocalDate): Double? {
-        if (currency == Currency.BASE) return 1.0
+        if (currency == current.base) return 1.0
         val known = byQuote[currency].orEmpty()
         return onOrBefore(known, date)?.basePerUnit ?: current.rateFor(currency)?.basePerUnit ?: known.firstOrNull()?.basePerUnit
     }
 
-    fun knows(currency: Currency): Boolean = currency == Currency.BASE || current.hasRate(currency) || currency in byQuote
+    fun knows(currency: Currency): Boolean = currency == current.base || current.hasRate(currency) || currency in byQuote
 
     fun toBase(money: Money, date: LocalDate): Money? = basePerUnit(money.currency, date)?.let { perUnit ->
-        Money((money.toMajor() * perUnit * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
+        Money((money.toMajor() * perUnit * current.base.minorFactor).roundToLong(), current.base)
     }
 
     private fun onOrBefore(sorted: List<ExchangeRate>, date: LocalDate): ExchangeRate? {

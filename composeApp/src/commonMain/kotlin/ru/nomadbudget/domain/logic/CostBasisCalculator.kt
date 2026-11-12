@@ -43,19 +43,20 @@ object CostBasisCalculator {
         rateHistory: List<ExchangeRate>,
         rates: RateTable,
     ): CostBasis {
-        if (accounts.none { it.currency != Currency.BASE }) return CostBasis.EMPTY
+        val base = rates.base
+        if (accounts.none { it.currency != base }) return CostBasis.EMPTY
         val market = MarketRates(rateHistory, rates)
-        val foreign = accounts.filter { it.currency != Currency.BASE && market.knows(it.currency) }
+        val foreign = accounts.filter { it.currency != base && market.knows(it.currency) }
         if (foreign.isEmpty()) return CostBasis.EMPTY
         val foreignIds = foreign.map { it.id }.toSet()
         val ordered = transactions.sortedWith(compareBy<Transaction> { it.date }.thenBy { sameDayRank(it, foreignIds) }.thenBy { it.id })
         val pools = HashMap<String, Pool>(foreign.size * 2)
         foreign.forEach { account ->
-            val pool = Pool(account.currency)
+            val pool = Pool(account.currency, base)
             val openedOn = ordered.firstOrNull { it.touches(account.id) }?.date
             val opening = account.openingBalance
             if (opening.minor > 0L) {
-                val value = openedOn?.let { market.toBase(opening, it) } ?: rates.toBaseOrNull(opening) ?: Money.rub(0L)
+                val value = openedOn?.let { market.toBase(opening, it) } ?: rates.toBaseOrNull(opening) ?: Money.zero(base)
                 pool.add(opening.minor, value.minor)
             } else {
                 pool.units = opening.minor
@@ -69,7 +70,7 @@ object CostBasisCalculator {
                     pool.add(tx.amount.minor, valueOf(tx.amount, tx.date, market, tx).minor)
                 }
                 is Transaction.Expense -> pools.matching(tx.accountId, tx.amount)?.let { pool ->
-                    effective[tx.id] = Money.rub(pool.remove(tx.amount, tx.date, market, tx))
+                    effective[tx.id] = Money(pool.remove(tx.amount, tx.date, market, tx), base)
                 }
                 is Transaction.Transfer -> {
                     val from = pools.matching(tx.fromAccountId, tx.amount)
@@ -77,7 +78,7 @@ object CostBasisCalculator {
                     if (from != null || to != null) {
                         val cost = from?.remove(tx.amount, tx.date, market, tx) ?: valueOf(tx.amount, tx.date, market, tx).minor
                         to?.add(tx.amount.minor, cost)
-                        effective[tx.id] = Money.rub(cost)
+                        effective[tx.id] = Money(cost, base)
                     }
                 }
                 is Transaction.Exchange -> {
@@ -86,20 +87,20 @@ object CostBasisCalculator {
                     if (from != null || to != null) {
                         val removed = from?.remove(tx.given, tx.date, market, tx)
                         val cost = when {
-                            tx.given.currency == Currency.BASE -> tx.given.minor
-                            tx.received.currency == Currency.BASE -> tx.received.minor
+                            tx.given.currency == base -> tx.given.minor
+                            tx.received.currency == base -> tx.received.minor
                             removed != null -> removed
                             else -> valueOf(tx.given, tx.date, market, tx).minor
                         }
                         to?.add(tx.received.minor, cost)
-                        effective[tx.id] = Money.rub(cost)
+                        effective[tx.id] = Money(cost, base)
                     }
                 }
             }
         }
         val average = foreign.mapNotNull { account ->
             val pool = pools.getValue(account.id)
-            pool.basePerUnit()?.let { account.id to ExchangeAnalyzer.baseQuote(account.currency, it) }
+            pool.basePerUnit()?.let { account.id to ExchangeAnalyzer.baseQuote(account.currency, it, base) }
         }.toMap()
         return CostBasis(effective, average)
     }
@@ -118,11 +119,11 @@ object CostBasisCalculator {
 
     private fun storedShare(part: Money, tx: Transaction): Money {
         val own = tx.ownAmount
-        if (own.currency != part.currency || own.minor <= 0L) return Money.rub(0L)
-        return Money.rub((tx.amountBase.minor.toDouble() * part.minor / own.minor).roundToLong())
+        if (own.currency != part.currency || own.minor <= 0L) return Money.zero(tx.amountBase.currency)
+        return Money((tx.amountBase.minor.toDouble() * part.minor / own.minor).roundToLong(), tx.amountBase.currency)
     }
 
-    private class Pool(val currency: Currency) {
+    private class Pool(val currency: Currency, val base: Currency) {
         var units: Long = 0L
         var cost: Long = 0L
 
@@ -152,7 +153,7 @@ object CostBasisCalculator {
 
         fun basePerUnit(): Double? {
             if (units <= 0L || cost <= 0L) return null
-            return (cost.toDouble() / Currency.BASE.minorFactor) / (units.toDouble() / currency.minorFactor)
+            return (cost.toDouble() / base.minorFactor) / (units.toDouble() / currency.minorFactor)
         }
     }
 

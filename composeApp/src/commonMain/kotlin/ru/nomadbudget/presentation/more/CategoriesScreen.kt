@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -299,10 +300,11 @@ private fun CategoryCard(
 
 @Composable
 private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDismiss: () -> Unit, onConfirm: (String, Money?) -> Unit) {
+    val base = LocalBaseCurrency.current
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     val transformation = remember { ThousandsVisualTransformation() }
-    val planned = MoneyFormat.parse(amount, Currency.BASE)
+    val planned = MoneyFormat.parse(amount, base)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Подкатегория для «${category.name}»") },
@@ -318,8 +320,8 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
                 if (category.kind == CategoryKind.EXPENSE) {
                     OutlinedTextField(
                         value = amount,
-                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                        label = { Text("План на месяц, ${Currency.BASE.code}") },
+                        onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, base.minorUnits) },
+                        label = { Text("План на месяц, ${base.code}") },
                         supportingText = { Text("$periodTitle · необязательно") },
                         singleLine = true,
                         visualTransformation = transformation,

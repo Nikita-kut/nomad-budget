@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -228,7 +229,7 @@ fun EntryScreen(
         form.type != EntryType.TRANSFER && selectedCategory == null -> "выбери категорию"
         else -> null
     }
-    val largeThreshold = EntryDefaults.largeAmountThreshold(state.transactions, state.today, form.type.transactionKind)
+    val largeThreshold = EntryDefaults.largeAmountThreshold(state.transactions, state.today, form.type.transactionKind, state.rates)
     fun trySubmit() {
         if (!canSubmit) {
             form.showErrors = true
@@ -385,7 +386,7 @@ private fun EntryForm(
                 trailingIcon = currency?.let { { CurrencyChip(it, state, Modifier.padding(end = 12.dp)) } },
                 modifier = Modifier.fillMaxWidth().focusRequester(focus).focusProperties { next = categoryFocus }.submitOnEnter(onSubmit),
             )
-            if (amount != null && amount.currency != Currency.BASE) AmountHint(state, amount, account?.id.takeIf { form.type != EntryType.INCOME }, form.date)
+            if (amount != null && amount.currency != state.base) AmountHint(state, amount, account?.id.takeIf { form.type != EntryType.INCOME }, form.date)
             if (form.type == EntryType.EXPENSE && form.debt == null) {
                 if (!form.splitOn) {
                     TextButton(onClick = {
@@ -517,13 +518,13 @@ private fun EntryForm(
 
 @Composable
 private fun AmountHint(state: HomeState, amount: Money?, accountId: String?, date: LocalDate) {
-    val average = accountId?.let { state.costBasis.averageCost[it] }?.let { quote -> basePerUnitOf(quote, amount?.currency) }
+    val average = accountId?.let { state.costBasis.averageCost[it] }?.let { quote -> basePerUnitOf(quote, amount?.currency, state.base) }
     val market = amount?.let { state.marketRateOn(it.currency, date) }
     val text = when {
         amount == null -> "В рублях: —"
-        amount.currency == Currency.BASE -> "Счёт в рублях, курс не нужен"
-        average != null -> "≈ ${MoneyFormat.format(baseOf(amount, average))} по средней стоимости валюты на счёте: ${perUnitText(amount.currency, average)}"
-        market != null -> "≈ ${MoneyFormat.format(baseOf(amount, market))} по курсу на ${DateFormat.dayMonth(date)}: ${perUnitText(amount.currency, market)}"
+        amount.currency == state.base -> "Счёт в рублях, курс не нужен"
+        average != null -> "≈ ${MoneyFormat.format(baseOf(amount, average, state.base))} по средней стоимости валюты на счёте: ${perUnitText(amount.currency, average, state.base)}"
+        market != null -> "≈ ${MoneyFormat.format(baseOf(amount, market, state.base))} по курсу на ${DateFormat.dayMonth(date)}: ${perUnitText(amount.currency, market, state.base)}"
         else -> "Нет курса для ${amount.currency.code}, записать нельзя"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -659,22 +660,22 @@ private fun categoryChoices(state: HomeState, categories: List<Category>, type: 
 private fun envelopeHint(state: HomeState, category: Category?, amount: Money?): String? {
     val budget = category?.let { c -> state.month.envelopes.firstOrNull { it.category.id == c.id } } ?: return null
     if (!budget.hasPlan) return "без плана в этом месяце"
-    val after = budget.remainingWhole - (amount?.let { state.rates.toBaseOrNull(it) }?.withoutFraction() ?: Money.zero(Currency.BASE))
+    val after = budget.remainingWhole - (amount?.let { state.rates.toBaseOrNull(it) }?.withoutFraction() ?: Money.zero(state.base))
     return "потрачено ${MoneyFormat.format(budget.fact, false)} из ${MoneyFormat.format(budget.planned, false)}" +
         if (amount != null) " · после записи ${if (after.isNegative) "перерасход ${MoneyFormat.format(-after, false)}" else "останется ${MoneyFormat.format(after, false)}"}" else ""
 }
 
-private fun basePerUnitOf(quote: RateQuote, currency: Currency?): Double? = when {
+private fun basePerUnitOf(quote: RateQuote, currency: Currency?, base: Currency): Double? = when {
     currency == null || quote.value <= 0.0 -> null
-    quote.unit == currency && quote.price == Currency.BASE -> quote.value
-    quote.unit == Currency.BASE && quote.price == currency -> 1.0 / quote.value
+    quote.unit == currency && quote.price == base -> quote.value
+    quote.unit == base && quote.price == currency -> 1.0 / quote.value
     else -> null
 }
 
-private fun baseOf(amount: Money, perUnit: Double): Money =
-    Money((amount.toMajor() * perUnit * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
+private fun baseOf(amount: Money, perUnit: Double, base: Currency): Money =
+    Money((amount.toMajor() * perUnit * base.minorFactor).roundToLong(), base)
 
-private fun perUnitText(currency: Currency, perUnit: Double): String {
+private fun perUnitText(currency: Currency, perUnit: Double, base: Currency): String {
     val unit = MoneyFormat.quoteUnit(perUnit)
-    return MoneyFormat.rateText(currency, Currency.BASE, perUnit * unit, unit)
+    return MoneyFormat.rateText(currency, base, perUnit * unit, unit)
 }

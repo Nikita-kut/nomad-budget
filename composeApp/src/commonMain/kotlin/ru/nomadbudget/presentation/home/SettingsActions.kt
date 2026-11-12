@@ -96,7 +96,7 @@ internal class SettingsActions(
 
     fun removeCurrency(code: String) = runner.run("Не удалось убрать валюту") {
         val state = store.value
-        require(code != Currency.BASE.code) { "Базовую валюту убрать нельзя" }
+        require(code != state.base.code) { "Базовую валюту убрать нельзя" }
         val blocking = state.activeAccounts.filter { it.currency.code == code }
         require(blocking.isEmpty()) { "Валюта $code нужна счетам: ${blocking.joinToString { it.name }}. Сначала убери их в архив" }
         saveSettings(state.settings.copy(currencyCodes = state.settings.currencyCodes - code))

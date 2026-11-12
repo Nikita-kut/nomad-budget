@@ -12,7 +12,7 @@ object BalanceCalculator {
 
     fun totalInBase(accounts: List<Account>, balances: Map<String, Money>, rates: RateTable): Money = accounts
         .mapNotNull { rates.toBaseOrNull(balances[it.id] ?: Money.zero(it.currency)) }
-        .sumIn(Currency.BASE)
+        .sumIn(rates.base)
 
     fun balance(account: Account, transactions: List<Transaction>): Money =
         transactions.fold(account.openingBalance) { acc, tx -> acc + effectOn(account, tx) }

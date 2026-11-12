@@ -41,8 +41,8 @@ data class CapitalMonth(
     val principalPaid: Money,
     val expenses: Money,
     val isCurrent: Boolean,
-    val cushionToDebts: Money = Money.zero(Currency.BASE),
-    val principalEarly: Money = Money.zero(Currency.BASE),
+    val cushionToDebts: Money = Money.zero(cushionIn.currency),
+    val principalEarly: Money = Money.zero(cushionIn.currency),
 ) {
     val principalRegular: Money get() = principalPaid - principalEarly
 
@@ -64,6 +64,7 @@ data class GoalProgress(
 )
 
 data class CapitalModel(
+    val base: Currency,
     val today: LocalDate,
     val life: Money,
     val funds: Money,
@@ -85,26 +86,26 @@ data class CapitalModel(
 
     val paceMonths: Int = recent.size
 
-    val paceAverage: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(list.sumOf { it.saved.minor } / list.size, Currency.BASE) }
+    val paceAverage: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(list.sumOf { it.saved.minor } / list.size, base) }
 
     val paceMedian: Money? = recent.takeIf { it.isNotEmpty() }?.let { list ->
-        Money(median(list.map { it.saved.minor }), Currency.BASE)
+        Money(median(list.map { it.saved.minor }), base)
     }
 
-    val principalPace: Money = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(median(list.map { it.principalPaid.minor }), Currency.BASE) }
-        ?: Money.zero(Currency.BASE)
+    val principalPace: Money = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(median(list.map { it.principalPaid.minor }), base) }
+        ?: Money.zero(base)
 
-    val averageExpense: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(median(list.map { it.expenses.minor }), Currency.BASE) }
+    val averageExpense: Money? = recent.takeIf { it.isNotEmpty() }?.let { list -> Money(median(list.map { it.expenses.minor }), base) }
 
-    val cushionTarget: Money? = averageExpense?.let { Money(it.minor * settings.cushionMonths, Currency.BASE) }
+    val cushionTarget: Money? = averageExpense?.let { Money(it.minor * settings.cushionMonths, base) }
 
     val cushionMonthsCovered: Double? = averageExpense?.takeIf { it.minor > 0L }?.let { cushion.minor.toDouble() / it.minor }
 
     val debtFreeInMonths: Int? = debtSchedule.indexOfFirst { it.minor <= 0L }.takeIf { it >= 0 }
 
     fun monthly(scenario: Scenario): Money = when (scenario) {
-        Scenario.PLAN -> planMonthly ?: Money.zero(Currency.BASE)
-        Scenario.FACT, Scenario.FACT_WITH_RETURN -> paceMedian ?: Money.zero(Currency.BASE)
+        Scenario.PLAN -> planMonthly ?: Money.zero(base)
+        Scenario.FACT, Scenario.FACT_WITH_RETURN -> paceMedian ?: Money.zero(base)
     }
 
     fun cushionPath(scenario: Scenario, horizon: Int): List<Money> {
@@ -112,10 +113,10 @@ data class CapitalModel(
         val add = monthly(scenario).minor.toDouble()
         val path = ArrayList<Money>(horizon + 1)
         var balance = cushion.minor.toDouble()
-        path += Money(balance.toLong(), Currency.BASE)
+        path += Money(balance.toLong(), base)
         repeat(horizon) {
             balance = balance * (1 + effectiveRate) + add
-            path += Money(balance.toLong(), Currency.BASE)
+            path += Money(balance.toLong(), base)
         }
         return path
     }
@@ -123,7 +124,7 @@ data class CapitalModel(
     fun capitalPath(scenario: Scenario, horizon: Int): List<Money> {
         val cushionPath = cushionPath(scenario, horizon)
         return cushionPath.mapIndexed { month, cushionValue ->
-            val debtLeft = debtSchedule.getOrElse(month) { debtSchedule.lastOrNull() ?: Money.zero(Currency.BASE) }
+            val debtLeft = debtSchedule.getOrElse(month) { debtSchedule.lastOrNull() ?: Money.zero(base) }
             life + funds + cushionValue - debtLeft
         }
     }
@@ -138,8 +139,8 @@ data class CapitalModel(
         val overdue = goal.targetDate < today
         val monthsLeft = monthsBetween(today, goal.targetDate).coerceAtLeast(1)
         val missing = goal.amount - cushion
-        val required = if (missing.isNegative || missing.isZero) Money.zero(Currency.BASE) else Money(missing.minor / monthsLeft, Currency.BASE)
-        val pace = paceMedian ?: Money.zero(Currency.BASE)
+        val required = if (missing.isNegative || missing.isZero) Money.zero(base) else Money(missing.minor / monthsLeft, base)
+        val pace = paceMedian ?: Money.zero(base)
         return GoalProgress(goal, monthsLeft, required, reachableByPace = !overdue && pace >= required, overdue = overdue)
     }
 
@@ -170,9 +171,10 @@ data class CapitalModel(
             goals: List<CapitalGoal>,
             startDay: Int,
         ): CapitalModel {
+            val base = rates.base
             fun sumRole(role: AccountRole) = accounts.filter { !it.isArchived && it.role == role }
                 .mapNotNull { rates.toBaseOrNull(balances[it.id] ?: Money.zero(it.currency)) }
-                .sumIn(Currency.BASE)
+                .sumIn(base)
             val openDebts = debts.filterNot { it.isClosed }
             val current = SalaryCycle.periodContaining(today, startDay)
             val periods = generateSequence(current) { SalaryCycle.previous(it, startDay) }.take(HISTORY_MONTHS + 1).toList().reversed()
@@ -182,22 +184,23 @@ data class CapitalModel(
                 val expenses = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemCategoryIds }
                 CapitalMonth(
                     period = period,
-                    cushionIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemCategoryIds),
-                    cushionOut = BudgetCalculator.cushionOutflow(inPeriod, cushionIds),
-                    cushionSpent = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemCategoryIds),
-                    cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemCategoryIds),
-                    principalPaid = expenses.mapNotNull { tx -> tx.debtPrincipal?.let(rates::toBaseOrNull) }.sumIn(Currency.BASE),
-                    principalEarly = expenses.filter { it.debtEarly }.mapNotNull { tx -> tx.debtPrincipal?.let(rates::toBaseOrNull) }.sumIn(Currency.BASE),
-                    expenses = expenses.map { it.amountBase }.sumIn(Currency.BASE),
+                    cushionIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemCategoryIds, base),
+                    cushionOut = BudgetCalculator.cushionOutflow(inPeriod, cushionIds, base),
+                    cushionSpent = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemCategoryIds, base),
+                    cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemCategoryIds, base),
+                    principalPaid = expenses.mapNotNull { tx -> tx.debtPrincipal?.let(rates::toBaseOrNull) }.sumIn(base),
+                    principalEarly = expenses.filter { it.debtEarly }.mapNotNull { tx -> tx.debtPrincipal?.let(rates::toBaseOrNull) }.sumIn(base),
+                    expenses = expenses.map { it.amountBase }.sumIn(base),
                     isCurrent = period == current,
                 )
             }.dropWhile { month -> month.cushionIn.isZero && month.cushionOut.isZero && month.expenses.isZero && !month.isCurrent }
             return CapitalModel(
+                base = base,
                 today = today,
                 life = sumRole(AccountRole.LIFE),
                 funds = sumRole(AccountRole.FUND),
                 cushion = sumRole(AccountRole.CUSHION),
-                debt = openDebts.mapNotNull { rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE),
+                debt = openDebts.mapNotNull { rates.toBaseOrNull(it.principalRemaining) }.sumIn(base),
                 months = months,
                 planMonthly = planMonthly?.takeIf { it.minor > 0L },
                 settings = settings,
@@ -209,7 +212,8 @@ data class CapitalModel(
         fun debtSchedule(debts: List<Debt>, rates: RateTable, horizon: Int): List<Money> {
             val states = debts.map { it }.toMutableList()
             val result = ArrayList<Money>(horizon + 1)
-            fun total() = states.mapNotNull { rates.toBaseOrNull(it.principalRemaining) }.sumIn(Currency.BASE)
+            val base = rates.base
+            fun total() = states.mapNotNull { rates.toBaseOrNull(it.principalRemaining) }.sumIn(base)
             result += total()
             repeat(horizon) {
                 for (i in states.indices) {

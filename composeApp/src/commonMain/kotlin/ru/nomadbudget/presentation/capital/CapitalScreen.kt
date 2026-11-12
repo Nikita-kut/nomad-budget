@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.capital
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -175,6 +176,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
 
 @Composable
 private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int, onHorizon: (Int) -> Unit) {
+    val base = LocalBaseCurrency.current
     val colors = AppTheme.colors
     val scenarioColors = mapOf(
         Scenario.PLAN to colors.save,
@@ -204,7 +206,7 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
                 names = scenarios.map { scenarioTitle(it) },
                 labels = indices.map { DateFormat.monthYearShort(capital.dateAfterMonths(it)) },
                 formatY = MoneyFormat::formatAxis,
-                formatValue = MoneyFormat::formatWhole,
+                formatValue = MoneyFormat.whole(base),
                 visibleCount = indices.size,
             )
             HorizontalDivider()
@@ -316,6 +318,7 @@ private fun outflowText(money: Money): String = if (money.isZero) "—" else Mon
 
 @Composable
 private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: (CapitalGoal) -> Unit, onDelete: (String) -> Unit) {
+    val base = LocalBaseCurrency.current
     val colors = AppTheme.colors
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -327,7 +330,7 @@ private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: 
                     current = capital.cushion,
                     target = target,
                     lines = listOfNotNull(
-                        "обычные расходы (медиана за полгода) ≈ ${MoneyFormat.format(capital.averageExpense ?: Money.zero(Currency.BASE), false)} в месяц",
+                        "обычные расходы (медиана за полгода) ≈ ${MoneyFormat.format(capital.averageExpense ?: Money.zero(base), false)} в месяц",
                         when {
                             byFact == 0 -> "уже собрана"
                             byFact != null -> "как сейчас: ${DateFormat.byMonthYear(capital.dateAfterMonths(byFact))}, через ${months(byFact)}"
@@ -407,6 +410,7 @@ private fun GoalRow(
 
 @Composable
 private fun DebtCard(capital: CapitalModel, horizon: Int) {
+    val base = LocalBaseCurrency.current
     val indices = CapitalModel.forecastIndices(horizon)
     fun debtAt(month: Int): Money = capital.debtSchedule.getOrElse(month) { capital.debtSchedule.last() }
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -431,7 +435,7 @@ private fun DebtCard(capital: CapitalModel, horizon: Int) {
                 color = AppTheme.colors.bad,
                 labels = indices.map { DateFormat.monthYearShort(capital.dateAfterMonths(it)) },
                 formatY = MoneyFormat::formatAxis,
-                formatValue = MoneyFormat::formatWhole,
+                formatValue = MoneyFormat.whole(base),
                 visibleCount = indices.size,
             )
         }
@@ -440,11 +444,12 @@ private fun DebtCard(capital: CapitalModel, horizon: Int) {
 
 @Composable
 private fun GoalDialog(initial: CapitalGoal?, today: LocalDate, onDismiss: () -> Unit, onConfirm: (String, Money, LocalDate) -> Unit) {
+    val base = LocalBaseCurrency.current
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var amount by remember { mutableStateOf(initial?.amount?.let(MoneyFormat::editText).orEmpty()) }
     var date by remember { mutableStateOf(initial?.targetDate ?: today.plus(CapitalModel.YEAR_MONTHS, DateTimeUnit.MONTH)) }
     val transformation = remember { ThousandsVisualTransformation() }
-    val money = MoneyFormat.parse(amount, Currency.BASE)
+    val money = MoneyFormat.parse(amount, base)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Новая цель" else "Цель") },
@@ -453,8 +458,8 @@ private fun GoalDialog(initial: CapitalGoal?, today: LocalDate, onDismiss: () ->
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("На что") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                    label = { Text("Сколько, ${Currency.BASE.code}") },
+                    onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, base.minorUnits) },
+                    label = { Text("Сколько, ${base.code}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

@@ -1,8 +1,5 @@
 package ru.nomadbudget.presentation.onboarding
 
-import ru.nomadbudget.presentation.components.AddTile
-import ru.nomadbudget.presentation.components.SecondaryButton
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,16 +39,20 @@ import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.IsoCurrencies
+import ru.nomadbudget.presentation.components.AddTile
 import ru.nomadbudget.presentation.components.AppIcons
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.CurrencyRow
 import ru.nomadbudget.presentation.components.CurrencySearchField
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.IncomeDaysEditor
+import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.StartDayPicker
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysText
 import ru.nomadbudget.presentation.components.startDayText
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
@@ -65,6 +66,7 @@ private enum class Step(val title: String, val subtitle: String) {
 }
 
 class OnboardingState {
+    var base: Currency by mutableStateOf(Currency.DEFAULT_BASE)
     var step: Int by mutableIntStateOf(0)
     var startDay: Int by mutableIntStateOf(1)
     var incomeDays: Set<Int> by mutableStateOf(emptySet())
@@ -85,7 +87,7 @@ class OnboardingState {
     }
 
     fun addAccount() {
-        accounts += OnboardingAccount("custom:${++accountSequence}", "", Currency.BASE.code, AccountRole.LIFE)
+        accounts += OnboardingAccount("custom:${++accountSequence}", "", base.code, AccountRole.LIFE)
     }
 
     fun update(account: OnboardingAccount) {
@@ -108,14 +110,14 @@ class OnboardingState {
         newCategory = ""
     }
 
-    fun availableCurrencies(): List<String> = listOf(Currency.BASE.code) + currencyCodes
+    fun availableCurrencies(): List<String> = listOf(base.code) + currencyCodes
 
     fun result(): OnboardingResult = OnboardingResult(
         periodStartDay = startDay,
         incomeDays = incomeDays.sorted(),
         currencyCodes = currencyCodes.toList(),
         accounts = accounts.filter { it.name.isNotBlank() }.map { account ->
-            val currency = IsoCurrencies.find(account.currencyCode)?.toCurrency() ?: Currency.BASE
+            val currency = IsoCurrencies.find(account.currencyCode)?.toCurrency() ?: base
             OnboardingAccountResult(account.name.trim(), account.currencyCode, account.role, MoneyFormat.parse(account.balanceText, currency))
         },
         categories = categories.toList(),
@@ -192,7 +194,7 @@ private fun PeriodStep(form: OnboardingState) {
 
 @Composable
 private fun CurrenciesStep(form: OnboardingState) {
-    CurrencyRow(code = Currency.BASE.code, name = IsoCurrencies.nameOf(Currency.BASE.code), trailing = {
+    CurrencyRow(code = form.base.code, name = IsoCurrencies.nameOf(form.base.code), trailing = {
         Text("базовая", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     })
     form.currencyCodes.forEach { code ->
@@ -269,7 +271,7 @@ private fun BalancesStep(form: OnboardingState) {
     }
     named.forEachIndexed { index, account ->
         if (index > 0) HorizontalDivider()
-        val currency = IsoCurrencies.find(account.currencyCode)?.toCurrency() ?: Currency.BASE
+        val currency = IsoCurrencies.find(account.currencyCode)?.toCurrency() ?: form.base
         OutlinedTextField(
             value = account.balanceText,
             onValueChange = { form.update(account.copy(balanceText = ThousandsVisualTransformation.sanitize(it, currency.minorUnits))) },

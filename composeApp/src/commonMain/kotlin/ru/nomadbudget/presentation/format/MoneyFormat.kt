@@ -130,11 +130,13 @@ object MoneyFormat {
         }
     }
 
-    fun formatWhole(value: Double): String {
-        if (AmountMask.hidden) return masked(Currency.BASE)
+    fun whole(currency: Currency): (Double) -> String = { formatWhole(it, currency) }
+
+    fun formatWhole(value: Double, currency: Currency): String {
+        if (AmountMask.hidden) return masked(currency)
         val rounded = value.roundToLong()
         val sign = if (rounded < 0) MINUS else ""
-        return "$sign${groupThousands(abs(rounded))}$THIN_SPACE${Currency.BASE.symbol}"
+        return "$sign${groupThousands(abs(rounded))}$THIN_SPACE${currency.symbol}"
     }
 
     fun formatTenths(value: Double): String {

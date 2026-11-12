@@ -51,7 +51,7 @@ class BudgetCalculatorTest {
 
     @Test
     fun categoryBudgets_sortedByOrder_andFactOnlyInsidePeriod() {
-        val budgets = BudgetCalculator.categoryBudgets(categories, lines, transactions, period)
+        val budgets = BudgetCalculator.categoryBudgets(categories, lines, transactions, period, base = Currency.RUB)
         assertEquals(listOf("food", "salary", "comm", "debt"), budgets.map { it.category.id })
         val foodBudget = budgets.first { it.category.id == "food" }
         assertEquals(Money.rub(126_442L), foodBudget.fact)
@@ -60,7 +60,7 @@ class BudgetCalculatorTest {
 
     @Test
     fun status_ok_warning_over() {
-        val budgets = BudgetCalculator.categoryBudgets(categories, lines, transactions, period).associateBy { it.category.id }
+        val budgets = BudgetCalculator.categoryBudgets(categories, lines, transactions, period, base = Currency.RUB).associateBy { it.category.id }
         assertEquals(BudgetStatus.OK, budgets.getValue("food").status)
         assertEquals(BudgetStatus.OVER_SLIGHTLY, budgets.getValue("debt").status)
         assertEquals(BudgetStatus.OVER, budgets.getValue("comm").status)
@@ -71,14 +71,14 @@ class BudgetCalculatorTest {
     fun status_warning_atEightyFivePercent() {
         val warnLines = listOf(BudgetLine("food", Money.rub(100_000L)))
         val tx = listOf(expense("w", 10, "food", 85_000L))
-        val budget = BudgetCalculator.categoryBudgets(listOf(food), warnLines, tx, period).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(food), warnLines, tx, period, base = Currency.RUB).single()
         assertEquals(BudgetStatus.WARNING, budget.status)
         assertEquals(0.85, budget.progress, absoluteTolerance = 0.0001)
     }
 
     @Test
     fun categoryWithoutLine_hasZeroPlan_andOverIfSpent() {
-        val budget = BudgetCalculator.categoryBudgets(listOf(food), emptyList(), listOf(expense("z", 9, "food", 100L)), period).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(food), emptyList(), listOf(expense("z", 9, "food", 100L)), period, base = Currency.RUB).single()
         assertEquals(Money.zero(Currency.RUB), budget.planned)
         assertEquals(BudgetStatus.OVER, budget.status)
         assertEquals(1.0, budget.progress)

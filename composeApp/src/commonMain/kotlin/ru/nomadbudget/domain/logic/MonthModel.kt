@@ -28,16 +28,16 @@ data class DebtObligation(
     val paid: Money,
     val status: ObligationStatus,
     val regularPaid: Money = paid,
-    val earlyPaid: Money = Money.zero(Currency.BASE),
+    val earlyPaid: Money = Money.zero(paid.currency),
     val paidOff: Boolean = false,
-    val earlyPlanned: Money = Money.zero(Currency.BASE),
+    val earlyPlanned: Money = Money.zero(paid.currency),
     val earlyFromCushion: Boolean = false,
 ) {
     val regularPlanned: Money get() = planned - earlyPlanned
 
     val budgetPlanned: Money get() = if (earlyFromCushion) regularPlanned else planned
 
-    val left: Money get() = if (paid >= planned) Money.zero(Currency.BASE) else planned - paid
+    val left: Money get() = if (paid >= planned) Money.zero(paid.currency) else planned - paid
 }
 
 data class FundState(
@@ -51,12 +51,13 @@ data class FundState(
     val status: ObligationStatus?,
 ) {
     val contributionLeft: Money
-        get() = monthlyPlanned?.let { if (contributed >= it) Money.zero(Currency.BASE) else it - contributed } ?: Money.zero(Currency.BASE)
+        get() = monthlyPlanned?.let { if (contributed >= it) Money.zero(contributed.currency) else it - contributed } ?: Money.zero(contributed.currency)
 
     val isEnough: Boolean? get() = goal?.let { balance + contributionLeft >= it }
 }
 
 data class MonthModel(
+    val base: Currency,
     val period: Period,
     val today: LocalDate,
     val incomeBudgets: List<CategoryBudget>,
@@ -67,17 +68,17 @@ data class MonthModel(
     val savedIn: Money,
     val savedOut: Money,
     val spentFromCushion: Money,
-    val cushionToDebts: Money = Money.zero(Currency.BASE),
+    val cushionToDebts: Money = Money.zero(base),
     val corrections: Money,
-    val carryOver: Money = Money.zero(Currency.BASE),
+    val carryOver: Money = Money.zero(base),
 ) {
-    val incomePlanned: Money = incomeBudgets.map { it.planned }.sumIn(Currency.BASE)
-    val incomeFact: Money = incomeBudgets.map { it.fact }.sumIn(Currency.BASE)
+    val incomePlanned: Money = incomeBudgets.map { it.planned }.sumIn(base)
+    val incomeFact: Money = incomeBudgets.map { it.fact }.sumIn(base)
 
-    val flexiblePlanned: Money = envelopes.map { it.planned }.sumIn(Currency.BASE)
-    val flexibleFact: Money = envelopes.map { it.fact }.sumIn(Currency.BASE)
-    val flexiblePlannedWhole: Money = envelopes.map { it.planned.withoutFraction() }.sumIn(Currency.BASE)
-    val flexibleFactWhole: Money = envelopes.map { it.fact.withoutFraction() }.sumIn(Currency.BASE)
+    val flexiblePlanned: Money = envelopes.map { it.planned }.sumIn(base)
+    val flexibleFact: Money = envelopes.map { it.fact }.sumIn(base)
+    val flexiblePlannedWhole: Money = envelopes.map { it.planned.withoutFraction() }.sumIn(base)
+    val flexibleFactWhole: Money = envelopes.map { it.fact.withoutFraction() }.sumIn(base)
 
     val canSpend: Money = flexiblePlannedWhole - flexibleFactWhole
 
@@ -90,14 +91,14 @@ data class MonthModel(
         else -> 0.0
     }
 
-    val perDay: Money? = if (daysLeft > 0 && canSpend.minor > 0L) Money(canSpend.minor / daysLeft, Currency.BASE).withoutFraction() else null
+    val perDay: Money? = if (daysLeft > 0 && canSpend.minor > 0L) Money(canSpend.minor / daysLeft, base).withoutFraction() else null
 
-    val debtsPlanned: Money = debts.map { it.budgetPlanned }.sumIn(Currency.BASE)
-    val debtsFromCushion: Money = debts.filter { it.earlyFromCushion }.map { it.earlyPlanned }.sumIn(Currency.BASE)
-    val fundsPlanned: Money = funds.mapNotNull { it.monthlyPlanned }.sumIn(Currency.BASE)
+    val debtsPlanned: Money = debts.map { it.budgetPlanned }.sumIn(base)
+    val debtsFromCushion: Money = debts.filter { it.earlyFromCushion }.map { it.earlyPlanned }.sumIn(base)
+    val fundsPlanned: Money = funds.mapNotNull { it.monthlyPlanned }.sumIn(base)
     val obligationsPlanned: Money = debtsPlanned + fundsPlanned
     val obligationsCount: Int = debts.size + funds.count { it.monthlyPlanned != null }
-    val debtsLeft: Money = debts.map { it.left }.sumIn(Currency.BASE)
+    val debtsLeft: Money = debts.map { it.left }.sumIn(base)
     val debtsPaid: Int = debts.count { it.status == ObligationStatus.PAID }
     val debtsOverdue: Boolean = debts.any { it.status == ObligationStatus.OVERDUE }
     val nextObligation: DebtObligation? = debts.filter { it.status != ObligationStatus.PAID }.sortedWith(compareBy(nullsLast()) { it.due }).firstOrNull()
@@ -114,11 +115,11 @@ data class MonthModel(
         else -> SavingsProgress.PENDING
     }
 
-    val savingsLeft: Money = savingsTarget?.let { if (saved >= it) Money.zero(Currency.BASE) else it - saved.coerceAtLeastZero() } ?: Money.zero(Currency.BASE)
+    val savingsLeft: Money = savingsTarget?.let { if (saved >= it) Money.zero(base) else it - saved.coerceAtLeastZero() } ?: Money.zero(base)
 
     val available: Money = incomePlanned + carryOver
 
-    val unallocated: Money = available - obligationsPlanned - flexiblePlanned - (savingsTarget ?: Money.zero(Currency.BASE))
+    val unallocated: Money = available - obligationsPlanned - flexiblePlanned - (savingsTarget ?: Money.zero(base))
 
     val allocatedShare: Double? =
         if (available.minor > 0L) (available - unallocated).minor.toDouble() / available.minor else null
@@ -141,14 +142,15 @@ data class MonthModel(
             balances: Map<String, Money>,
             savingsTarget: Money?,
         ): MonthModel {
+            val base = rates.base
             val carryOver = accounts
                 .filter { !it.isArchived && it.role == AccountRole.LIFE }
                 .mapNotNull { rates.toBaseOrNull(BalanceCalculator.balanceBefore(it, transactions, period.start)) }
-                .sumIn(Currency.BASE)
+                .sumIn(base)
             val inPeriod = transactions.filter { it.date in period }
             val systemIds = categories.filter { it.isSystem }.map { it.id }.toSet()
             val visible = categories.filter { !it.isSystem && (!it.isArchived || inPeriod.any { tx -> tx.categoryIdOrNull == it.id }) }
-            val budgets = BudgetCalculator.categoryBudgets(visible, lines, inPeriod, period, subcategories, accounts)
+            val budgets = BudgetCalculator.categoryBudgets(visible, lines, inPeriod, period, subcategories, accounts, base)
             val cushionIds = accounts.filter { it.role == AccountRole.CUSHION }.map { it.id }.toSet()
             val corrections = inPeriod.mapNotNull {
                 when (it) {
@@ -156,8 +158,9 @@ data class MonthModel(
                     is Transaction.Expense -> (-it.amountBase).takeIf { _ -> it.categoryId in systemIds }
                     is Transaction.Transfer, is Transaction.Exchange -> null
                 }
-            }.sumIn(Currency.BASE)
+            }.sumIn(base)
             return MonthModel(
+                base = base,
                 period = period,
                 today = today,
                 incomeBudgets = budgets.filter { it.category.kind == CategoryKind.INCOME },
@@ -166,10 +169,10 @@ data class MonthModel(
                 funds = accounts.filter { it.role == AccountRole.FUND && !it.isArchived }.map { fundState(it, period, today, inPeriod, rates, balances, systemIds) },
                 savingsTarget = savingsTarget?.takeIf { it.minor > 0L },
                 carryOver = carryOver,
-                savedIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemIds),
-                savedOut = BudgetCalculator.cushionOutflow(inPeriod, cushionIds),
-                spentFromCushion = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemIds),
-                cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemIds),
+                savedIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemIds, base),
+                savedOut = BudgetCalculator.cushionOutflow(inPeriod, cushionIds, base),
+                spentFromCushion = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemIds, base),
+                cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemIds, base),
                 corrections = corrections,
             )
         }
@@ -197,15 +200,16 @@ data class MonthModel(
         }
 
         private fun debtObligation(debt: Debt, period: Period, today: LocalDate, inPeriod: List<Transaction>, rates: RateTable): DebtObligation {
+            val base = rates.base
             val due = dueDate(period, debt.payDay)
             val monthly = debt.paymentOn(due ?: period.start)
             val earlyPlan = debt.earlyPlanFor(period)
-            val earlyPlanned = earlyPlan?.let { rates.toBaseOrNull(it.amount) } ?: Money.zero(Currency.BASE)
-            val regularPlanned = rates.toBaseOrNull(monthly) ?: Money.zero(Currency.BASE)
+            val earlyPlanned = earlyPlan?.let { rates.toBaseOrNull(it.amount) } ?: Money.zero(base)
+            val regularPlanned = rates.toBaseOrNull(monthly) ?: Money.zero(base)
             val planned = regularPlanned + earlyPlanned
             val payments = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.debtId == debt.id }
-            val regularPaid = payments.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE)
-            val earlyPaid = payments.filter { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE)
+            val regularPaid = payments.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(base)
+            val earlyPaid = payments.filter { it.debtEarly }.map { it.amountBase }.sumIn(base)
             val paid = regularPaid + earlyPaid
             val closedHere = debt.closedIn(period)
             val paidOff = closedHere || earlyPaid.minor > 0L && debt.principalRemaining.minor < debt.monthlyPayment.minor
@@ -221,7 +225,7 @@ data class MonthModel(
                 regularPaid = regularPaid,
                 earlyPaid = earlyPaid,
                 paidOff = paidOff,
-                earlyPlanned = if (closedHere) Money.zero(Currency.BASE) else earlyPlanned,
+                earlyPlanned = if (closedHere) Money.zero(base) else earlyPlanned,
                 earlyFromCushion = earlyPlan?.fromCushion == true,
             )
         }
@@ -235,14 +239,15 @@ data class MonthModel(
             balances: Map<String, Money>,
             systemIds: Set<String>,
         ): FundState {
+            val base = rates.base
             val ids = setOf(fund.id)
-            val contributed = BudgetCalculator.cushionInflow(inPeriod, ids, systemIds) - BudgetCalculator.cushionOutflow(inPeriod, ids)
-            val spent = BudgetCalculator.cushionSpent(inPeriod, ids, systemIds)
+            val contributed = BudgetCalculator.cushionInflow(inPeriod, ids, systemIds, base) - BudgetCalculator.cushionOutflow(inPeriod, ids, base)
+            val spent = BudgetCalculator.cushionSpent(inPeriod, ids, systemIds, base)
             val monthly = fund.fundMonthly?.let(rates::toBaseOrNull)?.takeIf { it.minor > 0L }
             val due = dueDate(period, fund.fundDay)
             return FundState(
                 account = fund,
-                balance = balances[fund.id]?.let(rates::toBaseOrNull) ?: Money.zero(Currency.BASE),
+                balance = balances[fund.id]?.let(rates::toBaseOrNull) ?: Money.zero(base),
                 monthlyPlanned = monthly,
                 contributed = contributed,
                 spent = spent,

@@ -54,7 +54,7 @@ class ForecastAndNetWorthTest {
             id = "e", date = LocalDate(2026, 9, 10), accountId = "rub", amount = Money.rub(200_000L), categoryId = "food",
             subcategoryId = null, amountBase = Money.rub(200_000L), rateSource = RateSource.API,
         )
-        val worth = HistoryCalculator.netWorth(listOf(period), listOf(rub, usd), listOf(spent)) { _, _ -> 90.0 }
+        val worth = HistoryCalculator.netWorth(listOf(period), listOf(rub, usd), listOf(spent), base = Currency.RUB) { _, _ -> 90.0 }
         assertEquals(listOf(period to Money.rub(1_700_000L)), worth)
     }
 
@@ -66,7 +66,7 @@ class ForecastAndNetWorthTest {
         val late = SalaryCycle.periodContaining(LocalDate(2026, 9, 10), TEST_START_DAY)
         val legacy = Transaction.Income("l", LocalDate(2025, 1, 10), "old", Money.rub(500_000_000L), "salary", Money.rub(500_000_000L), RateSource.API)
         val opening = Transaction.Income("o", LocalDate(2026, 9, 10), "live", Money.rub(10_000_000L), "salary", Money.rub(10_000_000L), RateSource.API)
-        val worth = HistoryCalculator.netWorth(listOf(early, late), listOf(live, archive), listOf(legacy, opening)) { _, _ -> 1.0 }
+        val worth = HistoryCalculator.netWorth(listOf(early, late), listOf(live, archive), listOf(legacy, opening), base = Currency.RUB) { _, _ -> 1.0 }
         assertEquals(listOf(late to Money.rub(10_000_000L)), worth)
     }
 
@@ -79,6 +79,6 @@ class ForecastAndNetWorthTest {
             PeriodBudgetLine(start, BudgetLine("food", Money.rub(1_000_000L), "sub")),
             PeriodBudgetLine(start, BudgetLine("salary", Money.rub(20_000_000L))),
         )
-        assertEquals(mapOf(start to Money.rub(4_000_000L)), HistoryCalculator.plannedExpenseByPeriod(lines, categories))
+        assertEquals(mapOf(start to Money.rub(4_000_000L)), HistoryCalculator.plannedExpenseByPeriod(lines, categories, base = Currency.RUB))
     }
 }

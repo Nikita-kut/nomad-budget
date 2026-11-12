@@ -19,34 +19,34 @@ data class ExchangeRate(
     }
 }
 
-class RateTable(rates: List<ExchangeRate>) {
+class RateTable(rates: List<ExchangeRate>, val base: Currency = Currency.RUB) {
 
     private val byQuote: Map<Currency, ExchangeRate> = rates.associateBy { it.quote }
 
     val all: List<ExchangeRate> = byQuote.values.sortedBy { it.quote.code }
 
     fun rateFor(currency: Currency): ExchangeRate? = when (currency) {
-        Currency.BASE -> null
+        base -> null
         else -> byQuote[currency]
     }
 
-    fun hasRate(currency: Currency): Boolean = currency == Currency.BASE || currency in byQuote
+    fun hasRate(currency: Currency): Boolean = currency == base || currency in byQuote
 
     fun basePerUnit(currency: Currency): Double = when (currency) {
-        Currency.BASE -> 1.0
+        base -> 1.0
         else -> requireNotNull(byQuote[currency]) { "Нет курса для ${currency.code}" }.basePerUnit
     }
 
     fun toBase(money: Money): Money {
         val majorInBase = money.toMajor() * basePerUnit(money.currency)
-        return Money((majorInBase * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
+        return Money((majorInBase * base.minorFactor).roundToLong(), base)
     }
 
     fun toBaseOrNull(money: Money): Money? = if (hasRate(money.currency)) toBase(money) else null
 
-    fun fromBase(base: Money, target: Currency): Money {
-        require(base.currency == Currency.BASE) { "Ожидалась сумма в ${Currency.BASE.code}" }
-        val majorInTarget = base.toMajor() / basePerUnit(target)
+    fun fromBase(amount: Money, target: Currency): Money {
+        require(amount.currency == base) { "Ожидалась сумма в ${base.code}" }
+        val majorInTarget = amount.toMajor() / basePerUnit(target)
         return Money((majorInTarget * target.minorFactor).roundToLong(), target)
     }
 

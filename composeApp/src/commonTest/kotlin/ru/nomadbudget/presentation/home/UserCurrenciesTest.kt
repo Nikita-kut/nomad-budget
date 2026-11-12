@@ -23,7 +23,7 @@ class UserCurrenciesTest {
     private fun state(codes: List<String>, accounts: List<Account>) = HomeState(
         today = today,
         period = SalaryCycle.periodContaining(today, TEST_START_DAY),
-        currencies = listOf(Currency.BASE, Currency.USD, xts, eur),
+        currencies = listOf(Currency.RUB, Currency.USD, xts, eur),
         accounts = accounts,
         settings = UserSettings(currencyCodes = codes),
     )

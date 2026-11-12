@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -429,8 +430,9 @@ private fun statusTone(status: ObligationStatus): PillTone = when (status) {
 
 @Composable
 private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (Debt) -> Unit) {
+    val base = LocalBaseCurrency.current
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var currency by remember { mutableStateOf(initial?.currency ?: Currency.BASE) }
+    var currency by remember { mutableStateOf(initial?.currency ?: base) }
     var remaining by remember { mutableStateOf(initial?.principalRemaining?.let(MoneyFormat::editText).orEmpty()) }
     var payment by remember { mutableStateOf(initial?.monthlyPayment?.let(MoneyFormat::editText).orEmpty()) }
     var extra by remember { mutableStateOf(initial?.extraPayment?.takeUnless { it.isZero }?.let(MoneyFormat::editText).orEmpty()) }
@@ -534,6 +536,7 @@ private val HISTORY_PERIODS = listOf(ChartPeriod("12 мес.", 12), ChartPeriod(
 
 @Composable
 private fun DebtHistoryCharts(history: List<DebtMonth>) {
+    val base = LocalBaseCurrency.current
     val colors = AppTheme.colors
     val regularColor = MaterialTheme.colorScheme.primary
     val earlyColor = colors.save
@@ -551,7 +554,7 @@ private fun DebtHistoryCharts(history: List<DebtMonth>) {
                 color = regularColor,
                 labels = labels.drop(from),
                 formatY = MoneyFormat::formatAxis,
-                formatValue = MoneyFormat::formatWhole,
+                formatValue = MoneyFormat.whole(base),
                 visibleCount = visible,
             )
         }
@@ -569,7 +572,7 @@ private fun DebtHistoryCharts(history: List<DebtMonth>) {
                 names = listOf("обычные", "досрочно"),
                 labels = labels.drop(from),
                 formatY = MoneyFormat::formatAxis,
-                formatValue = MoneyFormat::formatWhole,
+                formatValue = MoneyFormat.whole(base),
                 visibleCount = visible,
             )
         }
@@ -585,7 +588,7 @@ private fun DebtHistoryCharts(history: List<DebtMonth>) {
                 color = colors.bad,
                 labels = labels.drop(from),
                 formatY = MoneyFormat::formatAxis,
-                formatValue = MoneyFormat::formatWhole,
+                formatValue = MoneyFormat.whole(base),
                 visibleCount = visible,
             )
         }

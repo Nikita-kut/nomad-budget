@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.format
 
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.presentation.charts.NiceScale
 import ru.nomadbudget.presentation.charts.niceScale
 import kotlin.test.Test
@@ -55,7 +56,7 @@ class ChartScaleTest {
 
     @Test
     fun tooltipShowsExactRubles() {
-        assertEquals("4 832 105 ₽", MoneyFormat.formatWhole(4_832_105.4))
+        assertEquals("4 832 105 ₽", MoneyFormat.formatWhole(4_832_105.4, currency = Currency.RUB))
     }
 
     @Test

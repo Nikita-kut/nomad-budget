@@ -29,8 +29,8 @@ object ExchangeAnalyzer {
     fun pairQuote(from: Currency, to: Currency, toPerFrom: Double): RateQuote =
         if (toPerFrom >= 1.0) RateQuote(from, to, toPerFrom) else RateQuote(to, from, 1.0 / toPerFrom)
 
-    fun baseQuote(currency: Currency, basePerUnit: Double): RateQuote =
-        if (basePerUnit >= 1.0) RateQuote(currency, Currency.BASE, basePerUnit) else RateQuote(Currency.BASE, currency, 1.0 / basePerUnit)
+    fun baseQuote(currency: Currency, basePerUnit: Double, base: Currency): RateQuote =
+        if (basePerUnit >= 1.0) RateQuote(currency, base, basePerUnit) else RateQuote(base, currency, 1.0 / basePerUnit)
 
     fun orientedQuote(given: Money, received: Money, orientation: RateQuote): RateQuote {
         val effective = received.toMajor() / given.toMajor()
@@ -56,7 +56,7 @@ object ExchangeAnalyzer {
         .map { list ->
             val sorted = list.sortedBy { it.date }
             val orientation = quote(sorted.last())
-            val market = RatePairs.series(orientation.unit, orientation.price, rateHistory)
+            val market = RatePairs.series(orientation.unit, orientation.price, rateHistory, rates.base)
             val current = rates.cross(orientation.unit, orientation.price)
             ExchangeSeries(
                 unit = orientation.unit,

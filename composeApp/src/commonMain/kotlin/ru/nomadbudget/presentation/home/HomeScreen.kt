@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -91,6 +92,7 @@ import ru.nomadbudget.presentation.entry.EntryScreen
 import ru.nomadbudget.presentation.exchange.ExchangeScreen
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.LocalAmountPrivacy
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.journal.JournalScreen
 import ru.nomadbudget.presentation.month.MonthScreen
@@ -168,6 +170,13 @@ private val TWO_COLUMN_MIN_WIDTH = 1100.dp
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
+    CompositionLocalProvider(LocalBaseCurrency provides state.base) {
+        HomeContent(viewModel, state)
+    }
+}
+
+@Composable
+private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
     if (state.needsOnboarding && !DemoMode.enabled) {
         OnboardingScreen(state = state, messages = viewModel.messages, onFinish = viewModel::completeOnboarding)
         return

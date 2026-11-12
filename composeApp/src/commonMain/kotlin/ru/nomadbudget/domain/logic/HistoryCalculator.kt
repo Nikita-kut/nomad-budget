@@ -31,20 +31,20 @@ data class HistoryTotals(
     val expense: Money,
     val netSaved: Money,
 ) {
-    val averageIncome: Money get() = Money(if (months > 0) income.minor / months else 0L, Currency.BASE)
+    val averageIncome: Money get() = Money(if (months > 0) income.minor / months else 0L, income.currency)
 
-    val averageExpense: Money get() = Money(if (months > 0) expense.minor / months else 0L, Currency.BASE)
+    val averageExpense: Money get() = Money(if (months > 0) expense.minor / months else 0L, expense.currency)
 
     val savingsShare: Double? get() = if (income.minor > 0L) netSaved.minor.toDouble() / income.minor else null
 }
 
 object HistoryCalculator {
 
-    fun totals(points: List<MonthPoint>): HistoryTotals = HistoryTotals(
+    fun totals(points: List<MonthPoint>, base: Currency): HistoryTotals = HistoryTotals(
         months = points.size,
-        income = points.map { it.income }.sumIn(Currency.BASE),
-        expense = points.map { it.expense }.sumIn(Currency.BASE),
-        netSaved = points.map { it.netSaved }.sumIn(Currency.BASE),
+        income = points.map { it.income }.sumIn(base),
+        expense = points.map { it.expense }.sumIn(base),
+        netSaved = points.map { it.netSaved }.sumIn(base),
     )
 
     fun monthly(
@@ -52,6 +52,7 @@ object HistoryCalculator {
         accounts: List<Account>,
         upTo: Period,
         startDay: Int,
+        base: Currency,
         systemIds: Set<String> = emptySet(),
     ): List<MonthPoint> {
         if (transactions.isEmpty()) return emptyList()
@@ -61,11 +62,11 @@ object HistoryCalculator {
         var period = first
         while (period.start <= upTo.start) {
             val inPeriod = transactions.filter { it.date in period }
-            val income = inPeriod.filterIsInstance<Transaction.Income>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(Currency.BASE)
-            val expense = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(Currency.BASE)
-            val saved = BudgetCalculator.cushionInflow(inPeriod, savingsIds, systemIds)
-            val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds)
-            val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds)
+            val income = inPeriod.filterIsInstance<Transaction.Income>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base)
+            val expense = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base)
+            val saved = BudgetCalculator.cushionInflow(inPeriod, savingsIds, systemIds, base)
+            val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds, base)
+            val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds, base)
             points += MonthPoint(period, income, expense, saved - taken - spent)
             period = SalaryCycle.next(period, startDay)
         }
@@ -77,14 +78,15 @@ object HistoryCalculator {
         categories: List<Category>,
         from: LocalDate,
         toExclusive: LocalDate,
+        base: Currency,
     ): List<CategoryTotal> {
         val byId = categories.filter { it.kind == CategoryKind.EXPENSE && !it.isSystem }.associateBy { it.id }
         val totals = transactions
             .filterIsInstance<Transaction.Expense>()
             .filter { it.date >= from && it.date < toExclusive }
             .groupBy { it.categoryId }
-            .mapNotNull { (id, list) -> byId[id]?.let { it to list.map { tx -> tx.amountBase }.sumIn(Currency.BASE) } }
-        val grand = totals.map { it.second }.sumIn(Currency.BASE)
+            .mapNotNull { (id, list) -> byId[id]?.let { it to list.map { tx -> tx.amountBase }.sumIn(base) } }
+        val grand = totals.map { it.second }.sumIn(base)
         return totals
             .map { (category, total) ->
                 CategoryTotal(category, total, if (grand.minor > 0L) total.minor.toDouble() / grand.minor else 0.0)
@@ -101,6 +103,7 @@ object HistoryCalculator {
         periods: List<Period>,
         accounts: List<Account>,
         transactions: List<Transaction>,
+        base: Currency,
         rateOn: (Currency, LocalDate) -> Double?,
     ): List<Pair<Period, Money>> {
         val active = accounts.filterNot { it.isArchived }
@@ -109,25 +112,25 @@ object HistoryCalculator {
             period to active.mapNotNull { account ->
                 val balance = BalanceCalculator.balanceBefore(account, transactions, period.endExclusive)
                 when (account.currency) {
-                    Currency.BASE -> balance
+                    base -> balance
                     else -> rateOn(account.currency, period.lastDay)?.let { rate ->
-                        Money((balance.minor.toDouble() / account.currency.minorFactor * rate * Currency.BASE.minorFactor).roundToLong(), Currency.BASE)
+                        Money((balance.minor.toDouble() / account.currency.minorFactor * rate * base.minorFactor).roundToLong(), base)
                     }
                 }
-            }.sumIn(Currency.BASE)
+            }.sumIn(base)
         }
     }
 
-    fun plannedExpenseByPeriod(lines: List<PeriodBudgetLine>, categories: List<Category>): Map<LocalDate, Money> {
+    fun plannedExpenseByPeriod(lines: List<PeriodBudgetLine>, categories: List<Category>, base: Currency): Map<LocalDate, Money> {
         val expenseIds = categories.filter { it.kind == CategoryKind.EXPENSE }.map { it.id }.toSet()
         return lines
             .filter { it.line.categoryId in expenseIds }
             .groupBy { it.periodStart }
-            .mapValues { (_, list) -> list.map { it.line.planned }.sumIn(Currency.BASE) }
+            .mapValues { (_, list) -> list.map { it.line.planned }.sumIn(base) }
     }
 
-    fun cumulative(points: List<MonthPoint>, selector: (MonthPoint) -> Money): List<Money> {
-        var acc = Money.zero(Currency.BASE)
+    fun cumulative(points: List<MonthPoint>, base: Currency, selector: (MonthPoint) -> Money): List<Money> {
+        var acc = Money.zero(base)
         return points.map { point ->
             acc += selector(point)
             acc

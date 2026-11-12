@@ -68,10 +68,11 @@ data class DebtTotals(val paid: Money, val principal: Money?, val interest: Mone
 object DebtHistory {
     fun totals(debt: Debt, payments: List<Transaction.Expense>): DebtTotals {
         val own = payments.filter { it.debtId == debt.id }
-        val paid = own.map { it.amountBase }.sumIn(Currency.BASE)
+        val base = own.firstOrNull()?.amountBase?.currency ?: debt.currency
+        val paid = own.map { it.amountBase }.sumIn(base)
         val principalParts = own.mapNotNull { it.debtPrincipal }.filter { it.currency == debt.currency }
         val principal = principalParts.takeIf { it.isNotEmpty() }?.sumIn(debt.currency)
-        val interest = principal?.takeIf { debt.currency == Currency.BASE }?.let { paid - it }?.takeUnless { it.isNegative }
+        val interest = principal?.takeIf { debt.currency == base }?.let { paid - it }?.takeUnless { it.isNegative }
         return DebtTotals(paid, principal, interest, own.minOfOrNull { it.date }, own.maxOfOrNull { it.date })
     }
 }

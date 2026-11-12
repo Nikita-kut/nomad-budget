@@ -1,5 +1,6 @@
 package ru.nomadbudget.domain.logic
 
+import ru.nomadbudget.domain.model.Currency
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
@@ -35,7 +36,7 @@ class DetailedPlanTest {
             BudgetLine("debt", Money.rub(2_000_000L), "sub_a"),
             BudgetLine("debt", Money.rub(3_000_000L), "sub_b"),
         )
-        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories, base = Currency.RUB).single()
         assertTrue(budget.plannedByItems)
         assertEquals(Money.rub(1_000_000L), budget.freePlanned)
         assertEquals(Money.rub(5_000_000L), budget.itemsPlanned)
@@ -49,7 +50,7 @@ class DetailedPlanTest {
             BudgetLine("debt", Money.rub(2_000_000L), "sub_a"),
             BudgetLine("debt", Money.rub(3_000_000L), "sub_b"),
         )
-        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories, base = Currency.RUB).single()
         assertTrue(budget.freePlanned.isZero)
         assertEquals(Money.rub(5_000_000L), budget.planned)
     }
@@ -58,7 +59,7 @@ class DetailedPlanTest {
     fun items_showPlanAndFactPerSubcategory_andUnplannedFact() {
         val lines = listOf(BudgetLine("debt", Money.rub(2_000_000L), "sub_a"))
         val tx = listOf(expense("e1", "sub_a", 1_500_000L), expense("e2", "sub_b", 700_000L), expense("e3", null, 100_000L))
-        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, tx, period, subcategories).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, tx, period, subcategories, base = Currency.RUB).single()
         assertEquals(Money.rub(2_000_000L), budget.planned)
         assertEquals(Money.rub(2_300_000L), budget.fact)
         val a = budget.items.first { it.subcategory?.id == "sub_a" }
@@ -74,7 +75,7 @@ class DetailedPlanTest {
     @Test
     fun withoutItemLines_categoryLineIsUsed() {
         val lines = listOf(BudgetLine("debt", Money.rub(4_000_000L)))
-        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories).single()
+        val budget = BudgetCalculator.categoryBudgets(listOf(debt), lines, emptyList(), period, subcategories, base = Currency.RUB).single()
         assertFalse(budget.plannedByItems)
         assertEquals(Money.rub(4_000_000L), budget.freePlanned)
         assertEquals(Money.rub(4_000_000L), budget.planned)

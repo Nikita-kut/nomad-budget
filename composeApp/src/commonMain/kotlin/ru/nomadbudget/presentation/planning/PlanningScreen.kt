@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -254,13 +255,14 @@ private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean) {
 
 @Composable
 private fun AllocationCard(month: MonthModel) {
+    val base = LocalBaseCurrency.current
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
     val parts = listOf(
         Triple(if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки", month.debtsPlanned, MaterialTheme.colorScheme.outline),
         Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
         Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
-        Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
+        Triple("Себе", month.savingsTarget ?: Money.zero(base), colors.save),
         Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
     ).filter { it.second.minor > 0L }
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -481,9 +483,10 @@ private const val PERCENT = 100L
 
 @Composable
 private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () -> Unit, onConfirm: (Money?) -> Unit) {
+    val base = LocalBaseCurrency.current
     var text by remember { mutableStateOf(current?.let(MoneyFormat::editText).orEmpty()) }
     val transformation = remember { ThousandsVisualTransformation() }
-    val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, Currency.BASE)
+    val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, base)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Себе в этом месяце") },
@@ -491,8 +494,8 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                    label = { Text("Отложить в подушку, ${Currency.BASE.code}") },
+                    onValueChange = { text = ThousandsVisualTransformation.sanitize(it, base.minorUnits) },
+                    label = { Text("Отложить в подушку, ${base.code}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

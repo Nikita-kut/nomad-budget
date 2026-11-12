@@ -91,7 +91,7 @@ class CapitalModelTest {
         val c = build(history, goals = listOf(goal))
         val progress = c.goalProgress(goal)
         assertEquals(12, progress.monthsLeft)
-        assertEquals(Money((50_000_000L - c.cushion.minor) / 12, Currency.BASE), progress.requiredMonthly)
+        assertEquals(Money((50_000_000L - c.cushion.minor) / 12, Currency.RUB), progress.requiredMonthly)
         assertNotNull(c.cushionTarget)
         assertEquals(0, c.monthsToReach(Money.rub(0L), Scenario.FACT))
     }

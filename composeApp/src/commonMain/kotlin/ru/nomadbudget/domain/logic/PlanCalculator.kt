@@ -28,6 +28,7 @@ object PlanCalculator {
         transactions: List<Transaction>,
         period: Period,
         startDay: Int,
+        base: Currency,
         accounts: List<Account> = emptyList(),
         months: Int = HISTORY_MONTHS,
     ): Map<String, CategoryHistory> {
@@ -42,15 +43,15 @@ object PlanCalculator {
                     is Transaction.Income -> tx.categoryId to tx.amountBase
                     is Transaction.Transfer, is Transaction.Exchange -> null
                 }
-            }.groupBy({ it.first }, { it.second }).mapValues { (_, list) -> list.sumIn(Currency.BASE) }
+            }.groupBy({ it.first }, { it.second }).mapValues { (_, list) -> list.sumIn(base) }
         }
         val lastActive = if (transactions.any { it.date in previous.first() }) byPeriod.first() else emptyMap()
         val categories = byPeriod.flatMap { it.keys }.toSet()
         return categories.associateWith { id ->
-            val total = byPeriod.mapNotNull { it[id] }.sumIn(Currency.BASE)
+            val total = byPeriod.mapNotNull { it[id] }.sumIn(base)
             CategoryHistory(
-                average = Money(total.minor / active.size, Currency.BASE),
-                previous = lastActive[id] ?: Money.zero(Currency.BASE),
+                average = Money(total.minor / active.size, base),
+                previous = lastActive[id] ?: Money.zero(base),
                 months = active.size,
             )
         }

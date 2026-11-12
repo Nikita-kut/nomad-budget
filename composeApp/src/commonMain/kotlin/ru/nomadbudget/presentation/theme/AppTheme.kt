@@ -44,8 +44,8 @@ data class AppColors(
     val heroMuted: Color,
     val glow: List<Color>,
 ) {
-    fun currency(currency: Currency, ordinal: Int = 0): Color = when (currency.code) {
-        Currency.BASE.code -> base
+    fun currency(currency: Currency, baseCurrency: Currency, ordinal: Int = 0): Color = when (currency.code) {
+        baseCurrency.code -> base
         Currency.USD.code -> usd
         else -> extraCurrencies[abs(ordinal) % extraCurrencies.size]
     }

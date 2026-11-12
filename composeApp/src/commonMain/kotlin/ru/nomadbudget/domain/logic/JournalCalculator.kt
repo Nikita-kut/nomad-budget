@@ -21,17 +21,17 @@ data class JournalSummary(
 
 object JournalCalculator {
 
-    fun days(transactions: List<Transaction>): List<JournalDay> = transactions
+    fun days(transactions: List<Transaction>, base: Currency): List<JournalDay> = transactions
         .groupBy { it.date }
         .entries
         .sortedByDescending { it.key }
-        .map { (date, list) -> JournalDay(date, list, spentBase(list)) }
+        .map { (date, list) -> JournalDay(date, list, spentBase(list, base)) }
 
-    fun summary(transactions: List<Transaction>): JournalSummary = JournalSummary(
-        days = days(transactions),
+    fun summary(transactions: List<Transaction>, base: Currency): JournalSummary = JournalSummary(
+        days = days(transactions, base),
         count = transactions.size,
-        spent = spentBase(transactions),
-        earned = transactions.filterIsInstance<Transaction.Income>().map { it.amountBase }.sumIn(Currency.BASE),
+        spent = spentBase(transactions, base),
+        earned = transactions.filterIsInstance<Transaction.Income>().map { it.amountBase }.sumIn(base),
     )
 
     fun matchesQuery(transaction: Transaction, query: String, labels: List<String>): Boolean {
@@ -43,6 +43,6 @@ object JournalCalculator {
         return transaction.amountBase.wholeUnits.toString().contains(digits) || transaction.ownAmount.wholeUnits.toString().contains(digits)
     }
 
-    private fun spentBase(transactions: List<Transaction>): Money =
-        transactions.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(Currency.BASE)
+    private fun spentBase(transactions: List<Transaction>, base: Currency): Money =
+        transactions.filterIsInstance<Transaction.Expense>().map { it.amountBase }.sumIn(base)
 }

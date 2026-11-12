@@ -101,7 +101,7 @@ fun TagChip(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, se
 }
 
 @Composable
-fun currencyColor(currency: Currency, state: HomeState): Color = AppTheme.colors.currency(currency, state.currencyOrdinal(currency))
+fun currencyColor(currency: Currency, state: HomeState): Color = AppTheme.colors.currency(currency, state.base, state.currencyOrdinal(currency))
 
 @Composable
 fun CurrencyChip(currency: Currency, state: HomeState, modifier: Modifier = Modifier) {
