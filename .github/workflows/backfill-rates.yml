@@ -1,0 +1,23 @@
+name: Backfill exchange rates
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "С какой даты (YYYY-MM-DD); пусто — с первой операции"
+        required: false
+        default: ""
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Backfill rates from the central bank archive
+        run: |
+          if [ -n "$FROM" ]; then python3 tools/rates/backfill_rates.py --from "$FROM"; else python3 tools/rates/backfill_rates.py; fi
+        env:
+          FROM: ${{ inputs.from }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

@@ -4,6 +4,7 @@ import kotlinx.datetime.LocalDate
 import ru.nomadbudget.data.dto.TransactionDto
 import ru.nomadbudget.data.dto.TransactionInsertDto
 import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.RateSource
 import ru.nomadbudget.domain.model.Transaction
@@ -35,8 +36,8 @@ object TransactionMapper {
         debtEarly = insert.debtEarly,
     )
 
-    fun toDomain(dto: TransactionDto, accountsById: Map<String, Account>, pending: Boolean = false): Transaction {
-        val base = toDomainInternal(dto, accountsById)
+    fun toDomain(dto: TransactionDto, accountsById: Map<String, Account>, baseCurrency: Currency, pending: Boolean = false): Transaction {
+        val base = toDomainInternal(dto, accountsById, baseCurrency)
         return if (!pending) base else when (base) {
             is Transaction.Expense -> base.copy(pending = true)
             is Transaction.Income -> base.copy(pending = true)
@@ -45,10 +46,10 @@ object TransactionMapper {
         }
     }
 
-    private fun toDomainInternal(dto: TransactionDto, accountsById: Map<String, Account>): Transaction {
+    private fun toDomainInternal(dto: TransactionDto, accountsById: Map<String, Account>, base: Currency): Transaction {
         val account = requireNotNull(accountsById[dto.accountId]) { "Неизвестный счёт ${dto.accountId}" }
         val amount = Money(dto.amount, account.currency)
-        val amountBase = Money.rub(dto.amountBase)
+        val amountBase = Money(dto.amountBase, base)
         val date = LocalDate.parse(dto.txDate)
         val note = dto.note.orEmpty()
         return when (dto.type) {
