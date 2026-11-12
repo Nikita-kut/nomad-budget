@@ -24,7 +24,7 @@ data class SubcategoryBudget(
     val subcategory: Subcategory?,
     val planned: Money?,
     val fact: Money,
-    val fundFact: Money = Money.zero(Currency.BASE),
+    val fundFact: Money = Money.zero(fact.currency),
 ) {
     val remaining: Money? get() = planned?.minus(fact)
 
@@ -38,9 +38,9 @@ data class CategoryBudget(
     val transactionCount: Int,
     val items: List<SubcategoryBudget> = emptyList(),
     val plannedByItems: Boolean = false,
-    val freePlanned: Money = Money.zero(Currency.BASE),
-    val itemsPlanned: Money = Money.zero(Currency.BASE),
-    val fundFact: Money = Money.zero(Currency.BASE),
+    val freePlanned: Money = Money.zero(fact.currency),
+    val itemsPlanned: Money = Money.zero(fact.currency),
+    val fundFact: Money = Money.zero(fact.currency),
 ) {
     val remaining: Money get() = planned - fact
 
@@ -55,9 +55,9 @@ data class CategoryBudget(
         val settled = items
             .filter { it.subcategory != null && it.planned != null && it.fact.wholeUnits >= it.planned.wholeUnits }
             .mapNotNull { it.planned }
-            .sumIn(Currency.BASE)
+            .sumIn(planned.currency)
         val flexible = planned - settled
-        return settled + Money((flexible.minor * share).toLong(), Currency.BASE)
+        return settled + Money((flexible.minor * share).toLong(), planned.currency)
     }
 
     fun pace(elapsedShare: Double): Pace {
@@ -113,6 +113,7 @@ object BudgetCalculator {
         period: Period,
         subcategories: List<Subcategory> = emptyList(),
         accounts: List<Account> = emptyList(),
+        base: Currency,
     ): List<CategoryBudget> {
         val subcategoriesById = subcategories.associateBy { it.id }
         val accountsById = accounts.associateBy { it.id }
@@ -133,18 +134,18 @@ object BudgetCalculator {
                 }
                 val categoryLines = if (category.isArchived) emptyList() else lines.filter { it.categoryId == category.id }
                 val itemLines = categoryLines.filter { it.subcategoryId != null }
-                val itemsPlanned = itemLines.map { it.planned }.sumIn(Currency.BASE)
-                val freePlanned = categoryLines.firstOrNull { it.subcategoryId == null }?.planned ?: Money.zero(Currency.BASE)
+                val itemsPlanned = itemLines.map { it.planned }.sumIn(base)
+                val freePlanned = categoryLines.firstOrNull { it.subcategoryId == null }?.planned ?: Money.zero(base)
                 CategoryBudget(
                     category = category,
                     planned = freePlanned + itemsPlanned,
-                    fact = related.map { it.amountBase }.sumIn(Currency.BASE),
+                    fact = related.map { it.amountBase }.sumIn(base),
                     transactionCount = related.size,
-                    items = buildItems(related, itemLines, subcategoriesById, fundSpends),
+                    items = buildItems(related, itemLines, subcategoriesById, base, fundSpends),
                     plannedByItems = itemLines.isNotEmpty(),
                     freePlanned = freePlanned,
                     itemsPlanned = itemsPlanned,
-                    fundFact = fundSpends.map { it.amountBase }.sumIn(Currency.BASE),
+                    fundFact = fundSpends.map { it.amountBase }.sumIn(base),
                 )
             }
     }
@@ -153,13 +154,14 @@ object BudgetCalculator {
         related: List<Transaction>,
         itemLines: List<BudgetLine>,
         subcategoriesById: Map<String, Subcategory>,
+        base: Currency,
         fundSpends: List<Transaction.Expense> = emptyList(),
     ): List<SubcategoryBudget> {
         val factBySubcategory = related
             .filterIsInstance<Transaction.Expense>()
             .groupBy { it.subcategoryId }
-            .mapValues { (_, list) -> list.map { it.amountBase }.sumIn(Currency.BASE) }
-        val fundBySubcategory = fundSpends.groupBy { it.subcategoryId }.mapValues { (_, list) -> list.map { it.amountBase }.sumIn(Currency.BASE) }
+            .mapValues { (_, list) -> list.map { it.amountBase }.sumIn(base) }
+        val fundBySubcategory = fundSpends.groupBy { it.subcategoryId }.mapValues { (_, list) -> list.map { it.amountBase }.sumIn(base) }
         val plannedBySubcategory = itemLines.associate { it.subcategoryId to it.planned }
         val ids = (plannedBySubcategory.keys + factBySubcategory.keys + fundBySubcategory.keys).filterNotNull().distinct()
         if (ids.isEmpty() && factBySubcategory[null] == null) return emptyList()
@@ -167,15 +169,15 @@ object BudgetCalculator {
             SubcategoryBudget(
                 subcategory = subcategoriesById[id],
                 planned = plannedBySubcategory[id],
-                fact = factBySubcategory[id] ?: Money.zero(Currency.BASE),
-                fundFact = fundBySubcategory[id] ?: Money.zero(Currency.BASE),
+                fact = factBySubcategory[id] ?: Money.zero(base),
+                fundFact = fundBySubcategory[id] ?: Money.zero(base),
             )
         }.sortedWith(compareByDescending<SubcategoryBudget> { it.planned?.minor ?: -1L }.thenBy { it.subcategory?.name.orEmpty() })
         val withoutSubcategory = factBySubcategory[null]?.let { SubcategoryBudget(subcategory = null, planned = null, fact = it) }
         return items + listOfNotNull(withoutSubcategory)
     }
 
-    fun cushionInflow(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet()): Money =
+    fun cushionInflow(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet(), base: Currency): Money =
         transactions.mapNotNull {
             when (it) {
                 is Transaction.Transfer -> it.amountBase.takeIf { _ -> it.toAccountId in cushionIds && it.fromAccountId !in cushionIds }
@@ -183,26 +185,26 @@ object BudgetCalculator {
                 is Transaction.Income -> it.amountBase.takeIf { _ -> it.accountId in cushionIds && it.categoryId !in systemCategoryIds }
                 is Transaction.Expense -> null
             }
-        }.sumIn(Currency.BASE)
+        }.sumIn(base)
 
-    fun cushionOutflow(transactions: List<Transaction>, cushionIds: Set<String>): Money =
+    fun cushionOutflow(transactions: List<Transaction>, cushionIds: Set<String>, base: Currency): Money =
         transactions.mapNotNull {
             when (it) {
                 is Transaction.Transfer -> it.amountBase.takeIf { _ -> it.fromAccountId in cushionIds && it.toAccountId !in cushionIds }
                 is Transaction.Exchange -> it.amountBase.takeIf { _ -> it.fromAccountId in cushionIds && it.toAccountId !in cushionIds }
                 is Transaction.Income, is Transaction.Expense -> null
             }
-        }.sumIn(Currency.BASE)
+        }.sumIn(base)
 
-    fun cushionToDebts(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet()): Money =
+    fun cushionToDebts(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet(), base: Currency): Money =
         transactions.filterIsInstance<Transaction.Expense>()
             .filter { it.accountId in cushionIds && it.categoryId !in systemCategoryIds && it.debtId != null }
             .map { it.amountBase }
-            .sumIn(Currency.BASE)
+            .sumIn(base)
 
-    fun cushionSpent(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet()): Money =
+    fun cushionSpent(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet(), base: Currency): Money =
         transactions.filterIsInstance<Transaction.Expense>()
             .filter { it.accountId in cushionIds && it.categoryId !in systemCategoryIds }
             .map { it.amountBase }
-            .sumIn(Currency.BASE)
+            .sumIn(base)
 }

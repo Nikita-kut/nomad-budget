@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -291,7 +292,7 @@ private fun AccountRow(
         }
         Column(horizontalAlignment = Alignment.End) {
             CurrencyAmount(MoneyFormat.format(balance), MaterialTheme.typography.bodyLarge, FontWeight.SemiBold)
-            if (account.currency != Currency.BASE) {
+            if (account.currency != state.base) {
                 val inBase = state.rates.toBaseOrNull(balance)
                 Text(
                     if (inBase != null) "≈ ${MoneyFormat.format(inBase, false)}" else "нет курса",
@@ -314,8 +315,9 @@ private fun AccountRow(
 
 @Composable
 private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, onConfirm: (NewAccountDraft) -> Unit) {
+    val base = LocalBaseCurrency.current
     var name by remember { mutableStateOf("") }
-    var currency by remember { mutableStateOf(Currency.BASE) }
+    var currency by remember { mutableStateOf(base) }
     var role by remember { mutableStateOf(AccountRole.LIFE) }
     var opening by remember { mutableStateOf("") }
     var monthly by remember { mutableStateOf("") }
@@ -431,7 +433,7 @@ private fun RatesCard(state: HomeState) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             state.foreignCurrencies.forEach { currency ->
                 if (state.rates.hasRate(currency)) {
-                    KeyValueRow(currency.code, MoneyFormat.quoteText(ExchangeAnalyzer.baseQuote(currency, state.rates.basePerUnit(currency))))
+                    KeyValueRow(currency.code, MoneyFormat.quoteText(ExchangeAnalyzer.baseQuote(currency, state.rates.basePerUnit(currency), state.base)))
                 } else {
                     KeyValueRow(currency.code, "нет курса")
                 }

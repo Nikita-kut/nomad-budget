@@ -62,7 +62,7 @@ fun PlanEditorDialog(
     val initialRows = remember(categoryId) {
         budget.items
             .filter { it.planned != null && it.subcategory != null }
-            .mapIndexed { index, item -> PlanRowInput(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), MoneyFormat.editText(item.planned ?: Money.zero(Currency.BASE))) }
+            .mapIndexed { index, item -> PlanRowInput(index, item.subcategory?.id, item.subcategory?.name.orEmpty(), MoneyFormat.editText(item.planned ?: Money.zero(state.base))) }
     }
     val initialFree = remember(categoryId) { budget.freePlanned.takeIf { it.minor > 0L }?.let(MoneyFormat::editText).orEmpty() }
     var rows by remember(categoryId) { mutableStateOf(initialRows) }
@@ -70,9 +70,9 @@ fun PlanEditorDialog(
     var freeText by remember(categoryId) { mutableStateOf(initialFree) }
     val transformation = remember { ThousandsVisualTransformation() }
 
-    val parsedRows = rows.map { row -> row to MoneyFormat.parse(row.amount, Currency.BASE) }
-    val itemsTotal = parsedRows.mapNotNull { it.second }.sumIn(Currency.BASE)
-    val free = if (freeText.isBlank()) Money.zero(Currency.BASE) else MoneyFormat.parse(freeText, Currency.BASE)
+    val parsedRows = rows.map { row -> row to MoneyFormat.parse(row.amount, state.base) }
+    val itemsTotal = parsedRows.mapNotNull { it.second }.sumIn(state.base)
+    val free = if (freeText.isBlank()) Money.zero(state.base) else MoneyFormat.parse(freeText, state.base)
     val dirty = freeText != initialFree || rows != initialRows
     val error = when {
         free == null -> "Введи сумму в «Прочее»"
@@ -80,7 +80,7 @@ fun PlanEditorDialog(
         rows.map { it.name.trim().lowercase() }.let { it.size != it.toSet().size } -> "Подкатегории повторяются"
         else -> null
     }
-    val total = (free ?: Money.zero(Currency.BASE)) + itemsTotal
+    val total = (free ?: Money.zero(state.base)) + itemsTotal
 
     fun draft(): CategoryPlanDraft? {
         if (error != null || free == null) return null
@@ -130,8 +130,8 @@ fun PlanEditorDialog(
                                 )
                                 OutlinedTextField(
                                     value = row.amount,
-                                    onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(amount = ThousandsVisualTransformation.sanitize(v, Currency.BASE.minorUnits)) else it } },
-                                    label = { Text(Currency.BASE.code) },
+                                    onValueChange = { v -> rows = rows.map { if (it.key == row.key) it.copy(amount = ThousandsVisualTransformation.sanitize(v, state.base.minorUnits)) else it } },
+                                    label = { Text(state.base.code) },
                                     singleLine = true,
                                     visualTransformation = transformation,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -166,8 +166,8 @@ fun PlanEditorDialog(
                     }
                     OutlinedTextField(
                         value = freeText,
-                        onValueChange = { freeText = ThousandsVisualTransformation.sanitize(it, Currency.BASE.minorUnits) },
-                        label = { Text(if (isIncome) "Сумма на месяц, ${Currency.BASE.code}" else "Прочее, ${Currency.BASE.code}") },
+                        onValueChange = { freeText = ThousandsVisualTransformation.sanitize(it, state.base.minorUnits) },
+                        label = { Text(if (isIncome) "Сумма на месяц, ${state.base.code}" else "Прочее, ${state.base.code}") },
                         supportingText = { if (!isIncome) Text("на всё в категории, что не попало в подкатегории") },
                         singleLine = true,
                         visualTransformation = transformation,

@@ -52,13 +52,13 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
     val savedColor = AppTheme.colors.save
     val planColor = MaterialTheme.colorScheme.outline
     val netWorth = remember(all, state.accounts, state.transactions, state.rateHistory, state.rates) {
-        HistoryCalculator.netWorth(all.map { it.period }, state.accounts, state.transactions) { currency, date ->
-            RatePairs.basePerUnitOn(state.rateHistory, currency, date) ?: state.rates.rateFor(currency)?.basePerUnit
+        HistoryCalculator.netWorth(all.map { it.period }, state.accounts, state.transactions, state.base) { currency, date ->
+            RatePairs.basePerUnitOn(state.rateHistory, currency, date, state.base) ?: state.rates.rateFor(currency)?.basePerUnit
         }
     }
     val closed = if (all.isNotEmpty() && state.today in all.last().period) all.dropLast(1) else all
     val rated = all.filter { it.income.minor > 0L }
-    val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories)
+    val planned = HistoryCalculator.plannedExpenseByPeriod(state.allPlanLines, state.categories, state.base)
     var categoryPeriod by remember { mutableIntStateOf(0) }
 
     CenteredLazyColumn(bottom = 24.dp) {
@@ -66,7 +66,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             item { EmptyHint("Пока нет данных для графиков") }
             return@CenteredLazyColumn
         }
-        item { Totals(closed.takeLast(TOTALS_MONTHS), wide) }
+        item { Totals(closed.takeLast(TOTALS_MONTHS), state.base, wide) }
         item {
             ChartPanel(
                 title = "Доходы и расходы по месяцам",
@@ -83,7 +83,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     names = listOf("доход", "расход"),
                     labels = labels.drop(from),
                     formatY = MoneyFormat::formatAxis,
-                    formatValue = MoneyFormat::formatWhole,
+                    formatValue = MoneyFormat.whole(state.base),
                     visibleCount = visible,
                 )
             }
@@ -121,14 +121,14 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     val slice = withPlan.drop(from)
                     ColumnsChart(
                         series = listOf(
-                            slice.map { (planned[it.period.start] ?: Money.zero(Currency.BASE)).toMajor() },
+                            slice.map { (planned[it.period.start] ?: Money.zero(state.base)).toMajor() },
                             slice.map { it.expense.toMajor() },
                         ),
                         colors = listOf(planColor, expenseColor),
                         names = listOf("план", "факт"),
                         labels = slice.map(::monthLabel),
                         formatY = MoneyFormat::formatAxis,
-                        formatValue = MoneyFormat::formatWhole,
+                        formatValue = MoneyFormat.whole(state.base),
                         visibleCount = visible,
                     )
                 }
@@ -149,7 +149,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     color = incomeColor,
                     labels = slice.map { DateFormat.monthYearShort(it.first.start) },
                     formatY = MoneyFormat::formatAxis,
-                    formatValue = MoneyFormat::formatWhole,
+                    formatValue = MoneyFormat.whole(state.base),
                     visibleCount = visible,
                     fitToData = true,
                 )
@@ -165,11 +165,11 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                 periods = MONTH_PERIODS,
             ) { from, visible ->
                 LineChart(
-                    values = HistoryCalculator.cumulative(all.drop(from)) { it.netSaved }.map { it.toMajor() },
+                    values = HistoryCalculator.cumulative(all.drop(from), state.base) { it.netSaved }.map { it.toMajor() },
                     color = savedColor,
                     labels = labels.drop(from),
                     formatY = MoneyFormat::formatAxis,
-                    formatValue = MoneyFormat::formatWhole,
+                    formatValue = MoneyFormat.whole(state.base),
                     visibleCount = visible,
                 )
             }
@@ -188,6 +188,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             state.categories,
             from = points.first().period.start,
             toExclusive = points.last().period.endExclusive,
+            base = state.base,
         )
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -215,8 +216,8 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
 }
 
 @Composable
-private fun Totals(points: List<MonthPoint>, wide: Boolean) {
-    val totals = HistoryCalculator.totals(points)
+private fun Totals(points: List<MonthPoint>, base: Currency, wide: Boolean) {
+    val totals = HistoryCalculator.totals(points, base)
     val months = totals.months
     TileRow(
         wide,

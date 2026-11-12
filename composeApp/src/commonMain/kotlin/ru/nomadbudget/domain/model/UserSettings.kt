@@ -6,7 +6,7 @@ import kotlin.time.Instant
 data class UserSettings(
     val periodStartDay: Int = SalaryCycle.DEFAULT_START_DAY,
     val incomeDays: List<Int> = emptyList(),
-    val baseCurrencyCode: String = Currency.BASE.code,
+    val baseCurrencyCode: String = Currency.DEFAULT_BASE.code,
     val cushionMonths: Int = CapitalSettings.DEFAULT_CUSHION_MONTHS,
     val annualReturn: Double = 0.0,
     val onboardedAt: Instant? = null,

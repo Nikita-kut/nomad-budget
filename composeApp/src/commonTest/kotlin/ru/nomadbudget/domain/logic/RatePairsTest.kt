@@ -18,10 +18,10 @@ class RatePairsTest {
 
     @Test
     fun basePerUnitOn_takesLatestRateNotAfterDate() {
-        assertEquals(92.0, RatePairs.basePerUnitOn(history, Currency.USD, LocalDate(2026, 10, 5)))
-        assertEquals(95.0, RatePairs.basePerUnitOn(history, Currency.USD, LocalDate(2026, 10, 7)))
-        assertNull(RatePairs.basePerUnitOn(history, Currency.USD, LocalDate(2026, 9, 30)))
-        assertEquals(1.0, RatePairs.basePerUnitOn(emptyList(), Currency.BASE, LocalDate(2026, 9, 30)))
+        assertEquals(92.0, RatePairs.basePerUnitOn(history, Currency.USD, LocalDate(2026, 10, 5), base = Currency.RUB))
+        assertEquals(95.0, RatePairs.basePerUnitOn(history, Currency.USD, LocalDate(2026, 10, 7), base = Currency.RUB))
+        assertNull(RatePairs.basePerUnitOn(history, Currency.USD, LocalDate(2026, 9, 30), base = Currency.RUB))
+        assertEquals(1.0, RatePairs.basePerUnitOn(emptyList(), Currency.RUB, LocalDate(2026, 9, 30), base = Currency.RUB))
     }
 
     @Test

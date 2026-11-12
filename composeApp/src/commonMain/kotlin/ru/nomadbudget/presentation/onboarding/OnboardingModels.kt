@@ -43,9 +43,9 @@ object OnboardingDefaults {
     const val CUSHION = "Подушка"
 
     fun accounts(): List<OnboardingAccount> = listOf(
-        OnboardingAccount("card", CARD, Currency.BASE.code, AccountRole.LIFE),
-        OnboardingAccount("cash", CASH, Currency.BASE.code, AccountRole.LIFE),
-        OnboardingAccount("cushion", CUSHION, Currency.BASE.code, AccountRole.CUSHION),
+        OnboardingAccount("card", CARD, Currency.DEFAULT_BASE.code, AccountRole.LIFE),
+        OnboardingAccount("cash", CASH, Currency.DEFAULT_BASE.code, AccountRole.LIFE),
+        OnboardingAccount("cushion", CUSHION, Currency.DEFAULT_BASE.code, AccountRole.CUSHION),
     )
 
     fun cashFor(code: String): OnboardingAccount = OnboardingAccount("cash:$code", "$CASH $code", code, AccountRole.LIFE, auto = true)

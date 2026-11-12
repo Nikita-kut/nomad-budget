@@ -40,7 +40,7 @@ class HistoryCalculatorTest {
     @Test
     fun monthly_buildsContinuousSeries_upToGivenPeriod() {
         val upTo = SalaryCycle.periodContaining(LocalDate(2026, 9, 20), TEST_START_DAY)
-        val points = HistoryCalculator.monthly(tx, listOf(card, savings), upTo, TEST_START_DAY)
+        val points = HistoryCalculator.monthly(tx, listOf(card, savings), upTo, TEST_START_DAY, base = Currency.RUB)
         assertEquals(3, points.size)
         assertEquals(LocalDate(2026, 7, 5), points[0].period.start)
         assertEquals(Money.rub(10_000_000L), points[0].income)
@@ -52,7 +52,7 @@ class HistoryCalculatorTest {
 
     @Test
     fun expensesByCategory_sortedWithShares() {
-        val totals = HistoryCalculator.expensesByCategory(tx, listOf(food, rent, salary), LocalDate(2026, 7, 1), LocalDate(2026, 9, 1))
+        val totals = HistoryCalculator.expensesByCategory(tx, listOf(food, rent, salary), LocalDate(2026, 7, 1), LocalDate(2026, 9, 1), base = Currency.RUB)
         assertEquals(listOf("rent", "food"), totals.map { it.category.id })
         assertEquals(0.625, totals[0].share, absoluteTolerance = 0.0001)
     }
@@ -60,7 +60,7 @@ class HistoryCalculatorTest {
     @Test
     fun cumulative_runningTotal() {
         val upTo = SalaryCycle.periodContaining(LocalDate(2026, 8, 20), TEST_START_DAY)
-        val points = HistoryCalculator.monthly(tx, listOf(card, savings), upTo, TEST_START_DAY)
-        assertEquals(listOf(Money.rub(2_000_000L), Money.rub(1_500_000L)), HistoryCalculator.cumulative(points) { it.netSaved })
+        val points = HistoryCalculator.monthly(tx, listOf(card, savings), upTo, TEST_START_DAY, base = Currency.RUB)
+        assertEquals(listOf(Money.rub(2_000_000L), Money.rub(1_500_000L)), HistoryCalculator.cumulative(points, base = Currency.RUB) { it.netSaved })
     }
 }

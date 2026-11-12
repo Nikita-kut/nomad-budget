@@ -124,6 +124,7 @@ data class HomeState(
     private val memo: Memo = Memo(),
 ) {
     val periodStartDay: Int = settings.periodStartDay
+    val base: Currency = rates.base
 
     val needsOnboarding: Boolean = !loading && error == null && !offline && !settings.isOnboarded
 
@@ -142,7 +143,7 @@ data class HomeState(
     val systemCategoryIds: Set<String> = memo.get("system", categories) { categories.filter { it.isSystem }.map { it.id }.toSet() }
 
     val monthlyHistory: List<MonthPoint> = memo.get("history", transactions, accounts, period, categories, settings) {
-        HistoryCalculator.monthly(transactions, accounts, period, periodStartDay, systemCategoryIds)
+        HistoryCalculator.monthly(transactions, accounts, period, periodStartDay, base, systemCategoryIds)
     }
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
@@ -168,11 +169,11 @@ data class HomeState(
     val activeSubcategories: List<Subcategory> = subcategories.filterNot { it.isArchived }
 
     val userCurrencies: List<Currency> = memo.get("userCurrencies", currencies, accounts, settings) {
-        val codes = settings.currencyCodes.toSet() + accounts.filterNot { it.isArchived }.map { it.currency.code } + Currency.BASE.code
-        currencies.filter { it.code in codes }.sortedWith(compareBy({ it != Currency.BASE }, { it.code }))
+        val codes = settings.currencyCodes.toSet() + accounts.filterNot { it.isArchived }.map { it.currency.code } + base.code
+        currencies.filter { it.code in codes }.sortedWith(compareBy({ it != base }, { it.code }))
     }
 
-    val foreignCurrencies: List<Currency> = userCurrencies.filter { it != Currency.BASE }
+    val foreignCurrencies: List<Currency> = userCurrencies.filter { it != base }
 
     private val extraCurrencyOrder: List<String> = foreignCurrencies.filter { it != Currency.USD }.map { it.code }.sorted()
 
@@ -239,7 +240,7 @@ data class HomeState(
     }
 
     val categoryHistory: Map<String, CategoryHistory> get() = memo.get("categoryHistory", transactions, period, accounts, settings) {
-        PlanCalculator.history(transactions, period, periodStartDay, accounts)
+        PlanCalculator.history(transactions, period, periodStartDay, base, accounts)
     }
 
     val exchanges: List<Transaction.Exchange> get() = memo.get("exchanges", transactions) { transactions.filterIsInstance<Transaction.Exchange>() }

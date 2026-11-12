@@ -25,7 +25,7 @@ class JournalCalculatorTest {
 
     @Test
     fun summary_groupsByDayNewestFirst_andSumsBaseAmounts() {
-        val summary = JournalCalculator.summary(listOf(expense("a", d1, 10_000L), income("i", d2, 500_000L), expense("b", d2, 20_000L)))
+        val summary = JournalCalculator.summary(listOf(expense("a", d1, 10_000L), income("i", d2, 500_000L), expense("b", d2, 20_000L)), base = Currency.RUB)
         assertEquals(listOf(d2, d1), summary.days.map { it.date })
         assertEquals(Money.rub(20_000L), summary.days.first().spentBase)
         assertEquals(3, summary.count)

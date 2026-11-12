@@ -1,5 +1,6 @@
 package ru.nomadbudget.domain.logic
 
+import ru.nomadbudget.domain.model.Currency
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
@@ -30,7 +31,7 @@ class PlanHistoryTest {
             expense("b", LocalDate(2026, 8, 10), 5_000_000L),
             expense("c", LocalDate(2026, 10, 10), 9_000_000L),
         )
-        val history = PlanCalculator.history(tx, current, TEST_START_DAY).getValue("food")
+        val history = PlanCalculator.history(tx, current, TEST_START_DAY, base = Currency.RUB).getValue("food")
         assertEquals(2, history.months)
         assertEquals(Money.rub(4_000_000L), history.average)
         assertEquals(Money.rub(3_000_000L), history.previous)
@@ -38,6 +39,6 @@ class PlanHistoryTest {
 
     @Test
     fun history_emptyWithoutPastData() {
-        assertTrue(PlanCalculator.history(listOf(expense("c", LocalDate(2026, 10, 10), 100L)), current, TEST_START_DAY).isEmpty())
+        assertTrue(PlanCalculator.history(listOf(expense("c", LocalDate(2026, 10, 10), 100L)), current, TEST_START_DAY, base = Currency.RUB).isEmpty())
     }
 }

@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 
 class DebtCategoriesTest {
 
-    private val bank = Debt("d1", "Ипотека", Currency.BASE, Money.rub(100_000_000L), Money.rub(3_000_000L), 12.0, 10)
+    private val bank = Debt("d1", "Ипотека", Currency.RUB, Money.rub(100_000_000L), Money.rub(3_000_000L), 12.0, 10)
     private val loans = Category("loans", "Кредиты", CategoryKind.EXPENSE, 10)
     private val payment = Transaction.Expense("p", LocalDate(2026, 10, 1), "card", Money.rub(3_000_000L), "other", null, Money.rub(3_000_000L), RateSource.API, debtId = "d1")
 
@@ -43,7 +43,7 @@ class DebtCategoriesTest {
 
     @Test
     fun isDebtOnlyEnvelope_requiresNoPlanAndNoFact() {
-        val idle = CategoryBudget(loans, Money.zero(Currency.BASE), Money.zero(Currency.BASE), 0)
+        val idle = CategoryBudget(loans, Money.zero(Currency.RUB), Money.zero(Currency.RUB), 0)
         assertTrue(DebtCategories.isDebtOnlyEnvelope(idle, setOf("loans")))
         assertFalse(DebtCategories.isDebtOnlyEnvelope(idle.copy(fact = Money.rub(100L)), setOf("loans")))
         assertFalse(DebtCategories.isDebtOnlyEnvelope(idle, emptySet()))

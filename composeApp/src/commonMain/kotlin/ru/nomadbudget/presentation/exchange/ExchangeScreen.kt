@@ -83,7 +83,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     val daily = state.activeAccounts.filterNot { it.isSavings }
     var from by remember(daily) { mutableStateOf(daily.firstOrNull { it.currency == Currency.USD } ?: daily.firstOrNull()) }
     var to by remember(daily) {
-        mutableStateOf(daily.firstOrNull { it.currency != Currency.BASE && it.currency != Currency.USD } ?: daily.lastOrNull())
+        mutableStateOf(daily.firstOrNull { it.currency != state.base && it.currency != Currency.USD } ?: daily.lastOrNull())
     }
     var givenText by remember { mutableStateOf("") }
     var receivedText by remember { mutableStateOf("") }
@@ -234,7 +234,7 @@ private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDele
 
 @Composable
 private fun ExchangeRateChart(data: ExchangeSeries, state: HomeState) {
-    val mineColor = currencyColor(if (data.unit == Currency.BASE) data.price else data.unit, state)
+    val mineColor = currencyColor(if (data.unit == state.base) data.price else data.unit, state)
     val tableColor = MaterialTheme.colorScheme.outline
     val withTable = data.points.all { it.table != null }
     ChartPanel(

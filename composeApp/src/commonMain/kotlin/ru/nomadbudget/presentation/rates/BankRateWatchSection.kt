@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.rates
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -292,9 +293,10 @@ fun BankRateWatchDialog(
     onDismiss: () -> Unit,
     onConfirm: (BankRateWatchDraft) -> Unit,
 ) {
-    val foreign = currencies.firstOrNull { it != Currency.BASE }
-    var from by remember { mutableStateOf(initial?.from ?: Currency.BASE) }
-    var to by remember { mutableStateOf(initial?.to ?: foreign ?: Currency.BASE) }
+    val base = LocalBaseCurrency.current
+    val foreign = currencies.firstOrNull { it != base }
+    var from by remember { mutableStateOf(initial?.from ?: base) }
+    var to by remember { mutableStateOf(initial?.to ?: foreign ?: base) }
     val unit = MoneyFormat.quoteUnit(initial?.target ?: suggestedTarget ?: 1.0)
     var target by remember { mutableStateOf(initial?.target?.let { MoneyFormat.formatQuote(it * unit) }.orEmpty()) }
     var topShare by remember { mutableStateOf(100 - (initial?.goodPercentile ?: BankRateWatch.DEFAULT_GOOD_PERCENTILE)) }

@@ -22,7 +22,7 @@ class AmountMaskTest {
         assertEquals("••• ₽", MoneyFormat.formatSigned(Money.rub(-5_00L)))
         assertEquals("$•••", MoneyFormat.format(Money(1_00L, Currency.USD)))
         assertEquals("•••", MoneyFormat.formatAxis(1_500_000.0))
-        assertEquals("••• ₽", MoneyFormat.formatWhole(42.0))
+        assertEquals("••• ₽", MoneyFormat.formatWhole(42.0, currency = Currency.RUB))
     }
 
     @Test

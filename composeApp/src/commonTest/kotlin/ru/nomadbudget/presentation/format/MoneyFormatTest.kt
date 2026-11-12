@@ -113,7 +113,7 @@ class MoneyFormatTest {
 
     @Test
     fun quoteText_followsQuoteOrientation() {
-        val quote = ru.nomadbudget.domain.logic.ExchangeAnalyzer.baseQuote(Currency.USD, 92.8)
+        val quote = ru.nomadbudget.domain.logic.ExchangeAnalyzer.baseQuote(Currency.USD, 92.8, base = Currency.RUB)
         assertEquals("1 USD = 92,80 RUB", MoneyFormat.quoteText(quote))
     }
 

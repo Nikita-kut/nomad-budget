@@ -299,7 +299,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
-                        if (tx.amount.currency != Currency.BASE) {
+                        if (tx.amount.currency != state.base) {
                             CurrencyAmount(MoneyFormat.format(tx.amount), MaterialTheme.typography.bodySmall)
                         }
                         Text(MoneyFormat.format(tx.amountBase, false), style = MaterialTheme.typography.bodySmall)
@@ -503,7 +503,7 @@ private fun EnvelopeTable(budgets: List<CategoryBudget>, state: HomeState, expan
                                     modifier = Modifier.weight(1f),
                                 )
                                 Text(state.accountName(tx.accountId) + if (fromFund) " · копилка" else "", style = MaterialTheme.typography.bodySmall, color = muted)
-                                if (tx.amount.currency != Currency.BASE) {
+                                if (tx.amount.currency != state.base) {
                                     CurrencyAmount(MoneyFormat.format(tx.amount), MaterialTheme.typography.bodySmall)
                                 }
                                 AmountCell(MoneyFormat.format(tx.amountBase, false), style = MaterialTheme.typography.bodySmall)

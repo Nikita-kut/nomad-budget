@@ -14,7 +14,8 @@ data class Currency(val code: String, val minorUnits: Int, val symbol: String) {
     companion object {
         val RUB: Currency = Currency("RUB", 2, "₽")
         val USD: Currency = Currency("USD", 2, "$")
-        val BASE: Currency = RUB
+        val DEFAULT_BASE: Currency = RUB
+        val RATE_PIVOT: Currency = RUB
 
         val builtIn: List<Currency> = listOf(RUB, USD)
     }

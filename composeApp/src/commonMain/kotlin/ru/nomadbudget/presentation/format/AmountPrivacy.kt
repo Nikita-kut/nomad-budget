@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.repository.KeyValueStore
 
 object AmountMask {
@@ -40,3 +41,5 @@ class AmountPrivacy(private val store: KeyValueStore?) {
 }
 
 val LocalAmountPrivacy = staticCompositionLocalOf { AmountPrivacy(null) }
+
+val LocalBaseCurrency = staticCompositionLocalOf { Currency.DEFAULT_BASE }

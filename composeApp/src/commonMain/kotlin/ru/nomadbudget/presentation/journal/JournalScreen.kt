@@ -95,7 +95,7 @@ fun JournalScreen(
     val filtered = source.filter { tx ->
         filter.matches(tx) && (account == null || tx.touches(account?.id.orEmpty())) && (!searching || JournalCalculator.matchesQuery(tx, query, labels(tx, state)))
     }
-    val summary = JournalCalculator.summary(filtered)
+    val summary = JournalCalculator.summary(filtered, state.base)
 
     if (twoColumns) {
         Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -241,8 +241,8 @@ private fun DayCard(day: JournalDay, state: HomeState, onDelete: (String) -> Uni
         val incomes = byKind[TransactionKind.INCOME].orEmpty()
         val moves = byKind[TransactionKind.TRANSFER].orEmpty() + byKind[TransactionKind.EXCHANGE].orEmpty()
         val groups = listOf(
-            JournalGroup("Расходы", AppTheme.colors.bad, expenses, MoneyFormat.format(-JournalCalculator.summary(expenses).spent, false)),
-            JournalGroup("Доходы", AppTheme.colors.good, incomes, MoneyFormat.formatSigned(JournalCalculator.summary(incomes).earned, false)),
+            JournalGroup("Расходы", AppTheme.colors.bad, expenses, MoneyFormat.format(-JournalCalculator.summary(expenses, state.base).spent, false)),
+            JournalGroup("Доходы", AppTheme.colors.good, incomes, MoneyFormat.formatSigned(JournalCalculator.summary(incomes, state.base).earned, false)),
             JournalGroup("Переводы и обмены", MaterialTheme.colorScheme.primary, moves, operations(moves.size)),
         ).filter { it.items.isNotEmpty() }
         groups.forEach { group ->
@@ -321,7 +321,7 @@ private fun TransactionRow(tx: Transaction, state: HomeState, onDelete: (String)
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         val currency = tx.ownAmount.currency
-                        if (currency != Currency.BASE) CurrencyChip(currency, state)
+                        if (currency != state.base) CurrencyChip(currency, state)
                         Text(row.primary, fontWeight = FontWeight.SemiBold, color = primaryColor)
                     }
                     if (row.secondary.isNotEmpty()) {
@@ -373,7 +373,7 @@ private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
         toAccountId = null,
         note = tx.note,
         primary = MoneyFormat.format(-tx.amount),
-        secondary = if (tx.amount.currency == Currency.BASE) "" else "≈ ${MoneyFormat.format(tx.amountBase, false)}",
+        secondary = if (tx.amount.currency == state.base) "" else "≈ ${MoneyFormat.format(tx.amountBase, false)}",
     )
     is Transaction.Income -> RowText(
         title = state.categoryName(tx.categoryId),

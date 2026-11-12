@@ -50,9 +50,9 @@ private val RATE_PERIODS = listOf(ChartPeriod("30 дн.", 30), ChartPeriod("90 �
 
 @Composable
 fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCallbacks) {
-    val pairs = remember(state.userCurrencies) { RatePairs.pairs(state.userCurrencies) }
+    val pairs = remember(state.userCurrencies) { RatePairs.pairs(state.userCurrencies, state.base) }
     val series = remember(state.rateHistory, pairs) {
-        pairs.associateWith { (a, b) -> RatePairs.series(a, b, state.rateHistory) }
+        pairs.associateWith { (a, b) -> RatePairs.series(a, b, state.rateHistory, state.base) }
     }
     var editingWatch by remember { mutableStateOf(false) }
     CenteredLazyColumn(bottom = 24.dp) {
@@ -96,8 +96,8 @@ private fun SourceLine(state: HomeState) {
 
 @Composable
 private fun PairBlock(a: Currency, b: Currency, points: List<RatePoint>, state: HomeState, wide: Boolean) {
-    val colorA = currencyColor(if (a == Currency.BASE) b else a, state)
-    val colorB = currencyColor(if (b == Currency.BASE) a else b, state)
+    val colorA = currencyColor(if (a == state.base) b else a, state)
+    val colorB = currencyColor(if (b == state.base) a else b, state)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CurrencyChip(a, state)

@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.settings
 
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -335,14 +336,15 @@ private const val DELETE_WORD = "УДАЛИТЬ"
 
 @Composable
 private fun CurrencyTrailing(currency: Currency, hasRate: Boolean, usedBy: Int, onRemove: () -> Unit) {
+    val base = LocalBaseCurrency.current
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         when {
-            currency == Currency.BASE -> Text("базовая", style = MaterialTheme.typography.labelSmall, color = muted)
+            currency == base -> Text("базовая", style = MaterialTheme.typography.labelSmall, color = muted)
             !hasRate -> Text("курса пока нет", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.warning)
             usedBy > 0 -> Text(plural(usedBy, "счёт", "счёта", "счетов"), style = MaterialTheme.typography.labelSmall, color = muted)
         }
-        if (currency != Currency.BASE) {
+        if (currency != base) {
             if (usedBy > 0) {
                 TrashIconButton("Убрать ${currency.code}: сначала убери счета в архив", enabled = false) {}
             } else {

@@ -100,7 +100,7 @@ class MonthModelInvariantsTest {
         val m = MonthModel.build(period, today, categories, subcategories, lines, tx, accounts, debts, rates, balances, target)
         val ctx = "seed=$seed"
 
-        assertEquals(m.available, m.obligationsPlanned + m.flexiblePlanned + (m.savingsTarget ?: Money.zero(Currency.BASE)) + m.unallocated, ctx)
+        assertEquals(m.available, m.obligationsPlanned + m.flexiblePlanned + (m.savingsTarget ?: Money.zero(Currency.RUB)) + m.unallocated, ctx)
         m.allocatedShare?.let { share -> if (!m.unallocated.isNegative) assertTrue(share <= 1.0 + 1e-9, "$ctx share=$share") }
         assertEquals(m.flexiblePlannedWhole - m.flexibleFactWhole, m.canSpend, ctx)
         m.perDay?.let { assertTrue(it.minor >= 0L && it.minor * m.daysLeft <= m.canSpend.minor, "$ctx perDay") }
@@ -110,12 +110,12 @@ class MonthModelInvariantsTest {
         val inPeriod = tx.filter { it.date in period }
         val expectedFlexible = inPeriod.filterIsInstance<Transaction.Expense>()
             .filter { it.categoryId != "corr" && it.debtId == null && accountsById.getValue(it.accountId).role == AccountRole.LIFE }
-            .map { it.amountBase }.sumIn(Currency.BASE)
+            .map { it.amountBase }.sumIn(Currency.RUB)
         assertEquals(expectedFlexible, m.flexibleFact, ctx)
 
         m.envelopes.forEach { b ->
             assertEquals(b.freePlanned + b.itemsPlanned, b.planned, ctx)
-            assertEquals(b.fact, b.items.map { it.fact }.sumIn(Currency.BASE).takeIf { b.items.isNotEmpty() } ?: b.fact, ctx)
+            assertEquals(b.fact, b.items.map { it.fact }.sumIn(Currency.RUB).takeIf { b.items.isNotEmpty() } ?: b.fact, ctx)
             val over = b.fact.wholeUnits > b.planned.wholeUnits
             assertEquals(over, b.status == BudgetStatus.OVER || b.status == BudgetStatus.OVER_SLIGHTLY, "$ctx ${b.category.id}")
             if (b.category.isArchived) assertTrue(b.planned.isZero, ctx)

@@ -35,6 +35,7 @@ object DebtLoad {
         systemCategoryIds: Set<String>,
     ): List<DebtMonth> {
         if (debts.isEmpty()) return emptyList()
+        val base = rates.base
         val payments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }
         val first = (debts.mapNotNull { it.openedOn } + payments.map { it.date }).minOrNull() ?: today
         val current = SalaryCycle.periodContaining(today, startDay)
@@ -47,16 +48,16 @@ object DebtLoad {
             val inPeriod = payments.filter { it.date in period }
             DebtMonth(
                 period = period,
-                regularPaid = inPeriod.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE),
-                earlyPaid = inPeriod.filter { it.debtEarly }.map { it.amountBase }.sumIn(Currency.BASE),
+                regularPaid = inPeriod.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(base),
+                earlyPaid = inPeriod.filter { it.debtEarly }.map { it.amountBase }.sumIn(base),
                 obligatory = debts.filter { it.isActiveIn(period) }
                     .mapNotNull { debt -> rates.toBaseOrNull(debt.paymentOn(MonthModel.dueDate(period, debt.payDay) ?: period.start)) }
-                    .sumIn(Currency.BASE),
-                debtAtEnd = debts.mapNotNull { debt -> rates.toBaseOrNull(remainingAt(debt, payments, period.endExclusive)) }.sumIn(Currency.BASE),
+                    .sumIn(base),
+                debtAtEnd = debts.mapNotNull { debt -> rates.toBaseOrNull(remainingAt(debt, payments, period.endExclusive)) }.sumIn(base),
                 income = transactions.filterIsInstance<Transaction.Income>()
                     .filter { it.date in period && it.categoryId !in systemCategoryIds }
                     .map { it.amountBase }
-                    .sumIn(Currency.BASE),
+                    .sumIn(base),
                 isCurrent = period == current,
             )
         }
