@@ -10,7 +10,9 @@ const BAD_LINK_TEXT = "Ссылка не подошла: открой прило
 const TITLE_LIMIT = 64;
 
 type Chat = { id: number; first_name?: string; username?: string; title?: string };
-type Watch = { id: string; from_currency: string; to_currency: string; state?: { now_text?: string } };
+type WatchState = { now_text?: string; now_widget?: string; now_caption?: string; widgets_ok?: boolean };
+type Watch = { id: string; from_currency: string; to_currency: string; state?: WatchState };
+type Answer = { text: string; widget?: { html: string; caption: string } };
 
 async function rest(path: string, init: RequestInit = {}): Promise<unknown> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -32,11 +34,17 @@ function subscribeText(watch: Watch): string {
     "Курс сейчас — /rate, отписаться — /stop";
 }
 
-async function nowText(chatId: number): Promise<string> {
+async function nowAnswer(chatId: number): Promise<Answer> {
   const rows = await rest(`telegram_subscribers?select=rate_watches(state)&chat_id=eq.${chatId}`) as { rate_watches?: Watch }[];
-  if (rows.length === 0) return NOT_SUBSCRIBED_TEXT;
-  const texts = rows.map((row) => row.rate_watches?.state?.now_text).filter((text): text is string => !!text);
-  return texts.length > 0 ? texts.join("\n\n") : NOT_CHECKED_TEXT;
+  if (rows.length === 0) return { text: NOT_SUBSCRIBED_TEXT };
+  const states = rows.map((row) => row.rate_watches?.state).filter((state): state is WatchState => !!state);
+  const texts = states.map((state) => state.now_text).filter((text): text is string => !!text);
+  const text = texts.length > 0 ? texts.join("\n\n") : NOT_CHECKED_TEXT;
+  const only = states.length === 1 ? states[0] : undefined;
+  if (only?.widgets_ok === true && only.now_widget && only.now_caption) {
+    return { text, widget: { html: only.now_widget, caption: only.now_caption } };
+  }
+  return { text };
 }
 
 async function subscribe(chat: Chat, code: string): Promise<string> {
@@ -53,17 +61,17 @@ async function subscribe(chat: Chat, code: string): Promise<string> {
   return now ? `${subscribeText(watch)}\n\n${now}` : subscribeText(watch);
 }
 
-async function reply(chat: Chat, text: string): Promise<string> {
+async function reply(chat: Chat, text: string): Promise<Answer> {
   const [head, ...rest_] = text.trim().split(/\s+/);
   const command = (head ?? "").split("@")[0].toLowerCase();
   const argument = rest_.join(" ").trim();
-  if (command === "/start" && argument) return await subscribe(chat, argument);
-  if (command === "/start" || command === "/help") return HELP_TEXT;
+  if (command === "/start" && argument) return { text: await subscribe(chat, argument) };
+  if (command === "/start" || command === "/help") return { text: HELP_TEXT };
   if (command === "/stop") {
     await rest(`telegram_subscribers?chat_id=eq.${chat.id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
-    return STOP_TEXT;
+    return { text: STOP_TEXT };
   }
-  return await nowText(chat.id);
+  return await nowAnswer(chat.id);
 }
 
 Deno.serve(async (request) => {
@@ -77,7 +85,10 @@ Deno.serve(async (request) => {
   if (!chat || !text.trim()) return new Response("ok");
   try {
     const answer = await reply(chat, text);
-    return Response.json({ method: "sendMessage", chat_id: chat.id, text: answer, parse_mode: "HTML", disable_web_page_preview: true });
+    if (answer.widget) {
+      return Response.json({ method: "sendWidget", chat_id: chat.id, html: answer.widget.html, caption: answer.widget.caption, parse_mode: "HTML" });
+    }
+    return Response.json({ method: "sendMessage", chat_id: chat.id, text: answer.text, parse_mode: "HTML", disable_web_page_preview: true });
   } catch (error) {
     console.error(`webhook failed: ${error instanceof Error ? error.message : "unknown"}`);
     return new Response("ok");

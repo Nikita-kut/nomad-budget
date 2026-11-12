@@ -32,7 +32,8 @@ ru.nomadbudget
 ├── di/                Koin-модули; demo/ — вымышленные данные и demoModule
 └── core/              TodayProvider, SupabaseConfig
 
-tools/rates/           fetch_rates.py (курсы раз в сутки), bank_watch.py (+test_bank_watch.py, ca/) — слежение за курсом банка
+tools/rates/           fetch_rates.py (курсы раз в сутки), bank_watch.py (+test_bank_watch.py, ca/) — слежение за курсом банка,
+                       bank_widgets.py (+test_bank_widgets.py) — HTML-виджеты Telegram
                        и Telegram-бот; Python stdlib, запуск из GitHub Actions. Описание — BANK_RATE_WATCH.md
 ```
 
@@ -53,7 +54,7 @@ tools/rates/           fetch_rates.py (курсы раз в сутки), bank_wa
 
 ```bash
 bash tools/check_rules.sh
-python3 -m unittest tools/rates/test_bank_watch.py
+python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py
 ./gradlew :composeApp:testAndroidHostTest :composeApp:wasmJsBrowserTest :androidApp:assembleDebug
 ```
 

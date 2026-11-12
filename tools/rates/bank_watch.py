@@ -29,6 +29,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import bank_widgets  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 PROVIDER_CA = HERE / "ca" / "russian_trusted.pem"
 
@@ -637,6 +641,149 @@ BOT_COMMANDS = [
 ]
 
 
+# ---------- Виджеты ----------
+
+WEEKDAYS_SHORT = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
+DAY_CHART_FALLBACK_HOURS = 12
+SPREAD_EPSILON = 0.001
+
+
+class ChartData:
+    def __init__(self, history: list[dict], recent: list[dict], trade_open: int):
+        self.history = history
+        self.recent = recent
+        self.trade_open = trade_open
+
+    def week_days(self) -> list[dict]:
+        days: dict[dt.date, list[float]] = {}
+        for row in self.history:
+            if row.get("at") is None:
+                continue
+            days.setdefault(exchange_now(row["at"]).date(), []).append(row["buy"])
+        return [{"label": WEEKDAYS_SHORT[day.weekday()], "values": values} for day, values in sorted(days.items())]
+
+    def today(self) -> tuple[list[float], int | None, str]:
+        rows = [row for row in self.recent if row.get("at") is not None]
+        values = [row["buy"] for row in rows]
+        night_from = None
+        seen_day = False
+        for index, row in enumerate(rows):
+            if row["in_hours"]:
+                seen_day = True
+            elif seen_day and night_from is None:
+                night_from = index
+        start = exchange_now(rows[0]["at"]).strftime("%H:%M") if rows else ""
+        return values, night_from, start
+
+    def first_trading_today(self) -> float | None:
+        return next((row["buy"] for row in self.recent if row["in_hours"]), None)
+
+
+def quantile(values: list[float], share: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, max(0, int(share * len(ordered))))]
+
+
+def cbr_view(rate: float, cbr: float | None, usual: float | None, unit: int) -> dict | None:
+    if cbr is None:
+        return None
+    now_spread = spread(rate, cbr) or 0.0
+    view = {"label": f"ЦБ {format_quote(cbr * unit)}", "spread": format_percent(now_spread), "trend": "flat", "hint": None}
+    if usual is not None:
+        if now_spread > usual + SPREAD_EPSILON:
+            view["trend"], word = "up", "лучше обычного"
+        elif now_spread < usual - SPREAD_EPSILON:
+            view["trend"], word = "down", "хуже обычного"
+        else:
+            word = "как обычно"
+        view["hint"] = f"{word} ({format_percent(usual)})"
+    return view
+
+
+def base_view(watch: dict, rate: float, cbr: float | None, history: list[dict]) -> dict:
+    unit = quote_unit(rate)
+    return {
+        "title": pair_title(watch),
+        "rate": format_quote(rate * unit),
+        "unit": f"{watch['to_currency']} за {unit_label(unit, watch['from_currency'])}",
+        "cbr": cbr_view(rate, cbr, median_spread(history), unit),
+    }
+
+
+def comparable(assessment: dict | None) -> bool:
+    return assessment is not None and not assessment["warmup"]
+
+
+def band(watch: dict, history: list[dict]) -> tuple[float | None, float | None]:
+    values = [row["buy"] for row in history]
+    threshold = float(watch.get("good_percentile") or DEFAULT_GOOD_PERCENTILE) / 100.0
+    return quantile(values, 1.0 - threshold), quantile(values, threshold)
+
+
+def caption_line(icon: str, watch: dict, rate: float, tail: str) -> str:
+    return f"{icon} <b>{pair_title(watch)}</b>: {rate_text(watch['from_currency'], watch['to_currency'], rate)} · {tail}"
+
+
+def packed(view: dict, caption: str) -> tuple[str, str] | None:
+    document = bank_widgets.render(view)
+    return (document, caption) if bank_widgets.fits(document) else None
+
+
+def widget_digest(watch: dict, rate: float, cbr: float | None, event: dict, local: dt.datetime, charts: ChartData) -> tuple[str, str] | None:
+    code = event["verdict"]
+    assessment = event.get("assessment")
+    closed = code in (VERDICT_NIGHT, VERDICT_WEEKEND)
+    view = base_view(watch, rate, cbr, charts.history)
+    low, high = band(watch, charts.history) if comparable(assessment) else (None, None)
+    view.update({
+        "subtitle": f"{'утренняя сводка' if closed else 'начало торгов'} · {local.strftime('%H:%M')}",
+        "verdict": code,
+        "note": position_text(None, assessment) if comparable(assessment) else ("курс выходного дня" if code == VERDICT_WEEKEND else ""),
+        "position": assessment["below"] if comparable(assessment) else None,
+        "position_labels": True,
+        "chart": {"kind": "week", "days": charts.week_days(), "low": low, "high": high},
+    })
+    return packed(view, caption_line("☀️", watch, rate, verdict_text(code)))
+
+
+def widget_signal(watch: dict, rate: float, cbr: float | None, event: dict, local: dt.datetime, charts: ChartData) -> tuple[str, str] | None:
+    kind = event["kind"]
+    repeat = event.get("previous") is not None
+    if kind == KIND_GOOD:
+        icon, headline = "🟢", "Ещё выгоднее" if repeat else "Выгодно менять"
+    else:
+        icon, headline = "🔴", "Стало ещё хуже" if repeat else "Сейчас не меняй"
+    values, night_from, start = charts.today()
+    view = base_view(watch, rate, cbr, charts.history)
+    morning = charts.first_trading_today()
+    view.update({
+        "headline": f"{icon} {headline}",
+        "subtitle": f"{pair_title(watch)} · {local.strftime('%H:%M')}",
+        "verdict": kind,
+        "note": position_text(kind, event["assessment"]),
+        "position": event["assessment"]["below"],
+        "delta": {"text": f"{format_percent(rate / morning - 1.0)} к утру", "trend": bank_widgets.trend(morning, rate)} if morning else None,
+        "chart": {"kind": "day", "values": values, "night_from": night_from, "start_label": start, "end_label": "сейчас"},
+    })
+    return packed(view, caption_line(icon, watch, rate, headline.lower()))
+
+
+def widget_now(watch: dict, rate: float, cbr: float | None, code: str, assessment: dict | None, local: dt.datetime, charts: ChartData) -> tuple[str, str] | None:
+    values, night_from, start = charts.today()
+    view = base_view(watch, rate, cbr, charts.history)
+    notes = {VERDICT_NIGHT: "ночной курс", VERDICT_WEEKEND: "курс выходного дня"}
+    view.update({
+        "subtitle": f"курс на {local.strftime('%H:%M')}",
+        "verdict": code,
+        "note": position_text(None, assessment) if comparable(assessment) else notes.get(code, ""),
+        "position": None,
+        "chart": {"kind": "day", "values": values, "night_from": night_from, "start_label": start, "end_label": "сейчас"},
+    })
+    return packed(view, caption_line("💱", watch, rate, verdict_text(code)))
+
+
 # ---------- Провайдеры ----------
 
 def fetch_tbank(from_code: str, to_code: str) -> dict[str, dict[str, float | None]]:
@@ -706,10 +853,28 @@ def now_texts(db: Supabase, chat_id: int) -> list[str]:
 
 def load_history(db: Supabase, watch: dict, since: dt.datetime) -> list[dict]:
     query = (
-        f"select=buy,cbr&provider=eq.{watch['provider']}&from_currency=eq.{watch['from_currency']}&to_currency=eq.{watch['to_currency']}"
+        f"select=buy,cbr,taken_at&provider=eq.{watch['provider']}&from_currency=eq.{watch['from_currency']}&to_currency=eq.{watch['to_currency']}"
         f"&category=eq.{CATEGORY_EXCHANGE}&in_hours=is.true&taken_at=gte.{urllib.parse.quote(since.isoformat())}&order=taken_at.asc&limit=1000"
     )
-    return [{"buy": float(row["buy"]), "cbr": _float_or_none(row.get("cbr"))} for row in db.select("bank_rate_snapshots", query)]
+    return [_snapshot(row) for row in db.select("bank_rate_snapshots", query)]
+
+
+def load_recent(db: Supabase, watch: dict, since: dt.datetime) -> list[dict]:
+    query = (
+        f"select=buy,cbr,taken_at,in_hours&provider=eq.{watch['provider']}&from_currency=eq.{watch['from_currency']}&to_currency=eq.{watch['to_currency']}"
+        f"&category=eq.{CATEGORY_EXCHANGE}&taken_at=gte.{urllib.parse.quote(since.isoformat())}&order=taken_at.asc&limit=200"
+    )
+    return [_snapshot(row) for row in db.select("bank_rate_snapshots", query)]
+
+
+def _snapshot(row: dict) -> dict:
+    taken_at = row.get("taken_at")
+    return {
+        "buy": float(row["buy"]),
+        "cbr": _float_or_none(row.get("cbr")),
+        "at": dt.datetime.fromisoformat(taken_at) if taken_at else None,
+        "in_hours": bool(row.get("in_hours", True)),
+    }
 
 
 def load_holidays(db: Supabase) -> set[str]:
@@ -821,30 +986,65 @@ def snapshot_rows(key: tuple[str, str, str], rates: dict, card: float | None, cb
     return rows
 
 
+def day_start(now_utc: dt.datetime, trade_open: int) -> dt.datetime:
+    moment = exchange_now(now_utc)
+    start = moment.replace(hour=trade_open // 60, minute=trade_open % 60, second=0, microsecond=0)
+    if start > moment:
+        start = moment - dt.timedelta(hours=DAY_CHART_FALLBACK_HOURS)
+    return start.astimezone(dt.timezone.utc)
+
+
+def send_event(tg: Telegram, chat_id: int, text: str, widget: tuple[str, str] | None, state: dict) -> None:
+    if widget is not None:
+        document, caption = widget
+        try:
+            tg.call("sendWidget", chat_id=chat_id, html=document, caption=caption, parse_mode="HTML")
+            state["widgets_ok"] = True
+            return
+        except (urllib.error.HTTPError, RuntimeError) as e:
+            state["widgets_ok"] = False
+            print(f"widget failed, sending text: {type(e).__name__}", file=sys.stderr)
+        except (urllib.error.URLError, OSError) as e:
+            print(f"send failed: {type(e).__name__}", file=sys.stderr)
+            return
+    try:
+        tg.send(chat_id, text)
+    except (urllib.error.URLError, RuntimeError, OSError) as e:
+        print(f"send failed: {type(e).__name__}", file=sys.stderr)
+
+
 def process_watch(db: Supabase, tg: Telegram, watch: dict, pair: dict, chats: list[int], now_utc: dt.datetime, holidays: set[str]) -> None:
     rate = pair["exchange"]
     if rate is None:
         return
     cbr = pair["cbr"]
+    old_state = watch.get("state") or {}
     history = load_history(db, watch, now_utc - dt.timedelta(days=HISTORY_DAYS))
-    new_state, events = evaluate(watch, rate, cbr, watch.get("state") or {}, now_utc, history, holidays)
+    trade_open, trade_close = trade_hours(watch)
+    recent = load_recent(db, watch, day_start(now_utc, trade_open))
+    new_state, events = evaluate(watch, rate, cbr, old_state, now_utc, history, holidays)
+    if "widgets_ok" in old_state:
+        new_state["widgets_ok"] = old_state["widgets_ok"]
     local = local_now(now_utc, watch.get("timezone") or DEFAULT_TIMEZONE)
+    charts = ChartData(history, recent, trade_open)
     for event in events:
         if event["kind"] == "digest":
             text = message_digest(watch, rate, cbr, event, local)
+            widget = widget_digest(watch, rate, cbr, event, local, charts)
         elif event["kind"] == "target":
             text = message_target(rate, event["target"], event.get("previous"))
+            widget = None
         else:
             text = message_signal(watch, rate, cbr, event)
+            widget = widget_signal(watch, rate, cbr, event, local, charts)
         for chat_id in chats:
-            try:
-                tg.send(chat_id, text)
-            except (urllib.error.URLError, RuntimeError, OSError) as e:
-                print(f"send failed: {type(e).__name__}", file=sys.stderr)
-    trade_open, trade_close = trade_hours(watch)
+            send_event(tg, chat_id, text, widget, new_state)
     assessment = assess(watch, rate, cbr, history) if in_trading_hours(now_utc, trade_open, trade_close, holidays) else None
     code = verdict(assessment, exchange_now(now_utc).date(), holidays)
     new_state["now_text"] = message_now(watch, rate, cbr, code, assessment, local)
+    now_widget = widget_now(watch, rate, cbr, code, assessment, local, charts)
+    if now_widget is not None:
+        new_state["now_widget"], new_state["now_caption"] = now_widget
     db.patch("rate_watches", f"id=eq.{watch['id']}", {"state": new_state})
     print(f"watch checked, {len(events)} event(s)")
 
