@@ -66,11 +66,18 @@ class DemoDatabase(val today: LocalDate) {
         currencyCodes = listOf(Currency.USD.code, TEST_CURRENCY.code),
     )
 
+    var baseChange: ru.nomadbudget.domain.model.BaseChange? = null
+    internal var baseSnapshot: DemoBaseSnapshot? = null
+
     private var sequence = 0
 
     init {
         DemoSeed(this).fill()
     }
+
+    fun changeBase(code: String) = DemoBaseChanger(this).change(code)
+
+    fun revertBase() = DemoBaseChanger(this).revert()
 
     fun newId(prefix: String): String = "$prefix-${++sequence}"
 

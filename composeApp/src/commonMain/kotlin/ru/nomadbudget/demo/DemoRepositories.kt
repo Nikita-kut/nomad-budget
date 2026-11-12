@@ -163,11 +163,11 @@ private class DemoUserSettingsRepository(private val db: DemoDatabase) : UserSet
         return settings
     }
 
-    override suspend fun lastBaseChange(): BaseChange? = null
+    override suspend fun lastBaseChange(): BaseChange? = db.baseChange
 
-    override suspend fun changeBase(code: String) = error("В демо базовую валюту не сменить")
+    override suspend fun changeBase(code: String) = db.changeBase(code.trim().uppercase())
 
-    override suspend fun revertBase() = error("В демо откатывать нечего")
+    override suspend fun revertBase() = db.revertBase()
 }
 
 private class DemoCurrencyRepository(private val db: DemoDatabase) : CurrencyRepository {
