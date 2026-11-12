@@ -56,3 +56,11 @@ data class DebtPaymentChangeInsertDto(
     @SerialName("source_tx_id") val sourceTxId: String?,
 )
 
+@Serializable
+data class DebtMonthPlanDto(
+    @SerialName("debt_id") val debtId: String,
+    @SerialName("period_start") val periodStart: String,
+    @SerialName("early_amount") val earlyAmount: Long,
+    @SerialName("from_cushion") val fromCushion: Boolean,
+)
+

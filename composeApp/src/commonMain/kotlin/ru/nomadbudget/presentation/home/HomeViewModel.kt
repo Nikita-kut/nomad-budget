@@ -280,6 +280,10 @@ class HomeViewModel(
         debtsActions.reopenDebt(id)
     }
 
+    fun setEarlyPlan(debtId: String, amount: Money, fromCushion: Boolean) {
+        debtsActions.setEarlyPlan(debtId, amount, fromCushion)
+    }
+
     fun repayEarly(draft: EarlyRepaymentDraft) {
         debtsActions.repayEarly(draft)
     }

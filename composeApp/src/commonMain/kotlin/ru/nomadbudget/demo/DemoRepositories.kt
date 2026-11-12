@@ -27,6 +27,7 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCloseReason
+import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.ExchangeRate
 import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.domain.model.Money
@@ -344,6 +345,13 @@ private class DemoDebtRepository(private val db: DemoDatabase) : DebtRepository 
             if (debt.id != debtId) return@replaceEach debt
             val history = debt.paymentChanges.ifEmpty { listOf(PaymentChange(debt.openedOn ?: db.today.minus(1, DateTimeUnit.YEAR), debt.monthlyPayment)) }
             debt.copy(monthlyPayment = payment, paymentChanges = history + PaymentChange(effectiveFrom, payment))
+        }
+    }
+
+    override suspend fun setEarlyPlan(debtId: String, periodStart: LocalDate, amount: Money, fromCushion: Boolean) {
+        db.debts.replaceEach { debt ->
+            if (debt.id != debtId) return@replaceEach debt
+            debt.copy(earlyPlans = debt.earlyPlans.filterNot { it.periodStart == periodStart } + EarlyPlan(periodStart, amount, fromCushion))
         }
     }
 

@@ -1,9 +1,5 @@
 package ru.nomadbudget.presentation.planning
 
-import ru.nomadbudget.presentation.components.SecondaryButton
-import ru.nomadbudget.presentation.components.PrimaryButton
-import ru.nomadbudget.presentation.components.CenteredLazyColumn
-import ru.nomadbudget.presentation.components.Ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,9 +10,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,23 +35,35 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import ru.nomadbudget.domain.logic.CapitalModel
 import ru.nomadbudget.domain.logic.CategoryBudget
 import ru.nomadbudget.domain.logic.CategoryHistory
+import ru.nomadbudget.domain.logic.DebtObligation
 import ru.nomadbudget.domain.logic.MonthModel
 import ru.nomadbudget.domain.logic.PlanCalculator
-import ru.nomadbudget.domain.logic.CapitalModel
 import ru.nomadbudget.domain.logic.Scenario
-import ru.nomadbudget.presentation.components.incomeDaysHint
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.domain.model.Period
+import ru.nomadbudget.presentation.components.AmountCell
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.InfoHint
+import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.TagChip
+import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.components.incomeDaysHint
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
@@ -63,11 +71,6 @@ import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
-import kotlin.math.abs
-import ru.nomadbudget.presentation.components.StatTile
-import ru.nomadbudget.presentation.components.TileRow
-import ru.nomadbudget.presentation.components.AmountCell
-import ru.nomadbudget.domain.model.Period
 
 @Composable
 fun PlanningScreen(
@@ -81,11 +84,13 @@ fun PlanningScreen(
     onOpenAccounts: () -> Unit = {},
     twoColumns: Boolean = false,
     onOpenCapital: () -> Unit = {},
+    onSetEarlyPlan: (String, Money, Boolean) -> Unit = { _, _, _ -> },
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var confirmCopy by remember { mutableStateOf(false) }
     var editingSavings by remember { mutableStateOf(false) }
     var editingFund by remember { mutableStateOf<Account?>(null) }
+    var planningEarly by remember { mutableStateOf<DebtObligation?>(null) }
     val month = state.month
 
     val summaryItems: LazyListScope.() -> Unit = {
@@ -136,7 +141,7 @@ fun PlanningScreen(
         item { SavingsCard(month, state.capital, onClick = { editingSavings = true }, onOpenCapital = onOpenCapital) }
 
         item { SectionTitle("Кредиты", hint = "платежи подставляются сами", info = Hints.OBLIGATIONS) }
-        item { DebtsPlanCard(state, onOpenDebts) }
+        item { DebtsPlanCard(state, onOpenDebts, onPlanEarly = { planningEarly = it }) }
         item { SectionTitle("Копилки", hint = "взносы и траты из копилок", info = Hints.FUNDS) }
         item { FundsPlanCard(state, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
 
@@ -170,6 +175,18 @@ fun PlanningScreen(
             onConfirm = {
                 onSetSavingsTarget(it)
                 editingSavings = false
+            },
+        )
+    }
+
+    planningEarly?.let { obligation ->
+        EarlyPlanDialog(
+            obligation = obligation,
+            initial = obligation.debt.earlyPlanFor(state.period),
+            onDismiss = { planningEarly = null },
+            onConfirm = { amount, fromCushion ->
+                onSetEarlyPlan(obligation.debt.id, amount, fromCushion)
+                planningEarly = null
             },
         )
     }
@@ -240,7 +257,7 @@ private fun AllocationCard(month: MonthModel) {
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
     val parts = listOf(
-        Triple("Кредиты", month.debtsPlanned, MaterialTheme.colorScheme.outline),
+        Triple(if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки", month.debtsPlanned, MaterialTheme.colorScheme.outline),
         Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
         Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
         Triple("Себе", month.savingsTarget ?: Money.zero(Currency.BASE), colors.save),
@@ -345,7 +362,7 @@ private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -
 }
 
 @Composable
-private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit) {
+private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit, onPlanEarly: (DebtObligation) -> Unit) {
     val month = state.month
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDebts)) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -357,7 +374,21 @@ private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit) {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(d.debt.name, modifier = Modifier.weight(1f))
                     Text(d.due?.let { "к ${it.day}-му" }.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 12.dp))
-                    Text(MoneyFormat.format(d.planned, false), fontWeight = FontWeight.Medium)
+                    Text(MoneyFormat.format(d.regularPlanned, false), fontWeight = FontWeight.Medium)
+                }
+                if (!d.debt.isClosed) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onPlanEarly(d) }.padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            if (d.earlyPlanned.isZero) "+ досрочно в этом месяце" else "досрочно " + if (d.earlyFromCushion) "из подушки" else "с жизни",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (d.earlyPlanned.isZero) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (!d.earlyPlanned.isZero) Text(MoneyFormat.format(d.earlyPlanned, false), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
             if (month.debts.isNotEmpty()) {
@@ -365,6 +396,9 @@ private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit) {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Text("Итого по кредитам", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text(MoneyFormat.format(month.debtsPlanned, false), fontWeight = FontWeight.SemiBold)
+                }
+                month.debtsFromCushion.takeUnless { it.isZero }?.let {
+                    Text("+ ${MoneyFormat.format(it, false)} досрочки из подушки — доход месяца не занимает", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -478,3 +512,51 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
+
+@Composable
+private fun EarlyPlanDialog(obligation: DebtObligation, initial: EarlyPlan?, onDismiss: () -> Unit, onConfirm: (Money, Boolean) -> Unit) {
+    val debt = obligation.debt
+    val currency = debt.currency
+    var amount by remember { mutableStateOf(initial?.amount?.takeUnless { it.isZero }?.let(MoneyFormat::editText).orEmpty()) }
+    var fromCushion by remember { mutableStateOf(initial?.fromCushion ?: true) }
+    val money = if (amount.isBlank()) Money.zero(currency) else MoneyFormat.parse(amount, currency)
+    val transformation = remember { ThousandsVisualTransformation() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Досрочно в этом месяце: ${debt.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
+                    label = { Text("Сумма, ${currency.code}") },
+                    singleLine = true,
+                    visualTransformation = transformation,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Из подушки")
+                        Text(
+                            if (fromCushion) "доход месяца не занимает, в «Не распределено» не входит" else "из дохода месяца: входит в «Кредиты»",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = fromCushion, onCheckedChange = { fromCushion = it })
+                }
+                if (!debt.extraPayment.isZero) {
+                    Text(
+                        "В настройках кредита стоит «досрочно ${MoneyFormat.format(debt.extraPayment, false)} в месяц» — это значение по умолчанию для каждого месяца. Здесь меняется только этот месяц.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = { PrimaryButton(onClick = { money?.let { onConfirm(it, fromCushion) } }, enabled = money != null) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+

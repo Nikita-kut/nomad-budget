@@ -6,16 +6,23 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import ru.nomadbudget.data.dto.DebtDto
 import ru.nomadbudget.data.dto.DebtInsertDto
+import ru.nomadbudget.data.dto.DebtMonthPlanDto
 import ru.nomadbudget.data.dto.DebtPaymentChangeDto
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCloseReason
+import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.PaymentChange
 
 object DebtMapper {
 
-    fun toDomain(dto: DebtDto, currencies: Map<String, Currency>, changes: List<DebtPaymentChangeDto> = emptyList()): Debt? {
+    fun toDomain(
+        dto: DebtDto,
+        currencies: Map<String, Currency>,
+        changes: List<DebtPaymentChangeDto> = emptyList(),
+        plans: List<DebtMonthPlanDto> = emptyList(),
+    ): Debt? {
         val currency = currencies[dto.currency] ?: return null
         return Debt(
             id = dto.id,
@@ -33,6 +40,9 @@ object DebtMapper {
             writtenOff = Money(dto.writtenOff, currency),
             paymentChanges = changes.mapNotNull { change ->
                 runCatching { LocalDate.parse(change.effectiveFrom) }.getOrNull()?.let { PaymentChange(it, Money(change.monthlyPayment, currency)) }
+            },
+            earlyPlans = plans.mapNotNull { plan ->
+                runCatching { LocalDate.parse(plan.periodStart) }.getOrNull()?.let { EarlyPlan(it, Money(plan.earlyAmount, currency), plan.fromCushion) }
             },
         )
     }

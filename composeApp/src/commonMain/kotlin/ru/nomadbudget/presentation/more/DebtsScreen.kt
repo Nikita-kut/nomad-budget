@@ -451,6 +451,7 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
                 OutlinedTextField(
                     value = payment, onValueChange = { payment = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
                     label = { Text("Платёж в месяц, ${currency.code}") }, singleLine = true, visualTransformation = transformation,
+                    supportingText = { if (initial != null) Text("новый платёж начнёт действовать со следующей даты платежа, прошлые месяцы не меняются") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
