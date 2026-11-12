@@ -38,7 +38,7 @@ class CsvExporterTest {
         val csv = CsvExporter.export(listOf(expense("обед, \"бизнес\"")), listOf(card), listOf(food), listOf(cafe))
         val lines = csv.trimEnd().split("\r\n")
         assertTrue(lines[0].startsWith("date,type,account"))
-        assertEquals("2026-10-06,expense,Карта,1234.56,RUB,Еда,кафе,,,,1234.56,\"обед, \"\"бизнес\"\"\"", lines[1])
+        assertEquals("2026-10-06,expense,Карта,1234.56,RUB,Еда,кафе,,,,1234.56,RUB,\"обед, \"\"бизнес\"\"\"", lines[1])
     }
 
     @Test
@@ -54,7 +54,7 @@ class CsvExporterTest {
             given = Money.rub(9_280_000L), received = Money(100_000L, Currency.USD), amountBase = Money.rub(9_280_000L),
         )
         val line = CsvExporter.export(listOf(exchange), listOf(card, usd), emptyList(), emptyList()).trimEnd().split("\r\n")[1]
-        assertEquals("2026-10-06,exchange,Карта,92800.00,RUB,,,Доллары,1000.00,USD,92800.00,", line)
+        assertEquals("2026-10-06,exchange,Карта,92800.00,RUB,,,Доллары,1000.00,USD,92800.00,RUB,", line)
     }
 
 }

@@ -36,6 +36,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.format.CurrencyWords
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.home.HomeState
@@ -70,7 +71,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         item {
             ChartPanel(
                 title = "Доходы и расходы по месяцам",
-                hint = "в рублях по курсу на день операции, без корректировок остатков",
+                hint = "${CurrencyWords.inCurrency(state.base)} по курсу на день операции, без корректировок остатков",
                 info = Hints.CHART_INCOME_EXPENSE,
                 legend = listOf(LegendEntry("Доход", incomeColor), LegendEntry("Расход", expenseColor)),
                 totalPoints = all.size,

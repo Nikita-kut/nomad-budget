@@ -61,7 +61,9 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.TagChip
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.entry.EditTransactionDialog
+import ru.nomadbudget.presentation.format.CurrencyWords
 import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.operations
 import ru.nomadbudget.presentation.home.HomeState
@@ -416,7 +418,7 @@ private fun JournalHeaderRow() {
         Text("Счёт", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(ACCOUNT_WEIGHT))
         Text("Заметка", style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(NOTE_WEIGHT))
         HeaderCell("Сумма")
-        HeaderCell("В рублях")
+        HeaderCell(CurrencyWords.columnIn(LocalBaseCurrency.current))
     }
     HorizontalDivider()
 }

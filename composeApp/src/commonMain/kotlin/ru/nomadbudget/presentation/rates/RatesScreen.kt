@@ -59,7 +59,7 @@ fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCal
         bankRateWatchItems(state, wide, bankWatch, onEdit = { editingWatch = true })
         item(key = "rates-title") { SectionTitle("Курсы по дням", hint = "обновляются раз в сутки") }
         item { SourceLine(state) }
-        if (pairs.isEmpty()) item { EmptyHint("Кроме рубля валют нет") }
+        if (pairs.isEmpty()) item { EmptyHint("Кроме ${state.base.code} валют нет") }
         pairs.forEach { pair ->
             val points = series.getValue(pair)
             item(key = "pair-${pair.first.code}-${pair.second.code}") { PairBlock(pair.first, pair.second, points, state, wide) }
