@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.core.TodayProvider
+import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.BankRateWatchDraft
@@ -211,6 +212,10 @@ class HomeViewModel(
         categories.archiveCategory(id)
     }
 
+    fun restoreCategory(id: String) {
+        categories.restoreCategory(id)
+    }
+
     fun renameSubcategory(id: String, name: String) {
         categories.renameSubcategory(id, name)
     }
@@ -259,12 +264,20 @@ class HomeViewModel(
         accounts.archiveAccount(id)
     }
 
+    fun restoreAccount(id: String) {
+        accounts.restoreAccount(id)
+    }
+
     fun saveDebt(debt: Debt) {
         debtsActions.saveDebt(debt)
     }
 
     fun closeDebt(id: String) {
         debtsActions.closeDebt(id)
+    }
+
+    fun reopenDebt(id: String) {
+        debtsActions.reopenDebt(id)
     }
 
     fun payDebt(debtId: String) = debtsActions.payDebt(debtId)
@@ -291,6 +304,10 @@ class HomeViewModel(
         settings.addCapitalGoal(name, amount, targetDate)
     }
 
+    fun updateCapitalGoal(goal: CapitalGoal) {
+        settings.updateCapitalGoal(goal)
+    }
+
     fun deleteCapitalGoal(id: String) {
         settings.deleteCapitalGoal(id)
     }
@@ -309,6 +326,10 @@ class HomeViewModel(
 
     fun addCurrency(code: String) {
         settings.addCurrency(code)
+    }
+
+    fun removeCurrency(code: String) {
+        settings.removeCurrency(code)
     }
 
     fun changePassword(newPassword: String) {

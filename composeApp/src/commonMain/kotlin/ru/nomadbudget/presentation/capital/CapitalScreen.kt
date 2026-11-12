@@ -1,7 +1,7 @@
 package ru.nomadbudget.presentation.capital
 
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -39,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
+import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.CapitalModel
 import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.logic.Scenario
@@ -49,12 +48,13 @@ import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.charts.MultiLineChart
 import ru.nomadbudget.presentation.components.AmountCell
-import ru.nomadbudget.presentation.components.AppIcons
 import ru.nomadbudget.presentation.components.CapitalSettingsFields
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.DateField
+import ru.nomadbudget.presentation.components.DeleteIconButton
 import ru.nomadbudget.presentation.components.HeaderCell
 import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.ProgressTrack
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StatTile
@@ -72,6 +72,7 @@ private val HORIZONS = listOf(CapitalModel.YEAR_MONTHS to "1 год", CapitalMod
 fun CapitalScreen(
     state: HomeState,
     onAddGoal: (String, Money, LocalDate) -> Unit,
+    onUpdateGoal: (CapitalGoal) -> Unit,
     onDeleteGoal: (String) -> Unit,
     onSaveSettings: (CapitalSettings) -> Unit,
     wide: Boolean,
@@ -79,6 +80,7 @@ fun CapitalScreen(
     val capital = state.capital
     var horizonIndex by remember { mutableIntStateOf(0) }
     var addingGoal by remember { mutableStateOf(false) }
+    var editingGoal by remember { mutableStateOf<CapitalGoal?>(null) }
     var editingSettings by remember { mutableStateOf(false) }
     val horizon = HORIZONS[horizonIndex].first
 
@@ -101,7 +103,7 @@ fun CapitalScreen(
                 TextButton(onClick = { addingGoal = true }) { Text("+ цель") }
             }
         }
-        item { GoalsCard(capital, onDeleteGoal) }
+        item { GoalsCard(capital, onEditCushion = { editingSettings = true }, onEdit = { editingGoal = it }, onDelete = onDeleteGoal) }
         if (capital.debt.minor > 0L) {
             item { SectionTitle("Долги", hint = "по графику платежей из «Кредитов»") }
             item { DebtCard(capital, horizon) }
@@ -109,9 +111,15 @@ fun CapitalScreen(
     }
 
     if (addingGoal) {
-        GoalDialog(today = state.today, onDismiss = { addingGoal = false }) { name, amount, date ->
+        GoalDialog(initial = null, today = state.today, onDismiss = { addingGoal = false }) { name, amount, date ->
             onAddGoal(name, amount, date)
             addingGoal = false
+        }
+    }
+    editingGoal?.let { goal ->
+        GoalDialog(initial = goal, today = state.today, onDismiss = { editingGoal = null }) { name, amount, date ->
+            onUpdateGoal(goal.copy(name = name, amount = amount, targetDate = date))
+            editingGoal = null
         }
     }
     if (editingSettings) {
@@ -306,7 +314,7 @@ private fun MonthsTable(capital: CapitalModel, wide: Boolean) {
 private fun outflowText(money: Money): String = if (money.isZero) "—" else MoneyFormat.format(-money, false)
 
 @Composable
-private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
+private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: (CapitalGoal) -> Unit, onDelete: (String) -> Unit) {
     val colors = AppTheme.colors
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -326,6 +334,7 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
                         },
                         byPlan?.takeIf { it > 0 }?.let { "по плану «Себе»: ${DateFormat.byMonthYear(capital.dateAfterMonths(it))}, через ${months(it)}" },
                     ),
+                    onClick = onEditCushion,
                     onDelete = null,
                 )
             }
@@ -345,7 +354,15 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
                         if (progress.reachableByPace) "как сейчас — успеваешь" else "как сейчас — не успеваешь",
                     ),
                     lineColor = if (progress.reachableByPace) colors.good else colors.warning,
-                    onDelete = { onDelete(goal.id) },
+                    onClick = { onEdit(goal) },
+                    onDelete = {
+                        DeleteIconButton(
+                            description = "Удалить цель",
+                            title = "Удалить цель «${goal.name}»?",
+                            text = "Цель удалится насовсем. Деньги в подушке не изменятся.",
+                            onConfirm = { onDelete(goal.id) },
+                        )
+                    },
                 )
             }
             if (capital.cushionTarget == null && capital.goals.isEmpty()) {
@@ -361,12 +378,20 @@ private fun GoalsCard(capital: CapitalModel, onDelete: (String) -> Unit) {
 }
 
 @Composable
-private fun GoalRow(title: String, current: Money, target: Money, lines: List<String>, onDelete: (() -> Unit)?, lineColor: Color? = null) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun GoalRow(
+    title: String,
+    current: Money,
+    target: Money,
+    lines: List<String>,
+    onClick: () -> Unit,
+    onDelete: (@Composable () -> Unit)?,
+    lineColor: Color? = null,
+) {
+    Column(modifier = Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Text("${MoneyFormat.format(current.coerceAtMost(target), false)} / ${MoneyFormat.format(target, false)}", fontWeight = FontWeight.SemiBold)
-            onDelete?.let { IconButton(onClick = it) { Icon(AppIcons.Trash, contentDescription = "Удалить цель", tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            onDelete?.invoke()
         }
         ProgressTrack(fraction = if (target.minor > 0L) current.shareOf(target).toFloat() else 1f, marker = null, color = AppTheme.colors.save)
         lines.forEachIndexed { index, line ->
@@ -413,15 +438,15 @@ private fun DebtCard(capital: CapitalModel, horizon: Int) {
 }
 
 @Composable
-private fun GoalDialog(today: LocalDate, onDismiss: () -> Unit, onConfirm: (String, Money, LocalDate) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(today.plus(CapitalModel.YEAR_MONTHS, DateTimeUnit.MONTH)) }
+private fun GoalDialog(initial: CapitalGoal?, today: LocalDate, onDismiss: () -> Unit, onConfirm: (String, Money, LocalDate) -> Unit) {
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var amount by remember { mutableStateOf(initial?.amount?.let(MoneyFormat::editText).orEmpty()) }
+    var date by remember { mutableStateOf(initial?.targetDate ?: today.plus(CapitalModel.YEAR_MONTHS, DateTimeUnit.MONTH)) }
     val transformation = remember { ThousandsVisualTransformation() }
     val money = MoneyFormat.parse(amount, Currency.BASE)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая цель") },
+        title = { Text(if (initial == null) "Новая цель" else "Цель") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("На что") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -438,7 +463,7 @@ private fun GoalDialog(today: LocalDate, onDismiss: () -> Unit, onConfirm: (Stri
                 DateField(date = date, today = today, onChange = { date = it }, allowFuture = true)
             }
         },
-        confirmButton = { PrimaryButton(onClick = { money?.let { onConfirm(name, it, date) } }, enabled = name.isNotBlank() && money != null && date > today) { Text("Добавить") } },
+        confirmButton = { PrimaryButton(onClick = { money?.let { onConfirm(name, it, date) } }, enabled = name.isNotBlank() && money != null && date > today) { Text(if (initial == null) "Добавить" else "Сохранить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

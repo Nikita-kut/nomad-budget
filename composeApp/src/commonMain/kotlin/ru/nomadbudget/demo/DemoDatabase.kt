@@ -63,6 +63,7 @@ class DemoDatabase(val today: LocalDate) {
         cushionMonths = 6,
         annualReturn = 12.0,
         onboardedAt = Instant.fromEpochMilliseconds(0L),
+        currencyCodes = listOf(Currency.USD.code, TEST_CURRENCY.code),
     )
 
     private var sequence = 0

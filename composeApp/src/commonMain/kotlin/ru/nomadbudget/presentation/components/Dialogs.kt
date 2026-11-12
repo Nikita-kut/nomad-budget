@@ -2,6 +2,9 @@ package ru.nomadbudget.presentation.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,4 +44,26 @@ fun ConfirmDialog(title: String, text: String, confirmText: String, onDismiss: (
         confirmButton = { PrimaryButton(onClick = onConfirm) { Text(confirmText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
+}
+
+@Composable
+fun TrashIconButton(description: String, enabled: Boolean = true, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(AppIcons.Trash, contentDescription = description, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun DeleteIconButton(description: String, title: String, text: String, confirmText: String = "Удалить", onConfirm: () -> Unit) {
+    var asking by remember { mutableStateOf(false) }
+    TrashIconButton(description) { asking = true }
+    if (asking) {
+        ConfirmDialog(
+            title = title,
+            text = text,
+            confirmText = confirmText,
+            onDismiss = { asking = false },
+            onConfirm = { asking = false; onConfirm() },
+        )
+    }
 }

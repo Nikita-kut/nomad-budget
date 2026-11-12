@@ -11,6 +11,7 @@ data class UserSettingsDto(
     @SerialName("cushion_months") val cushionMonths: Int,
     @SerialName("annual_return") val annualReturn: Double,
     @SerialName("onboarded_at") val onboardedAt: String?,
+    val currencies: List<String> = emptyList(),
 )
 
 @Serializable

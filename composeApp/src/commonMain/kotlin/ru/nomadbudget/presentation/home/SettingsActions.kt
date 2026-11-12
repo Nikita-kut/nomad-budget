@@ -1,10 +1,13 @@
 package ru.nomadbudget.presentation.home
 
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.CapitalSettings
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.SalaryCycle
@@ -18,7 +21,6 @@ import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.presentation.onboarding.OnboardingDefaults
 import ru.nomadbudget.presentation.onboarding.OnboardingResult
-import kotlin.time.Clock
 
 internal class SettingsActions(
     private val store: HomeStore,
@@ -41,6 +43,16 @@ internal class SettingsActions(
         val goal = capitalRepository.addGoal(name.trim(), amount, targetDate)
         store.update { it.copy(capitalGoals = (it.capitalGoals + goal).sortedBy { g -> g.targetDate }) }
         store.message("Цель добавлена")
+    }
+
+    fun updateCapitalGoal(goal: CapitalGoal) = runner.run("Не удалось сохранить цель") {
+        require(goal.name.isNotBlank()) { "Введи название цели" }
+        require(goal.amount.minor > 0L) { "Сумма цели должна быть больше нуля" }
+        require(goal.targetDate > today) { "Дата цели должна быть в будущем" }
+        val cleaned = goal.copy(name = goal.name.trim())
+        capitalRepository.updateGoal(cleaned)
+        store.update { state -> state.copy(capitalGoals = state.capitalGoals.map { if (it.id == goal.id) cleaned else it }.sortedBy { it.targetDate }) }
+        store.message("Цель сохранена")
     }
 
     fun deleteCapitalGoal(id: String) = runner.run("Не удалось удалить цель") {
@@ -74,10 +86,21 @@ internal class SettingsActions(
     fun addCurrency(code: String) = runner.run("Не удалось добавить валюту") {
         val normalized = code.trim().uppercase()
         require(IsoCurrencies.find(normalized) != null) { "Неизвестный код валюты" }
-        require(store.value.currencies.none { it.code == normalized }) { "Валюта $normalized уже добавлена" }
+        require(store.value.userCurrencies.none { it.code == normalized }) { "Валюта $normalized уже добавлена" }
         val currency = currencyRepository.ensure(normalized)
         store.update { it.copy(currencies = (it.currencies + currency).distinctBy { c -> c.code }.sortedBy { c -> c.code }) }
+        val current = store.value.settings
+        saveSettings(current.copy(currencyCodes = (current.currencyCodes + normalized).distinct().sorted()))
         store.message("Валюта $normalized добавлена, курс появится в течение суток")
+    }
+
+    fun removeCurrency(code: String) = runner.run("Не удалось убрать валюту") {
+        val state = store.value
+        require(code != Currency.BASE.code) { "Базовую валюту убрать нельзя" }
+        val blocking = state.activeAccounts.filter { it.currency.code == code }
+        require(blocking.isEmpty()) { "Валюта $code нужна счетам: ${blocking.joinToString { it.name }}. Сначала убери их в архив" }
+        saveSettings(state.settings.copy(currencyCodes = state.settings.currencyCodes - code))
+        store.message("Валюта $code убрана из списка")
     }
 
     fun changePassword(newPassword: String) = runner.run("Не удалось изменить пароль") {

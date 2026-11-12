@@ -1,20 +1,21 @@
 package ru.nomadbudget.presentation.entry
 
-import kotlin.math.roundToLong
-import ru.nomadbudget.domain.logic.RateQuote
-import ru.nomadbudget.presentation.components.SecondaryButton
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,67 +23,67 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
-import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.plus
-import ru.nomadbudget.domain.model.Account
-import ru.nomadbudget.domain.model.AccountRole
-import ru.nomadbudget.presentation.components.CategoryChoice
-import ru.nomadbudget.presentation.components.CategoryPicker
-import ru.nomadbudget.domain.model.Category
-import ru.nomadbudget.domain.model.CategoryKind
-import ru.nomadbudget.domain.model.Currency
-import ru.nomadbudget.domain.model.Debt
-import ru.nomadbudget.presentation.components.AccountDropdown
-import ru.nomadbudget.presentation.components.CurrencyChip
-import ru.nomadbudget.presentation.components.DateField
-import ru.nomadbudget.presentation.components.Hints
-import ru.nomadbudget.presentation.components.InfoHint
-import ru.nomadbudget.presentation.components.SectionTitle
-import ru.nomadbudget.presentation.format.DateFormat
-import ru.nomadbudget.presentation.format.MoneyFormat
-import ru.nomadbudget.presentation.format.plural
-import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
-import ru.nomadbudget.presentation.home.EntryDraft
-import ru.nomadbudget.presentation.home.EntryType
-import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.domain.logic.EntryDefaults
-import ru.nomadbudget.presentation.components.CenteredLazyColumn
-import ru.nomadbudget.presentation.home.transactionKind
-import ru.nomadbudget.presentation.theme.AppTheme
-import ru.nomadbudget.domain.model.Draft
-import ru.nomadbudget.presentation.home.EntryPrefill
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Checkbox
-import ru.nomadbudget.domain.model.DebtCalculator
-import ru.nomadbudget.domain.model.Money
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import kotlin.math.roundToLong
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
+import ru.nomadbudget.domain.logic.EntryDefaults
+import ru.nomadbudget.domain.logic.RateQuote
+import ru.nomadbudget.domain.model.Account
+import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.model.Category
+import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Debt
+import ru.nomadbudget.domain.model.DebtCalculator
+import ru.nomadbudget.domain.model.Draft
+import ru.nomadbudget.domain.model.Money
+import ru.nomadbudget.presentation.components.AccountDropdown
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.CategoryChoice
+import ru.nomadbudget.presentation.components.CategoryPicker
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.CurrencyChip
+import ru.nomadbudget.presentation.components.DateField
+import ru.nomadbudget.presentation.components.DeleteIconButton
+import ru.nomadbudget.presentation.components.Hints
+import ru.nomadbudget.presentation.components.InfoHint
+import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
+import ru.nomadbudget.presentation.format.plural
+import ru.nomadbudget.presentation.home.EntryDraft
+import ru.nomadbudget.presentation.home.EntryPrefill
+import ru.nomadbudget.presentation.home.EntryType
+import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.presentation.home.transactionKind
+import ru.nomadbudget.presentation.theme.AppTheme
 
 private const val MAX_QUICK_CATEGORIES = 8
 
@@ -597,9 +598,12 @@ private fun InboxCard(
                         )
                     }
                     TextButton(onClick = { onUse(draft) }) { Text("Внести") }
-                    IconButton(onClick = { onRemove(draft.id) }) {
-                        Icon(AppIcons.Trash, contentDescription = "Удалить заметку")
-                    }
+                    DeleteIconButton(
+                        description = "Удалить заметку",
+                        title = "Удалить заметку?",
+                        text = "«${draft.text}» удалится насовсем.",
+                        onConfirm = { onRemove(draft.id) },
+                    )
                 }
             }
         }

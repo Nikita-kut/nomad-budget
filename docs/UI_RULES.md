@@ -42,6 +42,14 @@ Four kinds, all in `presentation/components/Buttons.kt`. Raw Material buttons ar
 
 No outlined buttons. No more than one `PrimaryButton` per card.
 
+## Удаление и архив
+
+- Всё, что можно добавить, можно и убрать: счёт, категорию, подкатегорию, кредит, цель, валюту, подписчика, заметку.
+- Убрать — только через подтверждение: `DeleteIconButton` (корзина и диалог «Удалить …? …» в одном компоненте) или `TrashIconButton`, открывающий свой `ConfirmDialog`. Корзина в другом месте не используется (проверяет `tools/check_rules.sh`). Исключения: операции в журнале — свайп с кнопкой «Отменить» на 10 секунд; черновые строки в онбординге до сохранения.
+- Если у сущности есть история (счета, категории, подкатегории, кредиты), она уходит в архив, а не удаляется. Архив виден на том же экране в карточке «В архиве: N» с кнопкой «Вернуть» («Открыть снова» для кредитов).
+- Валюту можно убрать из своего списка, только если на ней нет активных счетов; пока есть — корзина неактивна и рядом число счетов.
+- Карточка цели открывает редактирование по нажатию; цель «Подушка на N мес.» открывает настройки подушки.
+
 ## Forms
 
 - Creating an entity asks for everything it needs in one dialog: fields depend on the chosen type (a fund asks for monthly contribution, next payment and day; every account asks for the current balance). No «create, then find and edit».

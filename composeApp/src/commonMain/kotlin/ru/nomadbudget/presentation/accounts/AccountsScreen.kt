@@ -1,14 +1,15 @@
 package ru.nomadbudget.presentation.accounts
 
-import ru.nomadbudget.presentation.components.SecondaryButton
-import ru.nomadbudget.presentation.components.PrimaryButton
-import ru.nomadbudget.presentation.components.TileRow
-import ru.nomadbudget.presentation.components.StatTile
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -16,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,42 +28,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import ru.nomadbudget.domain.logic.BalanceCalculator
+import ru.nomadbudget.domain.logic.ExchangeAnalyzer
 import ru.nomadbudget.domain.model.Account
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.AccountRole
-import ru.nomadbudget.domain.model.Money
-import ru.nomadbudget.presentation.planning.FundSettingsDialog
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.RadioButton
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.RateSource
+import ru.nomadbudget.presentation.components.AccountName
+import ru.nomadbudget.presentation.components.AddTile
+import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.ArchiveCard
+import ru.nomadbudget.presentation.components.ArchivedItem
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.CurrencyAmount
 import ru.nomadbudget.presentation.components.CurrencyChip
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.KeyValueRow
+import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.components.StatTile
+import ru.nomadbudget.presentation.components.TextDialog
+import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.TrashIconButton
+import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
-import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.presentation.components.AccountName
-import ru.nomadbudget.presentation.theme.AppTheme
-import ru.nomadbudget.presentation.components.CenteredLazyColumn
-import ru.nomadbudget.domain.logic.BalanceCalculator
-import ru.nomadbudget.domain.logic.ExchangeAnalyzer
-import ru.nomadbudget.presentation.components.TextDialog
-import androidx.compose.foundation.layout.height
-import ru.nomadbudget.presentation.components.AppIcons
-import ru.nomadbudget.presentation.home.NewAccountDraft
-import ru.nomadbudget.presentation.components.AddTile
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.home.HomeState
+import ru.nomadbudget.presentation.home.NewAccountDraft
+import ru.nomadbudget.presentation.planning.FundSettingsDialog
+import ru.nomadbudget.presentation.theme.AppTheme
 
 @Composable
 fun AccountsScreen(
@@ -70,6 +73,7 @@ fun AccountsScreen(
     onRename: (String, String) -> Unit,
     onMove: (String, Boolean) -> Unit,
     onArchive: (String) -> Unit,
+    onRestore: (String) -> Unit = {},
     onSetRole: (String, AccountRole) -> Unit = { _, _ -> },
     onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
     onCheckBalance: () -> Unit = {},
@@ -126,12 +130,17 @@ fun AccountsScreen(
                 SecondaryButton(onClick = onCheckBalance, modifier = Modifier.weight(1f)) { Text("Сверить остаток") }
             }
         }
+        val archived = state.accounts.filter { it.isArchived }
+        if (archived.isNotEmpty()) {
+            item { SectionTitle("Архив", hint = "не входят в итоги, история сохранена") }
+            item { ArchiveCard(archived.map { ArchivedItem(it.id, it.name, it.currency.code) }, onRestore = onRestore) }
+        }
         item { SectionTitle("Курсы", hint = rateHint(state), info = Hints.RATES) }
         item { RatesCard(state) }
     }
 
     if (adding) {
-        AddAccountDialog(currencies = state.currencies, onDismiss = { adding = false }) { draft ->
+        AddAccountDialog(currencies = state.userCurrencies, onDismiss = { adding = false }) { draft ->
             onAdd(draft)
             adding = false
         }
@@ -298,9 +307,7 @@ private fun AccountRow(
             IconButton(onClick = onRole) {
                 Icon(AppIcons.Swap, contentDescription = "Тип счёта", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = onArchive) {
-                Icon(AppIcons.Trash, contentDescription = "В архив", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            TrashIconButton("В архив", onClick = onArchive)
         }
     }
 }

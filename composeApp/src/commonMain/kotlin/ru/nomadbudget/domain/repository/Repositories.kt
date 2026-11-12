@@ -68,7 +68,7 @@ interface AccountRepository {
     suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?)
     suspend fun rename(id: String, name: String)
     suspend fun setSortOrder(id: String, sortOrder: Int)
-    suspend fun archive(id: String)
+    suspend fun setArchived(id: String, archived: Boolean)
 }
 
 interface CategoryRepository {
@@ -78,7 +78,7 @@ interface CategoryRepository {
     suspend fun setSystem(id: String, isSystem: Boolean)
     suspend fun setCategorySortOrder(id: String, sortOrder: Int)
     suspend fun renameCategory(id: String, name: String)
-    suspend fun archiveCategory(id: String)
+    suspend fun setCategoryArchived(id: String, archived: Boolean)
     suspend fun addSubcategory(categoryId: String, name: String): Subcategory
     suspend fun renameSubcategory(id: String, name: String)
     suspend fun deleteSubcategory(id: String)
@@ -117,7 +117,7 @@ interface DebtRepository {
     suspend fun getAll(): List<Debt>
     suspend fun add(debt: Debt): Debt
     suspend fun update(debt: Debt, principalChanged: Boolean)
-    suspend fun close(id: String)
+    suspend fun setClosed(id: String, closed: Boolean)
 }
 
 interface DraftRepository {
@@ -135,6 +135,7 @@ interface BalanceCheckRepository {
 interface CapitalRepository {
     suspend fun getGoals(): List<CapitalGoal>
     suspend fun addGoal(name: String, amount: Money, targetDate: LocalDate): CapitalGoal
+    suspend fun updateGoal(goal: CapitalGoal)
     suspend fun deleteGoal(id: String)
 }
 

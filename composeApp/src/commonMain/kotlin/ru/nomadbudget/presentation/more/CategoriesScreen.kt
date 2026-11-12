@@ -1,8 +1,5 @@
 package ru.nomadbudget.presentation.more
 
-import ru.nomadbudget.presentation.components.AddTile
-import ru.nomadbudget.presentation.components.SecondaryButton
-import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -27,29 +25,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.model.Category
 import ru.nomadbudget.domain.model.CategoryKind
+import ru.nomadbudget.domain.model.CorrectionCategory
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Subcategory
-import ru.nomadbudget.presentation.components.SectionTitle
-import ru.nomadbudget.presentation.format.MoneyFormat
-import ru.nomadbudget.presentation.format.operations
-import ru.nomadbudget.presentation.format.plural
-import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
-import ru.nomadbudget.presentation.home.HomeState
-import ru.nomadbudget.presentation.format.DateFormat
-import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.presentation.components.AddTile
 import ru.nomadbudget.presentation.components.AppIcons
+import ru.nomadbudget.presentation.components.ArchiveCard
+import ru.nomadbudget.presentation.components.ArchivedItem
+import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.ConfirmDialog
 import ru.nomadbudget.presentation.components.Dropdown
+import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.SecondaryButton
+import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.TextDialog
-import ru.nomadbudget.domain.model.CorrectionCategory
-import ru.nomadbudget.domain.model.Transaction
-import kotlinx.datetime.LocalDate
+import ru.nomadbudget.presentation.components.TrashIconButton
+import ru.nomadbudget.presentation.format.DateFormat
+import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
+import ru.nomadbudget.presentation.format.operations
+import ru.nomadbudget.presentation.format.plural
+import ru.nomadbudget.presentation.home.HomeState
 
 private sealed interface Dialog {
     data class RenameCategory(val category: Category) : Dialog
@@ -69,6 +72,7 @@ fun CategoriesScreen(
     onAddCategory: (String, CategoryKind) -> Unit,
     onRenameCategory: (String, String) -> Unit,
     onArchiveCategory: (String) -> Unit,
+    onRestoreCategory: (String) -> Unit = {},
     onAddSubcategory: (String, String, Money?) -> Unit,
     onRenameSubcategory: (String, String) -> Unit,
     onDeleteSubcategory: (String) -> Unit,
@@ -114,6 +118,11 @@ fun CategoriesScreen(
             item {
                 AddTile("Добавить категорию", onClick = { dialog = Dialog.AddCategory(kind) })
             }
+        }
+        val archived = state.categories.filter { it.isArchived && !it.isSystem }
+        if (archived.isNotEmpty()) {
+            item { SectionTitle("Архив", hint = "старые операции остаются с категорией") }
+            item { ArchiveCard(archived.map { ArchivedItem(it.id, it.name, if (it.kind == CategoryKind.INCOME) "доход" else "расход") }, onRestore = onRestoreCategory) }
         }
         val system = state.categories.filter { it.isSystem && !it.isArchived }
         if (system.isNotEmpty()) {
@@ -249,7 +258,7 @@ private fun CategoryCard(
             IconButton(onClick = { onMove(true) }, enabled = canMoveUp) { Icon(AppIcons.ChevronUp, contentDescription = "Выше") }
             IconButton(onClick = { onMove(false) }, enabled = canMoveDown) { Icon(AppIcons.ChevronDown, contentDescription = "Ниже") }
             IconButton(onClick = onRename) { Icon(AppIcons.Edit, contentDescription = "Переименовать") }
-            IconButton(onClick = onArchive) { Icon(AppIcons.Trash, contentDescription = "В архив") }
+            TrashIconButton("В архив", onClick = onArchive)
         }
         if (expanded) {
             HorizontalDivider()

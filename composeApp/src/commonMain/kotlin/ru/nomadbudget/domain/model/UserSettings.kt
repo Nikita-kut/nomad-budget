@@ -10,6 +10,7 @@ data class UserSettings(
     val cushionMonths: Int = CapitalSettings.DEFAULT_CUSHION_MONTHS,
     val annualReturn: Double = 0.0,
     val onboardedAt: Instant? = null,
+    val currencyCodes: List<String> = emptyList(),
 ) {
     init {
         require(periodStartDay in SalaryCycle.startDays) { "Начало месяца: день от 1 до 28" }

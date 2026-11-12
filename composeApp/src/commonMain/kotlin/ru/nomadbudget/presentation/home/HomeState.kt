@@ -165,7 +165,12 @@ data class HomeState(
     val activeCategories: List<Category> = categories.filterNot { it.isArchived || it.isSystem }
     val activeSubcategories: List<Subcategory> = subcategories.filterNot { it.isArchived }
 
-    val foreignCurrencies: List<Currency> = currencies.filter { it != Currency.BASE }
+    val userCurrencies: List<Currency> = memo.get("userCurrencies", currencies, accounts, settings) {
+        val codes = settings.currencyCodes.toSet() + accounts.filterNot { it.isArchived }.map { it.currency.code } + Currency.BASE.code
+        currencies.filter { it.code in codes }.sortedWith(compareBy({ it != Currency.BASE }, { it.code }))
+    }
+
+    val foreignCurrencies: List<Currency> = userCurrencies.filter { it != Currency.BASE }
 
     private val extraCurrencyOrder: List<String> = foreignCurrencies.filter { it != Currency.USD }.map { it.code }.sorted()
 

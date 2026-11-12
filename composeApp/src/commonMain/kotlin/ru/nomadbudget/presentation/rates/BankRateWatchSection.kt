@@ -5,15 +5,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -30,6 +28,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+import kotlin.time.Clock
 import ru.nomadbudget.domain.logic.BankRateAnalyzer
 import ru.nomadbudget.domain.logic.RateAssessment
 import ru.nomadbudget.domain.logic.RateVerdict
@@ -41,10 +41,10 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.charts.MultiLineChart
 import ru.nomadbudget.presentation.components.AddTile
-import ru.nomadbudget.presentation.components.AppIcons
 import ru.nomadbudget.presentation.components.ChartPanel
 import ru.nomadbudget.presentation.components.ChartPeriod
 import ru.nomadbudget.presentation.components.ConfirmDialog
+import ru.nomadbudget.presentation.components.DeleteIconButton
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.PrimaryButton
@@ -58,8 +58,6 @@ import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
-import kotlin.math.roundToInt
-import kotlin.time.Clock
 
 private val WATCH_PERIODS = listOf(ChartPeriod("1 день", 24), ChartPeriod("7 дней", 24 * 7), ChartPeriod("30 дней", null))
 private val HOURS = BankRateWatch.HOURS.toList()
@@ -243,9 +241,13 @@ private fun TelegramCard(data: BankWatchData, watch: BankRateWatch, callbacks: B
                     if (index > 0) HorizontalDivider()
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(subscriber.title, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { callbacks.onRemoveSubscriber(subscriber.id) }) {
-                            Icon(AppIcons.Trash, contentDescription = "Отключить подписчика", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        DeleteIconButton(
+                            description = "Отключить подписчика",
+                            title = "Отключить «${subscriber.title}»?",
+                            text = "Бот перестанет присылать этому человеку сообщения. Подписаться снова можно по ссылке из карточки.",
+                            confirmText = "Отключить",
+                            onConfirm = { callbacks.onRemoveSubscriber(subscriber.id) },
+                        )
                     }
                 }
             }

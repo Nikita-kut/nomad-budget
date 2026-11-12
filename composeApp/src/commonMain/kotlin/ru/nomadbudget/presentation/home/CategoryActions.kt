@@ -29,10 +29,14 @@ internal class CategoryActions(
         store.message("Переименовано")
     }
 
-    fun archiveCategory(id: String) = runner.run("Не удалось архивировать") {
-        categoryRepository.archiveCategory(id)
-        store.update { state -> state.copy(categories = state.categories.map { if (it.id == id) it.copy(isArchived = true) else it }) }
-        store.message("Категория убрана в архив")
+    fun archiveCategory(id: String) = setCategoryArchived(id, archived = true, "Категория убрана в архив")
+
+    fun restoreCategory(id: String) = setCategoryArchived(id, archived = false, "Категория возвращена из архива")
+
+    private fun setCategoryArchived(id: String, archived: Boolean, done: String) = runner.run("Не удалось изменить категорию") {
+        categoryRepository.setCategoryArchived(id, archived)
+        store.update { state -> state.copy(categories = state.categories.map { if (it.id == id) it.copy(isArchived = archived) else it }) }
+        store.message(done)
     }
 
     fun addSubcategory(categoryId: String, name: String) = runner.run("Не удалось добавить подкатегорию") {

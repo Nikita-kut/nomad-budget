@@ -13,6 +13,7 @@ object UserSettingsMapper {
         cushionMonths = dto.cushionMonths,
         annualReturn = dto.annualReturn,
         onboardedAt = dto.onboardedAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
+        currencyCodes = dto.currencies.distinct().sorted(),
     )
 
     fun toDto(settings: UserSettings): UserSettingsDto = UserSettingsDto(
@@ -22,5 +23,6 @@ object UserSettingsMapper {
         cushionMonths = settings.cushionMonths,
         annualReturn = settings.annualReturn,
         onboardedAt = settings.onboardedAt?.toString(),
+        currencies = settings.currencyCodes.distinct().sorted(),
     )
 }
