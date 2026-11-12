@@ -107,7 +107,7 @@ fun StatTile(
                 style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall,
                 color = if (accent) hero.heroMuted else subColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                 minLines = if (compact) 1 else 2,
-                maxLines = if (compact) 3 else 2,
+                maxLines = if (compact) 4 else 3,
                 overflow = TextOverflow.Ellipsis,
             )
         }

@@ -194,6 +194,12 @@ object BudgetCalculator {
             }
         }.sumIn(Currency.BASE)
 
+    fun cushionToDebts(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet()): Money =
+        transactions.filterIsInstance<Transaction.Expense>()
+            .filter { it.accountId in cushionIds && it.categoryId !in systemCategoryIds && it.debtId != null }
+            .map { it.amountBase }
+            .sumIn(Currency.BASE)
+
     fun cushionSpent(transactions: List<Transaction>, cushionIds: Set<String>, systemCategoryIds: Set<String> = emptySet()): Money =
         transactions.filterIsInstance<Transaction.Expense>()
             .filter { it.accountId in cushionIds && it.categoryId !in systemCategoryIds }

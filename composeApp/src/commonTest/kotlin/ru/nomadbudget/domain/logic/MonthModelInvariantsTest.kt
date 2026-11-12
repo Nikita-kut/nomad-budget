@@ -121,7 +121,9 @@ class MonthModelInvariantsTest {
             if (b.category.isArchived) assertTrue(b.planned.isZero, ctx)
         }
 
-        assertEquals(m.savedIn - m.savedOut - m.spentFromCushion, m.saved, ctx)
+        assertEquals(m.savedIn - m.savedOut - m.spentFromCushion, m.cushionNet, ctx)
+        assertEquals(m.cushionNet + m.cushionToDebts, m.saved, ctx)
+        assertTrue(!m.cushionToDebts.isNegative && m.cushionToDebts <= m.spentFromCushion, ctx)
         assertTrue(!m.savedIn.isNegative && !m.savedOut.isNegative && !m.spentFromCushion.isNegative, ctx)
         if (m.savingsProgress == SavingsProgress.DONE) assertTrue(m.savingsLeft.isZero, ctx)
 

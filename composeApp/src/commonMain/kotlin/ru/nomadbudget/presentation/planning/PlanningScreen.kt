@@ -320,7 +320,7 @@ private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -
                     )
                     if (target != null && month.incomePlanned.minor > 0L) {
                         Text(
-                            "${MoneyFormat.formatShare(target.shareOf(month.incomePlanned))} дохода · отложено ${MoneyFormat.format(month.saved, false)}",
+                            "${MoneyFormat.formatShare(target.shareOf(month.incomePlanned))} дохода · внесено ${MoneyFormat.format(month.saved.coerceAtLeastZero(), false)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

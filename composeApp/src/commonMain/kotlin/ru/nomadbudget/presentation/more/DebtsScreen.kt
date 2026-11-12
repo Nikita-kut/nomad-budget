@@ -305,12 +305,24 @@ private fun DebtCard(obligation: DebtObligation, today: LocalDate, onEdit: () ->
                     style = MaterialTheme.typography.bodySmall,
                     color = if (forecast == null) AppTheme.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (obligation.status != ObligationStatus.PAID) {
-                    PrimaryButton(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                        Text("Внести платёж ${MoneyFormat.format(debt.plannedPayment, false)}")
+                val early = obligation.earlyPaid.takeUnless { it.isZero }?.let { "досрочно ${MoneyFormat.format(it, false)}" }
+                when {
+                    obligation.paidOff -> Text(
+                        listOfNotNull("погашен досрочно", early).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.good,
+                    )
+                    obligation.status == ObligationStatus.PAID -> Text(
+                        listOfNotNull("платёж ${MoneyFormat.format(obligation.regularPaid, false)} внесён", early).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.good,
+                    )
+                    else -> {
+                        early?.let { Text("в этом месяце $it", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good) }
+                        PrimaryButton(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                            Text("Внести платёж ${MoneyFormat.format(debt.plannedPayment, false)}")
+                        }
                     }
-                } else if (obligation.paid > obligation.planned) {
-                    Text("в этом месяце внесено ${MoneyFormat.format(obligation.paid, false)}", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good)
                 }
             }
         }
