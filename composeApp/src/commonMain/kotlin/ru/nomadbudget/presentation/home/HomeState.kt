@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.home
 
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.domain.logic.BudgetLine
@@ -11,6 +12,8 @@ import ru.nomadbudget.domain.logic.CategoryHistory
 import ru.nomadbudget.domain.logic.CostBasis
 import ru.nomadbudget.domain.logic.CostBasisCalculator
 import ru.nomadbudget.domain.logic.DebtCategories
+import ru.nomadbudget.domain.logic.DebtLoad
+import ru.nomadbudget.domain.logic.DebtMonth
 import ru.nomadbudget.domain.logic.HistoryCalculator
 import ru.nomadbudget.domain.logic.MarketRates
 import ru.nomadbudget.domain.logic.MonthModel
@@ -34,7 +37,6 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.TransactionKind
 import ru.nomadbudget.domain.model.UserSettings
-import kotlin.time.Instant
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -215,6 +217,10 @@ data class HomeState(
     val savingsBalance: Money = BalanceCalculator.totalInBase(cushionAccounts, balances, rates)
 
     val capitalSettings: CapitalSettings = settings.capital
+
+    val debtMonths: List<DebtMonth> get() = memo.get("debtLoad", debts, transactions, rates, today, periodStartDay, systemCategoryIds) {
+        DebtLoad.months(debts, transactions, rates, today, periodStartDay, systemCategoryIds)
+    }
 
     val capital: CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, settings, capitalGoals) {
         CapitalModel.build(

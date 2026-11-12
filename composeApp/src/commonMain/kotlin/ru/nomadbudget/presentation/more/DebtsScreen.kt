@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
+import ru.nomadbudget.domain.logic.DebtMonth
 import ru.nomadbudget.domain.logic.DebtObligation
 import ru.nomadbudget.domain.logic.ObligationStatus
 import ru.nomadbudget.domain.model.Currency
@@ -56,11 +57,16 @@ import ru.nomadbudget.domain.model.DebtTotals
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.Transaction
+import ru.nomadbudget.presentation.charts.ColumnsChart
+import ru.nomadbudget.presentation.charts.LegendEntry
+import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.components.AddTile
 import ru.nomadbudget.presentation.components.AppIcons
 import ru.nomadbudget.presentation.components.ArchiveCard
 import ru.nomadbudget.presentation.components.ArchivedItem
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
+import ru.nomadbudget.presentation.components.ChartPanel
+import ru.nomadbudget.presentation.components.ChartPeriod
 import ru.nomadbudget.presentation.components.ConfirmDialog
 import ru.nomadbudget.presentation.components.Dropdown
 import ru.nomadbudget.presentation.components.EmptyHint
@@ -72,6 +78,7 @@ import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.components.StatTile
 import ru.nomadbudget.presentation.components.StatusPill
 import ru.nomadbudget.presentation.components.TileRow
+import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
@@ -133,6 +140,11 @@ fun DebtsScreen(
         }
         item {
             AddTile("Добавить кредит", onClick = { creating = true })
+        }
+        val history = state.debtMonths
+        if (history.size >= MIN_HISTORY_MONTHS) {
+            item { SectionTitle("История", hint = "по месяцам бюджета", info = Hints.DEBT_HISTORY) }
+            item { DebtHistoryCharts(history) }
         }
         val closed = state.debts.filter { it.isClosed }
         if (closed.isNotEmpty()) {
@@ -515,4 +527,87 @@ private fun archiveSubtitle(debt: Debt, totals: DebtTotals): String = listOfNotN
     totals.interest?.let { "проценты ≈ ${MoneyFormat.format(it, false)}" },
     debt.writtenOff.takeUnless { it.isZero }?.let { "списано ${MoneyFormat.format(it, false)}" },
 ).joinToString(" · ")
+
+private const val MIN_HISTORY_MONTHS = 2
+private const val PERCENT = 100.0
+private val HISTORY_PERIODS = listOf(ChartPeriod("12 мес.", 12), ChartPeriod("всё", null))
+
+@Composable
+private fun DebtHistoryCharts(history: List<DebtMonth>) {
+    val colors = AppTheme.colors
+    val regularColor = MaterialTheme.colorScheme.primary
+    val earlyColor = colors.save
+    val labels = history.map { DateFormat.monthYearShort(it.period.start) }
+    Column(verticalArrangement = Arrangement.spacedBy(Ui.Gap)) {
+        ChartPanel(
+            title = "Обязательный платёж в месяц",
+            hint = "сумма платежей по графикам всех открытых кредитов",
+            legend = listOf(LegendEntry("Обязательный платёж", regularColor)),
+            totalPoints = history.size,
+            periods = HISTORY_PERIODS,
+        ) { from, visible ->
+            LineChart(
+                values = history.drop(from).map { it.obligatory.toMajor() },
+                color = regularColor,
+                labels = labels.drop(from),
+                formatY = MoneyFormat::formatAxis,
+                formatValue = MoneyFormat::formatWhole,
+                visibleCount = visible,
+            )
+        }
+        ChartPanel(
+            title = "Внесено по кредитам",
+            hint = "обычные платежи и досрочка по месяцам",
+            legend = listOf(LegendEntry("Обычные", regularColor), LegendEntry("Досрочно", earlyColor)),
+            totalPoints = history.size,
+            periods = HISTORY_PERIODS,
+        ) { from, visible ->
+            val slice = history.drop(from)
+            ColumnsChart(
+                series = listOf(slice.map { it.regularPaid.toMajor() }, slice.map { it.earlyPaid.toMajor() }),
+                colors = listOf(regularColor, earlyColor),
+                names = listOf("обычные", "досрочно"),
+                labels = labels.drop(from),
+                formatY = MoneyFormat::formatAxis,
+                formatValue = MoneyFormat::formatWhole,
+                visibleCount = visible,
+            )
+        }
+        ChartPanel(
+            title = "Остаток долга",
+            hint = "тело всех кредитов на конец месяца",
+            legend = listOf(LegendEntry("Остаток", colors.bad)),
+            totalPoints = history.size,
+            periods = HISTORY_PERIODS,
+        ) { from, visible ->
+            LineChart(
+                values = history.drop(from).map { it.debtAtEnd.toMajor() },
+                color = colors.bad,
+                labels = labels.drop(from),
+                formatY = MoneyFormat::formatAxis,
+                formatValue = MoneyFormat::formatWhole,
+                visibleCount = visible,
+            )
+        }
+        val rated = history.filter { it.loadShare != null }
+        if (rated.isNotEmpty()) {
+            ChartPanel(
+                title = "Нагрузка",
+                hint = "обязательный платёж / доход месяца, только закрытые месяцы с доходом",
+                legend = listOf(LegendEntry("Доля дохода", colors.warning)),
+                totalPoints = rated.size,
+                periods = HISTORY_PERIODS,
+            ) { from, visible ->
+                val slice = rated.drop(from)
+                LineChart(
+                    values = slice.map { (it.loadShare ?: 0.0) * PERCENT },
+                    color = colors.warning,
+                    labels = slice.map { DateFormat.monthYearShort(it.period.start) },
+                    formatY = MoneyFormat::formatPercentPoints,
+                    visibleCount = visible,
+                )
+            }
+        }
+    }
+}
 
