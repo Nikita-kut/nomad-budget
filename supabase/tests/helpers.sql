@@ -37,8 +37,11 @@ begin
     insert into public.categories (user_id, name, kind) values (p_user, p_tag || ' food', 'expense') returning id into v_expense;
     insert into public.categories (user_id, name, kind) values (p_user, p_tag || ' salary', 'income') returning id into v_income;
     insert into public.subcategories (user_id, category_id, name) values (p_user, v_expense, p_tag || ' cafe') returning id into v_sub;
+    insert into public.subcategories (user_id, category_id, name) values (p_user, v_expense, p_tag || ' groceries');
     insert into public.periods (user_id, start_date, end_date, title) values (p_user, date '2026-11-01', date '2026-12-01', p_tag || ' Nov') returning id into v_period;
+    insert into public.periods (user_id, start_date, end_date, title) values (p_user, date '2026-12-01', date '2027-01-01', p_tag || ' Dec');
     insert into public.debts (user_id, name, currency, principal_remaining, monthly_payment, pay_day) values (p_user, p_tag || ' loan', 'RUB', 500000, 10000, 15) returning id into v_debt;
+    insert into public.debts (user_id, name, currency, principal_remaining, monthly_payment, pay_day) values (p_user, p_tag || ' card loan', 'RUB', 90000, 3000, 20);
     insert into public.transactions (user_id, tx_date, type, account_id, amount, category_id, subcategory_id, rate_to_base, amount_base)
         values (p_user, date '2026-11-03', 'expense', v_card, 1500, v_expense, v_sub, 1, 1500);
     insert into public.transactions (user_id, tx_date, type, account_id, amount, counter_account_id, rate_to_base, amount_base)

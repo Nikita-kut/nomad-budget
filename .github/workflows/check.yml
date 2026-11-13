@@ -2,7 +2,7 @@ name: Check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -30,9 +30,17 @@ jobs:
           set -euo pipefail
           git diff --name-only "$BASE_SHA"...HEAD > "$RUNNER_TEMP/changed.txt"
           python3 tools/quality/check_pr_checklist.py < "$RUNNER_TEMP/changed.txt"
+      - name: Migration guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          git diff --name-status "$BASE_SHA"...HEAD > "$RUNNER_TEMP/changes.txt"
+          python3 tools/quality/check_migrations.py < "$RUNNER_TEMP/changes.txt"
 
   db:
-    if: github.event.action != 'edited'
+    if: ${{ !contains(fromJSON('["edited", "labeled", "unlabeled"]'), github.event.action) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -46,7 +54,7 @@ jobs:
         run: bash supabase/tests/run.sh
 
   check:
-    if: github.event.action != 'edited'
+    if: ${{ !contains(fromJSON('["edited", "labeled", "unlabeled"]'), github.event.action) }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -54,7 +62,7 @@ jobs:
       - name: Project rules
         run: bash tools/check_rules.sh
       - name: Worker unit tests
-        run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py tools/quality/test_check_pr_checklist.py
+        run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py tools/quality/test_check_pr_checklist.py tools/quality/test_check_migrations.py
       - uses: actions/setup-node@v5
         with:
           node-version: 24

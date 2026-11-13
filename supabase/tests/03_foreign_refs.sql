@@ -45,13 +45,14 @@ begin
         select owner_sql, pk into v_child_owner, v_child_pk from tests.user_tables() where name = r.child;
         select owner_sql into v_parent_owner from tests.user_tables() where name = r.parent;
 
-        execute format('select %I::text from public.%I where %s limit 1', r.parent_col, r.parent, v_parent_owner)
+        execute format('select p.%I::text from public.%I p where %s and not exists (select 1 from public.%I c where c.%I = p.%I) limit 1',
+                       r.parent_col, r.parent, v_parent_owner, r.child, r.col, r.parent_col)
             into v_foreign using v_a;
         execute format('select to_jsonb(t), %I::text from public.%I t where %s order by (%I is null) limit 1',
                        v_child_pk, r.child, v_child_owner, r.col)
             into v_row, v_row_id using v_b;
         if v_foreign is null or v_row is null then
-            v_fails := v_fails || format('%s.%s: нет фикстуры для проверки', r.child, r.col);
+            v_fails := v_fails || format('%s.%s: нет фикстуры — у A нужен объект %s без ссылок из %s, у B строка %s', r.child, r.col, r.parent, r.child, r.child);
             continue;
         end if;
 
