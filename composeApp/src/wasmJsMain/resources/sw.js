@@ -1,5 +1,7 @@
-const CACHE = 'nomad-budget-v1';
-const IMMUTABLE = /\.wasm$|\.(png|woff2?|ttf)$|\/composeResources\//;
+const SCOPE = self.registration.scope;
+const CACHE = 'nomad-budget-v2@' + SCOPE;
+const LEGACY = new URL(SCOPE).pathname === '/nomad-budget/' ? ['nomad-budget-v1'] : [];
+const IMMUTABLE = /\/[0-9a-f]{16,}\.wasm$|\/icon-\d+\.png$/;
 
 self.addEventListener('install', function () {
     self.skipWaiting();
@@ -8,7 +10,10 @@ self.addEventListener('install', function () {
 self.addEventListener('activate', function (event) {
     event.waitUntil(
         caches.keys()
-            .then(function (keys) { return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); })); })
+            .then(function (keys) {
+                const stale = keys.filter(function (k) { return k !== CACHE && (k.endsWith('@' + SCOPE) || LEGACY.indexOf(k) >= 0); });
+                return Promise.all(stale.map(function (k) { return caches.delete(k); }));
+            })
             .then(function () { return self.clients.claim(); })
     );
 });
@@ -17,7 +22,7 @@ self.addEventListener('fetch', function (event) {
     const request = event.request;
     if (request.method !== 'GET') return;
     const url = new URL(request.url);
-    if (url.origin !== self.location.origin) return;
+    if (url.origin !== self.location.origin || !url.href.startsWith(SCOPE)) return;
 
     if (IMMUTABLE.test(url.pathname)) {
         event.respondWith(cacheFirst(request));
