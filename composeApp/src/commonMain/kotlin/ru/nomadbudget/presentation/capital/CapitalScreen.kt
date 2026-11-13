@@ -158,7 +158,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
             StatTile(
                 "Прирост в месяц",
                 capital.paceMedian?.let { MoneyFormat.formatSigned(it + capital.principalPace, false) } ?: "—",
-                "«Себе» ${capital.paceMedian?.let { MoneyFormat.formatSigned(it, false) } ?: "—"} + тело кредитов ${MoneyFormat.format(capital.principalPace, false)}",
+                "подушка ${capital.paceMedian?.let { MoneyFormat.formatSigned(it, false) } ?: "—"} + тело кредитов ${MoneyFormat.format(capital.principalPace, false)}",
                 modifier = m,
             )
         },

@@ -276,7 +276,7 @@ private fun settingsSummary(watch: BankRateWatch): String = listOfNotNull(
     "верхние ${MoneyFormat.formatPercentValue((100 - watch.goodPercentile).toDouble())} недели",
     "повтор при улучшении на ${MoneyFormat.formatPercentValue(watch.improvePercent)}",
     "биржа ${timeText(watch.tradeOpen)}–${timeText(watch.tradeClose)} МСК",
-    watch.digestAt?.let { "сводка в ${timeText(it)}" } ?: "без сводки",
+    watch.digestAt?.let { "сводка в ${timeText(it)} МСК" } ?: "без сводки",
     if (watch.sendsAllDay) "присылать круглосуточно" else "присылать с ${hourText(watch.sendFrom)} до ${hourText(watch.sendTo)}",
     watch.timezone,
 ).joinToString(" · ")

@@ -100,7 +100,7 @@ internal class AccountActions(
 
     private fun setArchived(id: String, archived: Boolean, done: String) = runner.run("Не удалось изменить счёт") {
         accountRepository.setArchived(id, archived)
-        store.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(isArchived = archived) else it }) }
+        store.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(isArchived = archived, archivedOn = if (archived) state.today else null) else it }) }
         store.message(done)
     }
 }

@@ -19,6 +19,7 @@ object AccountMapper {
             openingBalance = Money(dto.openingBalance, currency),
             sortOrder = dto.sortOrder,
             isArchived = dto.archivedAt != null,
+            archivedOn = dto.archivedAt?.take(10)?.let(kotlinx.datetime.LocalDate::parse),
             isFund = dto.isFund && !dto.isSavings,
             fundMonthly = dto.fundMonthly?.let { Money(it, currency) },
             fundGoal = dto.fundGoal?.let { Money(it, currency) },

@@ -18,6 +18,9 @@ import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.KeyValueStore
+import ru.nomadbudget.domain.repository.DebtRepository
+import ru.nomadbudget.domain.repository.BudgetRepository
+import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.presentation.onboarding.OnboardingDefaults
 import ru.nomadbudget.presentation.onboarding.OnboardingResult
@@ -34,6 +37,9 @@ internal class SettingsActions(
     private val categoryRepository: CategoryRepository,
     private val loader: LoadCoordinator,
     private val today: LocalDate,
+    private val periodRepository: PeriodRepository,
+    private val budgetRepository: BudgetRepository,
+    private val debtRepository: DebtRepository,
 ) {
 
     fun addCapitalGoal(name: String, amount: Money, targetDate: LocalDate) = runner.run("Не удалось добавить цель") {
@@ -72,9 +78,27 @@ internal class SettingsActions(
         require(day in SalaryCycle.startDays) { "Начало месяца: день от 1 до 28" }
         val current = store.value
         if (day == current.periodStartDay) return@run
+        val oldPeriod = SalaryCycle.periodContaining(today, current.periodStartDay)
+        val newPeriod = SalaryCycle.periodContaining(today, day)
+        val oldId = periodRepository.ensure(oldPeriod)
+        val oldLines = budgetRepository.getLines(oldId).filter { it.planned.minor > 0L }
+        val oldTarget = budgetRepository.getSavingsTarget(oldId)
         saveSettings(current.settings.copy(periodStartDay = day))
-        loader.switchPeriod(SalaryCycle.periodContaining(today, day))
-        store.message("Месяц бюджета теперь начинается $day числа")
+        val newId = periodRepository.ensure(newPeriod)
+        var moved = false
+        if (budgetRepository.getLines(newId).isEmpty() && budgetRepository.getSavingsTarget(newId) == null) {
+            oldLines.forEach { budgetRepository.setPlanned(newId, it) }
+            oldTarget?.let { budgetRepository.setSavingsTarget(newId, it) }
+            current.openDebts.forEach { debt ->
+                debt.earlyPlans.firstOrNull { it.periodStart == oldPeriod.start }?.let { plan ->
+                    debtRepository.setEarlyPlan(debt.id, newPeriod.start, plan.amount, plan.fromCushion)
+                }
+            }
+            moved = oldLines.isNotEmpty() || oldTarget != null
+        }
+        loader.switchPeriod(newPeriod)
+        loader.load()
+        store.message("Месяц бюджета теперь начинается $day числа" + if (moved) ", план текущего месяца перенесён" else "")
     }
 
     fun setIncomeDays(days: List<Int>) = runner.run("Не удалось сохранить дни дохода") {

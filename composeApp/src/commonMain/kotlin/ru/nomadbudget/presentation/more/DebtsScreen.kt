@@ -226,7 +226,6 @@ private fun DebtsSummary(state: HomeState, wide: Boolean) {
     val forecasts = state.openDebts.map { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }
     val lastClose = if (forecasts.any { it == null }) null else forecasts.filterNotNull().maxOrNull()
     val paid = month.debtsPaid
-    val obligatory = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.monthlyPayment) }.sumIn(state.base)
     TileRow(
         wide,
         listOf(
@@ -234,7 +233,7 @@ private fun DebtsSummary(state: HomeState, wide: Boolean) {
             { m ->
                 StatTile(
                     "Обязательно в месяц",
-                    MoneyFormat.format(obligatory, false),
+                    MoneyFormat.format(state.obligatoryMonthly, false),
                     "в этом месяце оплачено $paid из ${month.debts.size}",
                     modifier = m,
                     progress = if (month.debts.isEmpty()) null else paid.toFloat() / month.debts.size,
@@ -363,7 +362,8 @@ private fun DebtCard(
                 Text(MoneyFormat.format(debt.principalRemaining, false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text(
                     listOfNotNull(
-                        "платёж ${MoneyFormat.format(debt.monthlyPayment, false)}",
+                        "платёж ${MoneyFormat.format(debt.paymentOn(today), false)}" +
+                            debt.nextPaymentChange(today)?.let { " → ${MoneyFormat.format(it.payment, false)} с ${DateFormat.dayMonth(it.effectiveFrom)}" }.orEmpty(),
                         debt.extraPayment.takeUnless { it.isZero }?.let { "досрочно +${MoneyFormat.format(it, false)}" },
                         debt.ratePercent?.let { MoneyFormat.formatPercentValue(it) },
                     ).joinToString(" · "),
@@ -403,7 +403,7 @@ private fun DebtCard(
                     else -> {
                         early?.let { Text("в этом месяце $it", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.good) }
                         PrimaryButton(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                            Text("Внести платёж ${MoneyFormat.format(obligation.planned, false)}")
+                            Text(if (obligation.regularLeft.isZero) "Внести платёж" else "Внести платёж ${MoneyFormat.format(obligation.regularLeft, false)}")
                         }
                     }
                 }

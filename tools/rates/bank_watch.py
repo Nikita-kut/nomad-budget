@@ -419,9 +419,10 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
             window["sent"] = rate
 
     events: list[dict] = []
-    today = local.date().isoformat()
+    exchange_local = exchange_now(now_utc)
+    today = exchange_local.date().isoformat()
     last_digest = state.get("last_digest_date")
-    due = digest_at is not None and digest_at <= minute_of_day(local) < digest_at + DIGEST_GRACE_MINUTES
+    due = digest_at is not None and digest_at <= minute_of_day(exchange_local) < digest_at + DIGEST_GRACE_MINUTES
     if due and not quiet and last_digest != today:
         events.append({
             "kind": "digest", "verdict": verdict(assessment, exchange_now(now_utc).date(), holidays), "assessment": assessment,

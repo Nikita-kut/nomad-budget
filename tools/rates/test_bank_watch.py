@@ -333,6 +333,14 @@ class EvaluateTest(unittest.TestCase):
         state, events = self.step(w, 90.0, state, msk(12, 15))
         self.assertEqual([], events)
 
+    def test_digest_runs_by_exchange_time_in_any_timezone(self):
+        w = watch(digest_at=630, timezone="Asia/Bangkok", quiet_from=23, quiet_to=6)
+        _, early = self.step(w, 95.0, {}, msk(6, 35))
+        self.assertEqual([], early)
+        state, events = self.step(w, 95.0, {}, msk(10, 35))
+        self.assertEqual(["digest"], self.kinds(events))
+        self.assertEqual("2026-11-10", state["last_digest_date"])
+
     def test_digest_once_per_day_and_it_replaces_the_window_message(self):
         w = watch(digest_hour=10)
         state, events = self.step(w, 95.0, {}, msk(10, 5))

@@ -51,7 +51,7 @@ object DebtLoad {
                 period = period,
                 regularPaid = inPeriod.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(base),
                 earlyPaid = inPeriod.filter { it.debtEarly }.map { it.amountBase }.sumIn(base),
-                obligatory = debts.filter { it.isActiveIn(period) && !(isCurrent && it.isClosed) }
+                obligatory = debts.filter { DebtSchedule.owesScheduled(it, period, payments) }
                     .mapNotNull { debt -> rates.toBaseOrNull(debt.paymentOn(MonthModel.dueDate(period, debt.payDay) ?: period.start)) }
                     .sumIn(base),
                 debtAtEnd = debts.mapNotNull { debt -> rates.toBaseOrNull(remainingAt(debt, payments, period.endExclusive)) }.sumIn(base),

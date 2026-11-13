@@ -2,6 +2,9 @@ package ru.nomadbudget.presentation.home
 
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.model.SalaryCycle
+import kotlinx.datetime.plus
+import kotlinx.datetime.DateTimeUnit
 import ru.nomadbudget.domain.logic.BalanceCalculator
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.CapitalGoal
@@ -38,6 +41,7 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.TransactionKind
 import ru.nomadbudget.domain.model.UserSettings
+import ru.nomadbudget.domain.model.sumIn
 
 enum class EntryType { EXPENSE, INCOME, TRANSFER }
 
@@ -92,6 +96,10 @@ data class ExchangeDraft(
     val received: Money,
     val note: String = "",
 )
+
+data class CarryOverProjection(val lifeNow: Money, val stillToPay: Money) {
+    val value: Money get() = lifeNow - stillToPay
+}
 
 data class HomeState(
     val today: LocalDate,
@@ -150,6 +158,8 @@ data class HomeState(
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
 
+    val obligatoryMonthly: Money = openDebts.mapNotNull { rates.toBaseOrNull(it.paymentOn(today)) }.sumIn(base)
+
     val debtCategoryIds: Set<String> = memo.get("debtCategories", debts, subcategories, transactions) {
         DebtCategories.categoryIds(openDebts, subcategories, transactions)
     }
@@ -187,7 +197,22 @@ data class HomeState(
 
     val balances: Map<String, Money> = memo.get("balances", accounts, transactions) { BalanceCalculator.balances(accounts, transactions) }
 
-    val month: MonthModel = memo.get("month", period, today, categories, subcategories, budgetLines, transactions, accounts, debts, rates, savingsTarget) {
+    val isFuturePeriod: Boolean = period.start > today
+
+    val carryOverProjection: CarryOverProjection? = if (!isFuturePeriod) null else memo.get("carryOverProjection", today, transactions, accounts, debts, rates, categories, periodStartDay, allPlanLines) {
+        val current = SalaryCycle.periodContaining(today, periodStartDay)
+        val currentLines = allPlanLines.filter { it.periodStart == current.start }.map { it.line }
+        val currentMonth = MonthModel.build(
+            period = current, today = today, categories = categories, subcategories = subcategories, lines = currentLines,
+            transactions = transactions, accounts = accounts, debts = debts, rates = rates, balances = balances, savingsTarget = null,
+            rateOn = ::marketRateOn,
+        )
+        val now = MonthModel.lifeBalanceAt(today.plus(1, DateTimeUnit.DAY), accounts, transactions, rates)
+        val stillToPay = currentMonth.canSpend.coerceAtLeastZero() + currentMonth.debtsLeft + currentMonth.funds.map { it.contributionLeft }.sumIn(base)
+        CarryOverProjection(now, stillToPay)
+    }
+
+    val month: MonthModel = memo.get("month", period, today, categories, subcategories, budgetLines, transactions, accounts, debts, rates, savingsTarget, carryOverProjection) {
         MonthModel.build(
             period = period,
             today = today,
@@ -200,6 +225,8 @@ data class HomeState(
             rates = rates,
             balances = balances,
             savingsTarget = savingsTarget,
+            rateOn = ::marketRateOn,
+            carryOverOverride = carryOverProjection?.value,
         )
     }
 

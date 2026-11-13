@@ -69,6 +69,7 @@ import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.CategoryPlanDraft
+import ru.nomadbudget.presentation.home.CarryOverProjection
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.more.SubScreenHeader
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -108,7 +109,7 @@ fun PlanningScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { PlanSummaryTiles(month, state.period, twoColumns) }
+        item { PlanSummaryTiles(month, state.period, twoColumns, state.carryOverProjection) }
         item { SectionTitle("Куда распределено", hint = "от ${MoneyFormat.format(month.available, false)} на месяц") }
         item { AllocationCard(month) }
         item {
@@ -183,7 +184,7 @@ fun PlanningScreen(
     planningEarly?.let { obligation ->
         EarlyPlanDialog(
             obligation = obligation,
-            initial = obligation.debt.earlyPlanFor(state.period),
+            initial = obligation.debt.earlyPlanFor(state.period, state.today),
             onDismiss = { planningEarly = null },
             onConfirm = { amount, fromCushion ->
                 onSetEarlyPlan(obligation.debt.id, amount, fromCushion)
@@ -220,7 +221,7 @@ fun PlanningScreen(
 }
 
 @Composable
-private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean) {
+private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean, projection: CarryOverProjection?) {
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
     TileRow(
@@ -241,9 +242,10 @@ private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean) {
             { m -> StatTile("Доход по плану", MoneyFormat.format(month.incomePlanned, false), "регулярный доход этого месяца", modifier = m) },
             { m ->
                 StatTile(
-                    "Остаток с прошлого месяца",
+                    if (projection != null) "Останется с этого месяца" else "Остаток с прошлого месяца",
                     MoneyFormat.formatSigned(month.carryOver, false),
-                    "было на картах и наличных ${DateFormat.dayMonth(period.start)}",
+                    projection?.let { "прогноз: сейчас на картах ${MoneyFormat.format(it.lifeNow, false)}, ещё уйдёт по плану ${MoneyFormat.format(it.stillToPay, false)}" }
+                        ?: "было на картах и наличных ${DateFormat.dayMonth(period.start)}",
                     modifier = m,
                     valueColor = if (month.carryOver.isNegative) colors.bad else null,
                     info = Hints.CARRY_OVER,

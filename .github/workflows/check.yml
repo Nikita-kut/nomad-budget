@@ -2,6 +2,7 @@ name: Check
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -15,10 +16,18 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: PR quality checklist
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 tools/quality/check_pr_checklist.py $(git diff --name-only "$BASE_SHA"...HEAD)
       - name: Project rules
         run: bash tools/check_rules.sh
       - name: Worker unit tests
-        run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py
+        run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py tools/quality/test_check_pr_checklist.py
       - uses: actions/setup-node@v5
         with:
           node-version: 24

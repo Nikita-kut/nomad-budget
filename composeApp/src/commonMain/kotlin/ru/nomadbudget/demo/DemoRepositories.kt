@@ -203,7 +203,7 @@ private class DemoAccountRepository(private val db: DemoDatabase) : AccountRepos
 
     override suspend fun setSortOrder(id: String, sortOrder: Int) = replace(id) { it.copy(sortOrder = sortOrder) }
 
-    override suspend fun setArchived(id: String, archived: Boolean) = replace(id) { it.copy(isArchived = archived) }
+    override suspend fun setArchived(id: String, archived: Boolean) = replace(id) { it.copy(isArchived = archived, archivedOn = if (archived) db.today else null) }
 
     private fun replace(id: String, change: (Account) -> Account) {
         db.accounts.replaceEach { if (it.id == id) change(it) else it }
