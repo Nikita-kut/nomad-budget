@@ -1,0 +1,40 @@
+name: Nightly checks
+
+on:
+  schedule:
+    - cron: "30 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prod-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prod from outside without login
+        env:
+          PROBE_STRICT: ${{ vars.PROD_PROBE_STRICT }}
+        run: python3 tools/quality/prod_probe.py
+
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      STAGING_PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
+      STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+      STAGING_SUPABASE_KEY: ${{ vars.STAGING_SUPABASE_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Reset staging test users and run smoke
+        run: |
+          set -euo pipefail
+          STAGING_TEST_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(18))")
+          echo "::add-mask::$STAGING_TEST_PASSWORD"
+          export STAGING_TEST_PASSWORD
+          python3 tools/staging/reset.py
+          python3 tools/staging/smoke.py
+          PROBE_URL="$STAGING_SUPABASE_URL" PROBE_KEY="$STAGING_SUPABASE_KEY" PROBE_STRICT=1 python3 tools/quality/prod_probe.py
