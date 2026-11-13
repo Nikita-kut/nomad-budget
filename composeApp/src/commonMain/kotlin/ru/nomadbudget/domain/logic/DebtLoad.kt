@@ -46,11 +46,12 @@ object DebtLoad {
             .reversed()
         return periods.map { period ->
             val inPeriod = payments.filter { it.date in period }
+            val isCurrent = period == current
             DebtMonth(
                 period = period,
                 regularPaid = inPeriod.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(base),
                 earlyPaid = inPeriod.filter { it.debtEarly }.map { it.amountBase }.sumIn(base),
-                obligatory = debts.filter { it.isActiveIn(period) }
+                obligatory = debts.filter { it.isActiveIn(period) && !(isCurrent && it.isClosed) }
                     .mapNotNull { debt -> rates.toBaseOrNull(debt.paymentOn(MonthModel.dueDate(period, debt.payDay) ?: period.start)) }
                     .sumIn(base),
                 debtAtEnd = debts.mapNotNull { debt -> rates.toBaseOrNull(remainingAt(debt, payments, period.endExclusive)) }.sumIn(base),
@@ -58,7 +59,7 @@ object DebtLoad {
                     .filter { it.date in period && it.categoryId !in systemCategoryIds }
                     .map { it.amountBase }
                     .sumIn(base),
-                isCurrent = period == current,
+                isCurrent = isCurrent,
             )
         }
     }

@@ -165,7 +165,7 @@ data class MonthModel(
                 today = today,
                 incomeBudgets = budgets.filter { it.category.kind == CategoryKind.INCOME },
                 envelopes = budgets.filter { it.category.kind == CategoryKind.EXPENSE },
-                debts = debts.filter { it.isActiveIn(period) }.map { debtObligation(it, period, today, inPeriod, rates) },
+                debts = debts.filter { it.isActiveIn(period) }.map { debtObligation(it, period, today, inPeriod, rates, cushionIds) },
                 funds = accounts.filter { it.role == AccountRole.FUND && !it.isArchived }.map { fundState(it, period, today, inPeriod, rates, balances, systemIds) },
                 savingsTarget = savingsTarget?.takeIf { it.minor > 0L },
                 carryOver = carryOver,
@@ -199,7 +199,7 @@ data class MonthModel(
             else -> ObligationStatus.UPCOMING
         }
 
-        private fun debtObligation(debt: Debt, period: Period, today: LocalDate, inPeriod: List<Transaction>, rates: RateTable): DebtObligation {
+        private fun debtObligation(debt: Debt, period: Period, today: LocalDate, inPeriod: List<Transaction>, rates: RateTable, cushionIds: Set<String>): DebtObligation {
             val base = rates.base
             val due = dueDate(period, debt.payDay)
             val monthly = debt.paymentOn(due ?: period.start)
@@ -211,6 +211,7 @@ data class MonthModel(
             val regularPaid = payments.filterNot { it.debtEarly }.map { it.amountBase }.sumIn(base)
             val earlyPaid = payments.filter { it.debtEarly }.map { it.amountBase }.sumIn(base)
             val paid = regularPaid + earlyPaid
+            val earlyFromCushionPaid = payments.filter { it.debtEarly && it.accountId in cushionIds }.map { it.amountBase }.sumIn(base)
             val closedHere = debt.closedIn(period)
             val paidOff = closedHere || earlyPaid.minor > 0L && debt.principalRemaining.minor < debt.monthlyPayment.minor
             val paidEnough = paidOff ||
@@ -225,8 +226,8 @@ data class MonthModel(
                 regularPaid = regularPaid,
                 earlyPaid = earlyPaid,
                 paidOff = paidOff,
-                earlyPlanned = if (closedHere) Money.zero(base) else earlyPlanned,
-                earlyFromCushion = earlyPlan?.fromCushion == true,
+                earlyPlanned = if (closedHere) earlyFromCushionPaid else earlyPlanned,
+                earlyFromCushion = if (closedHere) earlyFromCushionPaid.minor > 0L else earlyPlan?.fromCushion == true,
             )
         }
 
