@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
