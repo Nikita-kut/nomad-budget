@@ -11,7 +11,7 @@ begin
     perform tests.seed_finance(v_a, 'A');
 
     for r in
-        select c.relname::text as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        select c.relname::text as name, c.relkind = 'r' as is_table from pg_class c join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'public' and c.relkind in ('r', 'v', 'm')
         order by 1
     loop
@@ -22,6 +22,7 @@ begin
         exception when insufficient_privilege then
             null;
         end;
+        if r.is_table then
         begin
             execute format('insert into public.%I default values', r.name);
             v_fails := v_fails || format('%s: anon вставил строку', r.name);
@@ -30,6 +31,7 @@ begin
         when others then
             v_fails := v_fails || format('%s: вставка anon отклонена не правами (%s)', r.name, sqlstate);
         end;
+        end if;
         execute 'reset role';
         v_checked := v_checked + 1;
     end loop;

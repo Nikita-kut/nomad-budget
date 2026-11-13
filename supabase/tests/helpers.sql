@@ -59,6 +59,7 @@ begin
     insert into public.base_currency_changes (user_id, from_currency, to_currency, reverted_at, snapshot) values (p_user, 'USD', 'RUB', now(), '{}');
     insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'RUB', 'USD') returning id into v_watch;
     insert into public.telegram_subscribers (watch_id, chat_id, title) values (v_watch, abs(hashtext(p_tag)), p_tag);
+    insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'USD', 'RUB');
 end $$;
 
 create or replace function tests.become(p_user uuid)
