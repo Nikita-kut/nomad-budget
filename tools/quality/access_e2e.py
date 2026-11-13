@@ -65,7 +65,8 @@ def main() -> int:
     status, session = api.login(admin_email, admin_password)
     admin_token = session.get("access_token")
     if not admin_token:
-        print(f"FAIL админ не вошёл ({status})")
+        detail = {k: session.get(k) for k in ("error_code", "msg", "error", "error_description") if session.get(k)}
+        print(f"FAIL админ не вошёл ({status} {detail})")
         return 1
 
     status, _ = api.admin(None, action="users_list")
