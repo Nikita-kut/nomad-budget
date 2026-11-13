@@ -143,7 +143,7 @@ as $$
       and a.attnum > 0 and not a.attisdropped
       and a.attname not in ('user_id', 'id')
       and has_column_privilege('authenticated', a.attrelid, a.attnum, 'UPDATE')
-      and not exists (select 1 from pg_constraint c where c.conrelid = a.attrelid and a.attnum = any(c.conkey) and c.contype in ('p', 'u', 'f'))
+      and not exists (select 1 from pg_constraint c where c.conrelid = a.attrelid and a.attnum = any(c.conkey) and c.contype in ('p', 'u', 'f', 'c'))
       and not exists (select 1 from pg_index i where i.indrelid = a.attrelid and a.attnum = any(i.indkey::int2[]))
     order by a.attnum
     limit 1
