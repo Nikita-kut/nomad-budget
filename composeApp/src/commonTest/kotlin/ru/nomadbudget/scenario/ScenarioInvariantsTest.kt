@@ -23,8 +23,37 @@ class ScenarioInvariantsTest {
     private val from = LocalDate(2026, 8, 5)
 
     @Test
-    fun invariantsHoldOnRandomLifecycles() {
-        repeat(SEEDS) { seed ->
+    fun lifecycles00() = runSeeds(0 until 15)
+
+    @Test
+    fun lifecycles01() = runSeeds(15 until 30)
+
+    @Test
+    fun lifecycles02() = runSeeds(30 until 45)
+
+    @Test
+    fun lifecycles03() = runSeeds(45 until 60)
+
+    @Test
+    fun lifecycles04() = runSeeds(60 until 75)
+
+    @Test
+    fun lifecycles05() = runSeeds(75 until 90)
+
+    @Test
+    fun lifecycles06() = runSeeds(90 until 105)
+
+    @Test
+    fun lifecycles07() = runSeeds(105 until 120)
+
+    @Test
+    fun lifecycles08() = runSeeds(120 until 135)
+
+    @Test
+    fun lifecycles09() = runSeeds(135 until 150)
+
+    private fun runSeeds(seeds: IntRange) {
+        seeds.forEach { seed ->
             CHECK_DAYS.forEach { offset ->
                 val today = from.plus(offset, DateTimeUnit.DAY)
                 val ledger = randomLedger(seed, today)
@@ -203,7 +232,6 @@ class ScenarioInvariantsTest {
     }
 
     private companion object {
-        const val SEEDS = 150
         val CHECK_DAYS = listOf(0, 31, 62, 77, 90, 101, 107)
     }
 }
