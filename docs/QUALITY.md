@@ -61,6 +61,13 @@ NOMAD_OWNER_EMAIL=<почта владельца> python3 tools/quality/reconcil
 
 Локально Docker не нужен: проверки гоняются в CI. С Docker — `supabase start && bash supabase/tests/run.sh`.
 
+## Тесты интерфейса
+
+- Экраны тестируются в вебе: `composeApp/src/wasmJsTest`, `runComposeUiTest` (v2) в headless Chrome, вместе с остальными тестами (`wasmJsBrowserTest`). Экраны общие для веба и Android, поэтому один тест покрывает оба.
+- На Android-хосте `runComposeUiTest` без Robolectric не работает. Robolectric — новая зависимость, решение за владельцем.
+- Ключевым элементам новых экранов — `Modifier.testTag` с константами рядом с экраном (пример — `LoginTags`).
+- Для сквозного прогона: Compose Web строит дерево доступности внутри shadow root (`textbox`, `button` с текстом), браузерные инструменты видят его через `shadowRoot`.
+
 ## Ночные проверки и оповещения
 
 Workflow «Nightly checks» (01:30 МСК):

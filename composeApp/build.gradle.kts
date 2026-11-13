@@ -108,6 +108,10 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+        wasmJsTest.dependencies {
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
+        }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
         }

@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -64,7 +65,7 @@ fun LoginScreen(auth: AuthRepository, notice: String? = null) {
                 label = { Text("Email") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag(LoginTags.EMAIL),
             )
             OutlinedTextField(
                 value = password,
@@ -73,16 +74,23 @@ fun LoginScreen(auth: AuthRepository, notice: String? = null) {
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag(LoginTags.PASSWORD),
             )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(LoginTags.ERROR)) }
             PrimaryButton(
                 onClick = ::submit,
                 enabled = !busy && email.isNotBlank() && password.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag(LoginTags.SUBMIT),
             ) {
                 Text(if (busy) "Вход…" else "Войти")
             }
         }
     }
+}
+
+object LoginTags {
+    const val EMAIL = "login.email"
+    const val PASSWORD = "login.password"
+    const val SUBMIT = "login.submit"
+    const val ERROR = "login.error"
 }
