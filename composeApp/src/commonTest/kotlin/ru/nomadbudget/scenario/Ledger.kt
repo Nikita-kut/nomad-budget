@@ -1,6 +1,10 @@
 package ru.nomadbudget.scenario
 
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.model.RateTable
+import ru.nomadbudget.domain.model.ExchangeRate
+import kotlinx.datetime.plus
+import kotlinx.datetime.DateTimeUnit
 import ru.nomadbudget.domain.logic.BudgetLine
 import ru.nomadbudget.domain.logic.PeriodBudgetLine
 import ru.nomadbudget.domain.model.Account
@@ -11,7 +15,6 @@ import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
 import ru.nomadbudget.domain.model.DebtCloseReason
-import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.PaymentChange
@@ -50,7 +53,15 @@ class Ledger(val startDay: Int = START_DAY) {
     val savingsTargets = mutableMapOf<LocalDate, Money>()
 
     private var sequence = 0
-    private val rates = DefaultRates.table()
+    fun usdRate(date: LocalDate): Double = 90.0 + (date.toEpochDays() % 11) * 0.7
+
+    fun ratesOn(date: LocalDate): RateTable = RateTable(listOf(ExchangeRate(Currency.USD, usdRate(date), date, RateSource.API, "test")))
+
+    private fun baseOf(amount: Money, date: LocalDate): Money = ratesOn(date).toBase(amount)
+
+    private fun history(until: LocalDate): List<ExchangeRate> =
+        generateSequence(HISTORY_FROM) { it.plus(1, DateTimeUnit.DAY) }.takeWhile { it <= until }
+            .map { ExchangeRate(Currency.USD, usdRate(it), it, RateSource.API, "test") }.toList()
 
     private fun id(prefix: String) = "$prefix${++sequence}"
 
@@ -58,12 +69,12 @@ class Ledger(val startDay: Int = START_DAY) {
 
     fun income(date: LocalDate, rub: Long, account: Account = card) {
         val amount = Money(rub, account.currency)
-        transactions += Transaction.Income(id("i"), date, account.id, amount, salary.id, rates.toBase(amount), RateSource.API)
+        transactions += Transaction.Income(id("i"), date, account.id, amount, salary.id, baseOf(amount, date), RateSource.API)
     }
 
     fun spend(date: LocalDate, rub: Long, account: Account = card, category: Category = food) {
         val amount = Money(rub, account.currency)
-        transactions += Transaction.Expense(id("e"), date, account.id, amount, category.id, null, rates.toBase(amount), RateSource.API)
+        transactions += Transaction.Expense(id("e"), date, account.id, amount, category.id, null, baseOf(amount, date), RateSource.API)
     }
 
     fun correct(date: LocalDate, rub: Long, account: Account = card) {
@@ -81,10 +92,10 @@ class Ledger(val startDay: Int = START_DAY) {
         transactions += Transaction.Exchange(id("x"), date, from.id, to.id, given, Money(usdCents, Currency.USD), given)
     }
 
-    fun openDebt(id: String, opened: LocalDate, principal: Long, payment: Long, payDay: Int, rate: Double? = 12.0): Debt {
+    fun openDebt(id: String, opened: LocalDate, principal: Long, payment: Long, payDay: Int, rate: Double? = 12.0, currency: Currency = Currency.RUB): Debt {
         val debt = Debt(
-            id, "Кредит $id", Currency.RUB, Money.rub(principal), Money.rub(payment), rate, payDay,
-            openedOn = opened, paymentChanges = listOf(PaymentChange(opened, Money.rub(payment))),
+            id, "Кредит $id", currency, Money(principal, currency), Money(payment, currency), rate, payDay,
+            openedOn = opened, paymentChanges = listOf(PaymentChange(opened, Money(payment, currency))),
         )
         debts += debt
         subcategories += Subcategory("sub_$id", loans.id, debt.name)
@@ -94,10 +105,12 @@ class Ledger(val startDay: Int = START_DAY) {
     fun pay(debtId: String, date: LocalDate, rub: Long, from: Account = card, early: Boolean = false) {
         val index = debts.indexOfFirst { it.id == debtId }
         val debt = debts[index]
-        val amount = Money.rub(rub)
-        val principal = DebtCalculator.principalFor(debt, amount, early)?.let { if (it > debt.principalRemaining) debt.principalRemaining else it }
+        val amount = Money(rub, from.currency)
+        val amountBase = baseOf(amount, date)
+        val inDebt = if (amount.currency == debt.currency) amount else ratesOn(date).fromBase(amountBase, debt.currency)
+        val principal = DebtCalculator.principalFor(debt, inDebt, early)?.let { if (it > debt.principalRemaining) debt.principalRemaining else it }
         transactions += Transaction.Expense(
-            id("p"), date, from.id, amount, loans.id, "sub_$debtId", amount, RateSource.API,
+            id("p"), date, from.id, amount, loans.id, "sub_$debtId", amountBase, RateSource.API,
             debtId = debtId, debtPrincipal = principal, debtEarly = early,
         )
         if (principal != null) debts[index] = debt.copy(principalRemaining = debt.principalRemaining - principal)
@@ -112,13 +125,13 @@ class Ledger(val startDay: Int = START_DAY) {
     fun changePayment(debtId: String, from: LocalDate, rub: Long) {
         val index = debts.indexOfFirst { it.id == debtId }
         val debt = debts[index]
-        debts[index] = debt.copy(monthlyPayment = Money.rub(rub), paymentChanges = debt.paymentChanges + PaymentChange(from, Money.rub(rub)))
+        debts[index] = debt.copy(monthlyPayment = Money(rub, debt.currency), paymentChanges = debt.paymentChanges + PaymentChange(from, Money(rub, debt.currency)))
     }
 
     fun planEarly(debtId: String, periodStart: LocalDate, rub: Long, fromCushion: Boolean) {
         val index = debts.indexOfFirst { it.id == debtId }
         val debt = debts[index]
-        debts[index] = debt.copy(earlyPlans = debt.earlyPlans + EarlyPlan(periodStart, Money.rub(rub), fromCushion))
+        debts[index] = debt.copy(earlyPlans = debt.earlyPlans + EarlyPlan(periodStart, Money(rub, debt.currency), fromCushion))
     }
 
     fun archive(account: Account, on: LocalDate) {
@@ -157,7 +170,8 @@ class Ledger(val startDay: Int = START_DAY) {
             budgetLines = plan[period.start].orEmpty().toList(),
             savingsTarget = savingsTargets[period.start],
             allPlanLines = plan.flatMap { (start, lines) -> lines.map { PeriodBudgetLine(start, it) } },
-            rates = rates,
+            rates = ratesOn(today),
+            rateHistory = history(today),
             debts = debts.toList(),
             settings = UserSettings(periodStartDay = startDay, onboardedAt = kotlin.time.Instant.fromEpochMilliseconds(0L)),
         )
@@ -165,5 +179,6 @@ class Ledger(val startDay: Int = START_DAY) {
 
     companion object {
         const val START_DAY = 5
+        val HISTORY_FROM = LocalDate(2026, 6, 1)
     }
 }

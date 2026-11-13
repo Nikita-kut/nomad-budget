@@ -242,7 +242,7 @@ private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean, p
             { m -> StatTile("Доход по плану", MoneyFormat.format(month.incomePlanned, false), "регулярный доход этого месяца", modifier = m) },
             { m ->
                 StatTile(
-                    if (projection != null) "Останется с этого месяца" else "Остаток с прошлого месяца",
+                    if (projection != null) "Прогноз остатка" else "Остаток с прошлого месяца",
                     MoneyFormat.formatSigned(month.carryOver, false),
                     projection?.let { "прогноз: сейчас на картах ${MoneyFormat.format(it.lifeNow, false)}, ещё уйдёт по плану ${MoneyFormat.format(it.stillToPay, false)}" }
                         ?: "было на картах и наличных ${DateFormat.dayMonth(period.start)}",

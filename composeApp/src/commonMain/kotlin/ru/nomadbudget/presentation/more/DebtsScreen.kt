@@ -362,8 +362,8 @@ private fun DebtCard(
                 Text(MoneyFormat.format(debt.principalRemaining, false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text(
                     listOfNotNull(
-                        "платёж ${MoneyFormat.format(debt.paymentOn(today), false)}" +
-                            debt.nextPaymentChange(today)?.let { " → ${MoneyFormat.format(it.payment, false)} с ${DateFormat.dayMonth(it.effectiveFrom)}" }.orEmpty(),
+                        "платёж ${MoneyFormat.format(debt.paymentOn(obligation.due ?: today), false)}" +
+                            debt.nextPaymentChange(obligation.due ?: today)?.let { " → ${MoneyFormat.format(it.payment, false)} с ${DateFormat.dayMonth(it.effectiveFrom)}" }.orEmpty(),
                         debt.extraPayment.takeUnless { it.isZero }?.let { "досрочно +${MoneyFormat.format(it, false)}" },
                         debt.ratePercent?.let { MoneyFormat.formatPercentValue(it) },
                     ).joinToString(" · "),

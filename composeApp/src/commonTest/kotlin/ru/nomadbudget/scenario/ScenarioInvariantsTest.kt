@@ -4,7 +4,10 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.plus
-import ru.nomadbudget.domain.logic.DebtSchedule
+import ru.nomadbudget.domain.logic.MonthModel
+import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.SalaryCycle
+import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
@@ -46,7 +49,7 @@ class ScenarioInvariantsTest {
             val debt = l.openDebt("d$index", opened, principal = random.nextLong(500_000L, 30_000_000L), payment = random.nextLong(200_000L, 3_000_000L), payDay = random.nextInt(1, 29))
             var month = l.periodOf(opened)
             while (month.start <= to) {
-                val due = ru.nomadbudget.domain.logic.MonthModel.dueDate(month, debt.payDay)
+                val due = MonthModel.dueDate(month, debt.payDay)
                 if (due != null && due >= opened && due <= to && random.nextInt(4) > 0) {
                     val current = l.debts.first { it.id == debt.id }
                     if (!current.isClosed && current.principalRemaining.minor > 0L) {
@@ -69,6 +72,22 @@ class ScenarioInvariantsTest {
             }
             if (random.nextInt(4) == 0) l.planEarly(debt.id, l.periodOf(to).start, random.nextLong(100_000L, 2_000_000L), fromCushion = random.nextBoolean())
         }
+        if (random.nextBoolean()) {
+            val opened = day()
+            val usdLoan = l.openDebt("usd", opened, principal = random.nextLong(100_000L, 2_000_000L), payment = random.nextLong(10_000L, 60_000L), payDay = random.nextInt(1, 29), currency = Currency.USD)
+            l.income(opened, 500_000L, l.usd)
+            var month = l.periodOf(opened)
+            while (month.start <= to) {
+                val due = MonthModel.dueDate(month, usdLoan.payDay)
+                val current = l.debts.first { it.id == usdLoan.id }
+                if (due != null && due >= opened && due <= to && !current.isClosed && current.principalRemaining.minor > 0L && random.nextInt(4) > 0) {
+                    val owed = current.paymentOn(due)
+                    if (random.nextBoolean()) l.pay(usdLoan.id, due, owed.minor, from = l.usd)
+                    else l.pay(usdLoan.id, due, kotlin.math.round(owed.toMajor() * l.usdRate(due) * 100).toLong())
+                }
+                month = l.periodOf(month.endExclusive)
+            }
+        }
         repeat(random.nextInt(10, 30)) { l.spend(day(), random.nextLong(10_000L, 1_000_000L), account = if (random.nextInt(6) == 0) l.cushion else l.card) }
         repeat(random.nextInt(0, 4)) { l.move(day(), random.nextLong(100_000L, 5_000_000L), l.card, l.cushion) }
         repeat(random.nextInt(0, 3)) { l.move(day(), random.nextLong(100_000L, 2_000_000L), l.cushion, l.cushion2) }
@@ -89,7 +108,8 @@ class ScenarioInvariantsTest {
         val state = l.state(today)
         amountsAreSane(state)
         historyMatchesMonth(state)
-        debtScreensAgree(l, state, today)
+        debtScreensAgree(state)
+        otherPeriodsAreSane(l, state)
         cushionRepaymentKeepsPlan(l, today)
         cushionEarlyNeverInPlan(l, today)
         archivingChangesNoMonthNumbers(l, today)
@@ -119,19 +139,26 @@ class ScenarioInvariantsTest {
         assertEquals(state.month.cushionNet, capitalMonth.saved, "изменение подушки в «Капитале» и в месяце разное")
     }
 
-    private fun debtScreensAgree(l: Ledger, state: HomeState, today: LocalDate) {
+    private fun debtScreensAgree(state: HomeState) {
         val current = state.debtMonths.lastOrNull { it.isCurrent } ?: return
         assertEquals(state.capital.debt, current.debtAtEnd, "остаток долга в истории и в «Капитале» разный")
-        val payments = state.transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }
-        val comparable = l.debts.none { debt ->
-            debt.paymentChanges.drop(1).any { it.effectiveFrom >= state.period.start && it.effectiveFrom < state.period.endExclusive } ||
-                (DebtSchedule.opensAfterDue(debt, state.period) && !debt.isClosed) ||
-                (debt.openedOn != null && debt.openedOn > today)
-        }
-        if (comparable) {
-            assertEquals(state.obligatoryMonthly, current.obligatory, "обязательный платёж на «Кредитах» и в истории разный")
-        }
-        assertTrue(payments.all { it.date <= today })
+        val planned = state.month.debts.filterNot { it.debt.isClosed }.map { it.regularPlanned }.sumIn(state.base)
+        assertEquals(planned, current.obligatory, "обязательный платёж в плане месяца и в истории разный")
+        assertEquals(current.obligatory, state.obligatoryMonthly, "плитка «Обязательно в месяц» и история разные")
+    }
+
+    private fun otherPeriodsAreSane(l: Ledger, state: HomeState) {
+        val previous = SalaryCycle.previous(state.period, l.startDay)
+        val past = state.copy(period = previous, budgetLines = l.plan[previous.start].orEmpty().toList(), savingsTarget = l.savingsTargets[previous.start])
+        amountsAreSane(past)
+        historyMatchesMonth(past)
+        val nextPeriod = SalaryCycle.next(state.period, l.startDay)
+        val next = state.copy(period = nextPeriod, budgetLines = l.plan[nextPeriod.start].orEmpty().toList(), savingsTarget = l.savingsTargets[nextPeriod.start])
+        amountsAreSane(next)
+        val projection = requireNotNull(next.carryOverProjection) { "нет прогноза для будущего месяца" }
+        assertTrue(!projection.stillToPay.isNegative, "в прогнозе отрицательный остаток плана")
+        assertEquals(projection.value, next.month.carryOver)
+        assertEquals(MonthModel.lifeBalanceAt(state.today.plus(1, DateTimeUnit.DAY), state.accounts, state.transactions, state.rates), projection.lifeNow)
     }
 
     private fun cushionRepaymentKeepsPlan(l: Ledger, today: LocalDate) {

@@ -158,7 +158,6 @@ data class HomeState(
 
     val openDebts: List<Debt> = debts.filterNot { it.isClosed }
 
-    val obligatoryMonthly: Money = openDebts.mapNotNull { rates.toBaseOrNull(it.paymentOn(today)) }.sumIn(base)
 
     val debtCategoryIds: Set<String> = memo.get("debtCategories", debts, subcategories, transactions) {
         DebtCategories.categoryIds(openDebts, subcategories, transactions)
@@ -251,6 +250,8 @@ data class HomeState(
     val debtMonths: List<DebtMonth> get() = memo.get("debtLoad", debts, transactions, rates, today, periodStartDay, systemCategoryIds) {
         DebtLoad.months(debts, transactions, rates, today, periodStartDay, systemCategoryIds)
     }
+
+    val obligatoryMonthly: Money get() = debtMonths.lastOrNull { it.isCurrent }?.obligatory ?: Money.zero(base)
 
     val capital: CapitalModel get() = memo.get("capital", today, accounts, transactions, debts, rates, categories, savingsTarget, settings, capitalGoals) {
         CapitalModel.build(

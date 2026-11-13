@@ -16,9 +16,16 @@ import os
 import subprocess
 import sys
 import urllib.request
+from pathlib import Path
 
-PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "gncrjdgznnriuhyuatcv")
-API = f"https://api.supabase.com/v1/projects/{PROJECT_REF}/database/query"
+LINKED_REF = Path(__file__).resolve().parents[2] / "supabase" / ".temp" / "project-ref"
+
+
+def project_ref() -> str:
+    ref = os.environ.get("SUPABASE_PROJECT_REF") or (LINKED_REF.read_text().strip() if LINKED_REF.exists() else "")
+    if not ref:
+        sys.exit("Нет project ref: выполни `supabase link` или задай SUPABASE_PROJECT_REF")
+    return ref
 
 CHECKS: list[tuple[str, str]] = [
     ("закрытый кредит с ненулевым остатком",
@@ -68,6 +75,7 @@ with s as (select * from user_settings limit 1),
 p as (
     select start_date, end_date, savings_target, id from periods
     where user_id = (select user_id from s) and start_date <= current_date and end_date > current_date
+    order by start_date desc limit 1
 ),
 life as (select a.* from accounts a where not a.is_savings and not a.is_fund and (a.archived_at is null or a.archived_at::date >= (select start_date from p))),
 carry as (
@@ -89,13 +97,15 @@ select json_build_object(
     'carry_over_base_accounts', (select v from carry), 'income_plan', (select income from plan),
     'envelopes_plan', (select envelopes from plan), 'savings_target', (select savings_target from p),
     'funds_monthly_base', (select v from funds),
-    'foreign_life_accounts', (select count(*) from life where currency <> (select base_currency from s))
+    'foreign_life_accounts', (select count(*) from life where currency <> (select base_currency from s)),
+    'minor_units', (select minor_units from currencies where code = (select base_currency from s))
 )
 """
 
 DEBTS_SQL = """
-with p as (select start_date, end_date from periods where start_date <= current_date and end_date > current_date limit 1)
-select d.name, d.closed_at::date as closed, d.monthly_payment,
+with s as (select * from user_settings limit 1),
+p as (select start_date, end_date from periods where user_id = (select user_id from s) and start_date <= current_date and end_date > current_date order by start_date desc limit 1)
+select d.name, d.currency, d.closed_at::date as closed, d.monthly_payment,
     coalesce(sum(t.amount) filter (where not t.debt_early), 0) as regular_paid,
     coalesce(sum(t.amount) filter (where t.debt_early and a.is_savings), 0) as early_from_cushion,
     coalesce(sum(t.amount) filter (where t.debt_early and not a.is_savings), 0) as early_from_life,
@@ -103,8 +113,8 @@ select d.name, d.closed_at::date as closed, d.monthly_payment,
     (select from_cushion from debt_month_plans m where m.debt_id = d.id and m.period_start = (select start_date from p)) as plan_from_cushion
 from debts d
 left join transactions t on t.debt_id = d.id and t.tx_date >= (select start_date from p) and t.tx_date < (select end_date from p)
-left join accounts a on a.id = t.account_id
-where d.closed_at is null or d.closed_at::date >= (select start_date from p)
+left join accounts a on a.id = t.account_id and a.currency = d.currency
+where d.user_id = (select user_id from s) and (d.closed_at is null or d.closed_at::date >= (select start_date from p))
 group by d.id order by d.name
 """
 
@@ -122,13 +132,17 @@ def token() -> str:
 
 def query(sql: str, key: str) -> list[dict]:
     body = json.dumps({"query": sql, "read_only": True}).encode()
-    request = urllib.request.Request(API, data=body, method="POST", headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    api = f"https://api.supabase.com/v1/projects/{project_ref()}/database/query"
+    request = urllib.request.Request(api, data=body, method="POST", headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=60) as response:
         return json.loads(response.read())
 
 
+MINOR_UNITS = 2
+
+
 def rub(minor) -> str:
-    return "—" if minor is None else f"{int(minor) / 100:,.2f}".replace(",", " ")
+    return "—" if minor is None else f"{int(minor) / 10 ** MINOR_UNITS:,.{MINOR_UNITS}f}".replace(",", " ")
 
 
 def main() -> int:
@@ -140,14 +154,16 @@ def main() -> int:
         mark = "ok  " if not rows else "FAIL"
         failed += bool(rows)
         print(f"  {mark} {title}" + (f": {len(rows)} — {', '.join(str(next(iter(r.values()))) for r in rows[:5])}" if rows else ""))
+    global MINOR_UNITS
     facts = query(FACTS_SQL, key)[0]["json_build_object"]
+    MINOR_UNITS = int(facts.get("minor_units") or 2)
     print(f"\nФакты месяца с {facts['period']}, база {facts['base']}")
     print(f"  доход по плану          {rub(facts['income_plan'])}")
     print(f"  остаток с прошлого (счета в базе) {rub(facts['carry_over_base_accounts'])}" + (f"  + валютных счетов: {facts['foreign_life_accounts']}" if facts["foreign_life_accounts"] else ""))
     print(f"  конверты по плану       {rub(facts['envelopes_plan'])}")
     print(f"  «Себе»                  {rub(facts['savings_target'])}")
     print(f"  копилки в месяц (база)  {rub(facts['funds_monthly_base'])}")
-    print("\nКредиты в этом месяце: платёж · внесено обычным · досрочка с подушки · досрочка с жизни · план досрочки")
+    print("\nКредиты в этом месяце (суммы в валюте кредита, платежи с других валют не учтены): платёж · внесено обычным · досрочка с подушки · досрочка с жизни · план досрочки")
     for row in query(DEBTS_SQL, key):
         closed = f" (закрыт {row['closed']})" if row["closed"] else ""
         plan = f"{rub(row['early_plan'])}{' с подушки' if row['plan_from_cushion'] else ''}" if row["early_plan"] is not None else "—"

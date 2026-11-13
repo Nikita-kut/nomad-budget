@@ -82,6 +82,32 @@ class RegressionTest {
     }
 
     @Test
+    fun review2nd_dollarLoanPaidFromRoubleCard_staysPaidWhenRateMoves() {
+        val l = Ledger()
+        l.openDebt("u", oct, principal = 1_000_000L, payment = 50_000L, payDay = 11, rate = null, currency = Currency.USD)
+        val paidOn = LocalDate(2026, 11, 11)
+        l.pay("u", paidOn, kotlin.math.round(500.0 * l.usdRate(paidOn) * 100).toLong())
+        val later = listOf(LocalDate(2026, 11, 19), LocalDate(2026, 11, 21))
+        assertTrue(later.all { l.usdRate(it) > l.usdRate(paidOn) * 1.05 }, "курс после платежа должен вырасти, иначе тест ничего не проверяет")
+        (listOf(LocalDate(2026, 11, 12)) + later).forEach { day ->
+            val obligation = l.state(day).month.debts.single()
+            assertEquals(ObligationStatus.PAID, obligation.status, "$day")
+            assertTrue(obligation.regularLeft.isZero, "$day")
+        }
+    }
+
+    @Test
+    fun review2nd_loanInCurrencyWithoutRate_doesNotCrash() {
+        val l = Ledger()
+        val eur = Currency("EUR", 2, "€")
+        l.openDebt("e", oct, principal = 1_000_000L, payment = 50_000L, payDay = 10, rate = null, currency = eur)
+        l.transactions += Transaction.Expense("pe", LocalDate(2026, 11, 10), l.card.id, Money.rub(4_500_000L), l.loans.id, null, Money.rub(4_500_000L), RateSource.API, debtId = "e")
+        val state = l.state(LocalDate(2026, 11, 20))
+        assertEquals(1, state.month.debts.size)
+        assertEquals(state.base, state.obligatoryMonthly.currency)
+    }
+
+    @Test
     fun review1_dollarFund_contributionByExchange_isDone() {
         val l = Ledger()
         val usdFund = Account("usdfund", "Копилка USD", Currency.USD, AccountKind.ACCOUNT, false, Money(0L, Currency.USD), isFund = true, fundMonthly = Money(10_000L, Currency.USD))
@@ -121,8 +147,9 @@ class RegressionTest {
         val current = l.state(today)
         val next = current.copy(period = l.periodOf(LocalDate(2026, 12, 5)), budgetLines = emptyList(), savingsTarget = null)
         val projection = requireNotNull(next.carryOverProjection)
-        assertEquals(projection.lifeNow - projection.stillToPay, next.month.carryOver)
-        assertTrue(projection.stillToPay >= current.month.debtsLeft)
+        assertEquals(Money.rub(40_000_000L), projection.lifeNow, "на картах: два дохода минус перевод в подушку")
+        assertEquals(Money.rub(10_000_000L + 130_000L + 2_000_000L + 3_000_000L), projection.stillToPay, "конверты + два платежа + копилка")
+        assertEquals(Money.rub(24_870_000L), next.month.carryOver)
         assertNull(current.carryOverProjection)
     }
 
@@ -164,7 +191,7 @@ class RegressionTest {
         val l = Ledger()
         l.openDebt("d", LocalDate(2026, 8, 5), principal = 10_000_000L, payment = 1_000_000L, payDay = 20, rate = null)
         l.pay("d", LocalDate(2026, 9, 10), 1_000_000L, early = true)
-        l.pay("d", LocalDate(2026, 10, 20), 7_500_000L, early = true)
+        l.pay("d", LocalDate(2026, 10, 20), 8_600_000L, early = true)
         val september = l.state(LocalDate(2026, 11, 13)).let { it.copy(period = l.periodOf(LocalDate(2026, 9, 25)), budgetLines = emptyList()) }.month
         assertFalse(september.debts.single().paidOff)
         assertEquals(ObligationStatus.OVERDUE, september.debts.single().status)

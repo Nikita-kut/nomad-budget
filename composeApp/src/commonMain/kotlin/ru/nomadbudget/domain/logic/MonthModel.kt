@@ -164,7 +164,7 @@ data class MonthModel(
                 today = today,
                 incomeBudgets = budgets.filter { it.category.kind == CategoryKind.INCOME },
                 envelopes = budgets.filter { it.category.kind == CategoryKind.EXPENSE },
-                debts = debts.filter { DebtSchedule.inPlan(it, period, debtPayments, today) }.map { debtObligation(it, period, today, inPeriod, debtPayments, rates, cushionIds) },
+                debts = debts.filter { DebtSchedule.inPlan(it, period, debtPayments, today) }.map { debtObligation(it, period, today, inPeriod, debtPayments, rates, cushionIds, rateOn) },
                 funds = accounts.filter { it.role == AccountRole.FUND && !it.isArchived }.map { fundState(it, period, today, inPeriod, rates, balances, systemIds) },
                 savingsTarget = savingsTarget?.takeIf { it.minor > 0L },
                 carryOver = carryOver,
@@ -226,11 +226,16 @@ data class MonthModel(
             allPayments: List<Transaction.Expense>,
             rates: RateTable,
             cushionIds: Set<String>,
+            rateOn: ((Currency, LocalDate) -> Double?)?,
         ): DebtObligation {
             val base = rates.base
             val own = debt.currency
-            fun inOwn(tx: Transaction.Expense): Money =
-                if (tx.amount.currency == own) tx.amount else rates.toBaseOrNull(tx.amount)?.let { rates.fromBase(it, own) } ?: Money.zero(own)
+            fun inOwn(tx: Transaction.Expense): Money {
+                if (tx.amount.currency == own) return tx.amount
+                val ownPerBase = (rateOn?.invoke(own, tx.date) ?: rates.takeIf { it.hasRate(own) }?.basePerUnit(own))?.takeIf { it > 0.0 }
+                    ?: return Money.zero(own)
+                return Money.ofMajor(tx.amountBase.toMajor() / ownPerBase, own)
+            }
             fun toBase(money: Money): Money = rates.toBaseOrNull(money) ?: Money.zero(base)
             val due = dueDate(period, debt.payDay)
             val payments = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.debtId == debt.id }
@@ -250,7 +255,8 @@ data class MonthModel(
             val earlyPlannedOwn = earlyPlan?.amount?.takeIf { it.currency == own } ?: Money.zero(own)
             val remainingAtEnd = DebtLoad.remainingAt(debt, allPayments, period.endExclusive)
             val paidOff = closedHere || earlyPaid.minor > 0L && remainingAtEnd.minor < regularPlannedOwn.minor
-            val paidEnough = paidOff || notDueYet ||
+            val earlyLifePlanUnpaid = earlyPlan?.fromCushion != true && earlyPlannedOwn.minor > 0L && lifePaidOwn < earlyPlannedOwn
+            val paidEnough = paidOff || (notDueYet && !earlyLifePlanUnpaid) ||
                 regularPlannedOwn.minor > 0L && regularPaidOwn.wholeUnits >= regularPlannedOwn.wholeUnits ||
                 regularPlannedOwn.isZero && paid.minor > 0L
             val owedFromLifeOwn = regularPlannedOwn + (if (earlyPlan?.fromCushion == true) Money.zero(own) else earlyPlannedOwn)
