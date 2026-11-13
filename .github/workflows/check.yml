@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
@@ -27,6 +30,20 @@ jobs:
           set -euo pipefail
           git diff --name-only "$BASE_SHA"...HEAD > "$RUNNER_TEMP/changed.txt"
           python3 tools/quality/check_pr_checklist.py < "$RUNNER_TEMP/changed.txt"
+
+  db:
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - name: Start ephemeral Supabase (migrations from scratch)
+        run: supabase start -x studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Database checks (catalog, isolation, foreign refs, functions, anon)
+        run: bash supabase/tests/run.sh
 
   check:
     if: github.event.action != 'edited'
