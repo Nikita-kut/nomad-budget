@@ -157,14 +157,14 @@ class MonthModelTest {
     @Test
     fun closedDebt_earlyFromCushion_staysOutOfMonthEquation() {
         val closed = loan.copy(isClosed = true, closedOn = LocalDate(2026, 11, 12), openedOn = LocalDate(2026, 1, 10))
-        val regular = expense("r", "loans", 129_600L, date = LocalDate(2026, 11, 6), debtId = closed.id)
-        val earlyCushion = expense("ec", "loans", 2_037_200L, account = "cushion", debtId = closed.id).copy(debtEarly = true)
+        val regular = expense("r", "loans", 130_000L, date = LocalDate(2026, 11, 6), debtId = closed.id)
+        val earlyCushion = expense("ec", "loans", 1_870_000L, account = "cushion", debtId = closed.id).copy(debtEarly = true)
         val earlyCard = expense("el", "loans", 10_000L, debtId = closed.id).copy(debtEarly = true)
         val m = build(tx = listOf(regular, earlyCushion, earlyCard), debts = listOf(closed))
         val obligation = m.debts.single()
-        assertEquals(Money.rub(2_176_800L), obligation.paid)
-        assertEquals(Money.rub(139_600L), obligation.budgetPlanned)
-        assertEquals(Money.rub(139_600L), m.debtsPlanned)
+        assertEquals(Money.rub(2_010_000L), obligation.paid)
+        assertEquals(Money.rub(140_000L), obligation.budgetPlanned)
+        assertEquals(Money.rub(140_000L), m.debtsPlanned)
         assertEquals(build(tx = listOf(regular, earlyCard), debts = listOf(closed)).unallocated, m.unallocated)
     }
 

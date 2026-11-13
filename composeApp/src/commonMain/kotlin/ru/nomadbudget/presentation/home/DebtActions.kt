@@ -189,7 +189,7 @@ internal class DebtActions(
         inbox.openEntry(
             EntryPrefill(
                 draftId = null,
-                amountText = MoneyFormat.editText(debt.plannedPayment),
+                amountText = MoneyFormat.editText(current.month.takeIf { it.isCurrent }?.debts?.firstOrNull { it.debt.id == debtId }?.regularLeft?.takeUnless { it.isZero } ?: debt.paymentOn(today)),
                 note = "",
                 categoryId = categoryId,
                 subcategoryName = lastPayment?.subcategoryId?.let(current::subcategoryName) ?: debt.name,

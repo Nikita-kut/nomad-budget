@@ -113,7 +113,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
             item {
                 ChartPanel(
                     title = "План и факт расходов",
-                    hint = "только месяцы, где был план; факт без корректировок остатков",
+                    hint = "только месяцы, где был план; факт — траты по конвертам с карт и наличных",
                     info = Hints.CHART_PLAN_FACT,
                     legend = listOf(LegendEntry("План", planColor), LegendEntry("Факт", expenseColor)),
                     totalPoints = withPlan.size,
@@ -123,7 +123,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                     ColumnsChart(
                         series = listOf(
                             slice.map { (planned[it.period.start] ?: Money.zero(state.base)).toMajor() },
-                            slice.map { it.expense.toMajor() },
+                            slice.map { it.envelopeExpense.toMajor() },
                         ),
                         colors = listOf(planColor, expenseColor),
                         names = listOf("план", "факт"),

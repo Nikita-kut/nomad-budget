@@ -48,9 +48,9 @@ data class Debt(
     fun paymentOn(date: LocalDate): Money =
         paymentChanges.filter { it.effectiveFrom <= date }.maxByOrNull { it.effectiveFrom }?.payment ?: monthlyPayment
 
-    fun earlyPlanFor(period: Period): EarlyPlan? =
+    fun earlyPlanFor(period: Period, today: LocalDate): EarlyPlan? =
         earlyPlans.firstOrNull { it.periodStart == period.start }
-            ?: extraPayment.takeIf { it.minor > 0L }?.let { EarlyPlan(period.start, it, fromCushion = false, isTemplate = true) }
+            ?: extraPayment.takeIf { it.minor > 0L && period.endExclusive > today }?.let { EarlyPlan(period.start, it, fromCushion = false, isTemplate = true) }
 
     fun nextPaymentChange(after: LocalDate): PaymentChange? = paymentChanges.filter { it.effectiveFrom > after }.minByOrNull { it.effectiveFrom }
 

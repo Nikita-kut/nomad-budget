@@ -17,6 +17,7 @@ data class MonthPoint(
     val income: Money,
     val expense: Money,
     val netSaved: Money,
+    val envelopeExpense: Money = expense,
 ) {
     val balance: Money get() = income - expense
 
@@ -57,17 +58,21 @@ object HistoryCalculator {
     ): List<MonthPoint> {
         if (transactions.isEmpty()) return emptyList()
         val savingsIds = accounts.filter { it.isSavings }.map { it.id }.toSet()
+        val accountsById = accounts.associateBy { it.id }
         val first = SalaryCycle.periodContaining(transactions.minOf { it.date }, startDay)
         val points = mutableListOf<MonthPoint>()
         var period = first
         while (period.start <= upTo.start) {
             val inPeriod = transactions.filter { it.date in period }
             val income = inPeriod.filterIsInstance<Transaction.Income>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base)
-            val expense = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base)
+            val expenses = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemIds }
+            val expense = expenses.map { it.amountBase }.sumIn(base)
+            val envelope = expenses.filter { BudgetCalculator.isEnvelopeSpend(it, accountsById) }.map { it.amountBase }.sumIn(base)
             val saved = BudgetCalculator.cushionInflow(inPeriod, savingsIds, systemIds, base)
             val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds, base)
             val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds, base)
-            points += MonthPoint(period, income, expense, saved - taken - spent)
+            val toDebts = BudgetCalculator.cushionToDebts(inPeriod, savingsIds, systemIds, base)
+            points += MonthPoint(period, income, expense, saved - taken - (spent - toDebts), envelope)
             period = SalaryCycle.next(period, startDay)
         }
         return points

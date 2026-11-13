@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class EarlyRepaymentTest {
 
-    private val loan = Debt("d", "Кредит", Currency.RUB, Money.rub(57_936_045L + 5_000_000L), Money.rub(2_048_997L), 10.0, payDay = 15)
+    private val loan = Debt("d", "Кредит", Currency.RUB, Money.rub(60_000_000L), Money.rub(2_000_000L), 10.0, payDay = 15)
 
     @Test
     fun annuityMatchesTextbook() {
@@ -30,11 +30,11 @@ class EarlyRepaymentTest {
         val changed = loan.copy(
             monthlyPayment = Money.rub(1_800_000L),
             paymentChanges = listOf(
-                PaymentChange(LocalDate(2026, 10, 5), Money.rub(2_048_997L)),
+                PaymentChange(LocalDate(2026, 10, 5), Money.rub(2_000_000L)),
                 PaymentChange(LocalDate(2026, 12, 15), Money.rub(1_800_000L)),
             ),
         )
-        assertEquals(Money.rub(2_048_997L), changed.paymentOn(LocalDate(2026, 11, 15)))
+        assertEquals(Money.rub(2_000_000L), changed.paymentOn(LocalDate(2026, 11, 15)))
         assertEquals(Money.rub(1_800_000L), changed.paymentOn(LocalDate(2026, 12, 15)))
         assertEquals(Money.rub(1_800_000L), loan.copy(monthlyPayment = Money.rub(1_800_000L)).paymentOn(LocalDate(2026, 11, 15)))
     }

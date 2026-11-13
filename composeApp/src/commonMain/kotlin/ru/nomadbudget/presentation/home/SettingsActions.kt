@@ -2,8 +2,10 @@ package ru.nomadbudget.presentation.home
 
 import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.number
 import ru.nomadbudget.domain.logic.CapitalGoal
 import ru.nomadbudget.domain.logic.CapitalSettings
+import ru.nomadbudget.domain.logic.PlanMove
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.CategoryKind
@@ -18,6 +20,9 @@ import ru.nomadbudget.domain.repository.CapitalRepository
 import ru.nomadbudget.domain.repository.CategoryRepository
 import ru.nomadbudget.domain.repository.CurrencyRepository
 import ru.nomadbudget.domain.repository.KeyValueStore
+import ru.nomadbudget.domain.repository.DebtRepository
+import ru.nomadbudget.domain.repository.BudgetRepository
+import ru.nomadbudget.domain.repository.PeriodRepository
 import ru.nomadbudget.domain.repository.UserSettingsRepository
 import ru.nomadbudget.presentation.onboarding.OnboardingDefaults
 import ru.nomadbudget.presentation.onboarding.OnboardingResult
@@ -34,12 +39,15 @@ internal class SettingsActions(
     private val categoryRepository: CategoryRepository,
     private val loader: LoadCoordinator,
     private val today: LocalDate,
+    private val periodRepository: PeriodRepository,
+    private val budgetRepository: BudgetRepository,
+    private val debtRepository: DebtRepository,
 ) {
 
     fun addCapitalGoal(name: String, amount: Money, targetDate: LocalDate) = runner.run("Не удалось добавить цель") {
         require(name.isNotBlank()) { "Введи название цели" }
         require(amount.minor > 0L) { "Сумма цели должна быть больше нуля" }
-        require(targetDate > today) { "Дата цели должна быть в будущем" }
+        require(targetDate > store.value.today) { "Дата цели должна быть в будущем" }
         val goal = capitalRepository.addGoal(name.trim(), amount, targetDate)
         store.update { it.copy(capitalGoals = (it.capitalGoals + goal).sortedBy { g -> g.targetDate }) }
         store.message("Цель добавлена")
@@ -48,7 +56,7 @@ internal class SettingsActions(
     fun updateCapitalGoal(goal: CapitalGoal) = runner.run("Не удалось сохранить цель") {
         require(goal.name.isNotBlank()) { "Введи название цели" }
         require(goal.amount.minor > 0L) { "Сумма цели должна быть больше нуля" }
-        require(goal.targetDate > today) { "Дата цели должна быть в будущем" }
+        require(goal.targetDate > store.value.today) { "Дата цели должна быть в будущем" }
         val cleaned = goal.copy(name = goal.name.trim())
         capitalRepository.updateGoal(cleaned)
         store.update { state -> state.copy(capitalGoals = state.capitalGoals.map { if (it.id == goal.id) cleaned else it }.sortedBy { it.targetDate }) }
@@ -72,9 +80,28 @@ internal class SettingsActions(
         require(day in SalaryCycle.startDays) { "Начало месяца: день от 1 до 28" }
         val current = store.value
         if (day == current.periodStartDay) return@run
+        val now = current.today
+        val oldPeriod = SalaryCycle.periodContaining(now, current.periodStartDay)
+        val target = PlanMove.target(now, day)
+        val oldId = periodRepository.ensure(oldPeriod)
+        val oldLines = budgetRepository.getLines(oldId).filter { it.planned.minor > 0L }
+        val oldTarget = budgetRepository.getSavingsTarget(oldId)
+        val targetId = periodRepository.ensure(target)
+        var moved = false
+        if (budgetRepository.getLines(targetId).isEmpty() && budgetRepository.getSavingsTarget(targetId) == null) {
+            oldLines.forEach { budgetRepository.setPlanned(targetId, it) }
+            oldTarget?.let { budgetRepository.setSavingsTarget(targetId, it) }
+            current.openDebts.forEach { debt ->
+                val plan = debt.earlyPlans.firstOrNull { it.periodStart == oldPeriod.start } ?: return@forEach
+                if (debt.earlyPlans.none { it.periodStart == target.start }) debtRepository.setEarlyPlan(debt.id, target.start, plan.amount, plan.fromCushion)
+            }
+            moved = oldLines.isNotEmpty() || oldTarget != null
+        }
         saveSettings(current.settings.copy(periodStartDay = day))
-        loader.switchPeriod(SalaryCycle.periodContaining(today, day))
-        store.message("Месяц бюджета теперь начинается $day числа")
+        loader.switchPeriod(SalaryCycle.periodContaining(now, day))
+        loader.load()
+        val where = if (target.start > now) " на месяц с ${target.start.day}.${target.start.month.number.toString().padStart(2, '0')}" else ""
+        store.message("Месяц бюджета теперь начинается $day числа" + if (moved) ", план текущего месяца перенесён$where" else "")
     }
 
     fun setIncomeDays(days: List<Int>) = runner.run("Не удалось сохранить дни дохода") {
@@ -173,7 +200,7 @@ internal class SettingsActions(
             onboardedAt = Clock.System.now(),
         )
         val saved = userSettingsRepository.save(settings)
-        store.update { it.copy(settings = saved, period = SalaryCycle.periodContaining(today, saved.periodStartDay)) }
+        store.update { it.copy(settings = saved, period = SalaryCycle.periodContaining(it.today, saved.periodStartDay)) }
         loader.load()
     }
 

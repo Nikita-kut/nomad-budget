@@ -122,6 +122,9 @@ class HomeViewModel(
             categoryRepository = categoryRepository,
             loader = loader,
             today = today,
+            periodRepository = periodRepository,
+            budgetRepository = budgetRepository,
+            debtRepository = debtRepository,
         )
         bankWatch = BankWatchActions(store, runner, bankRateWatchRepository)
         state = store.state
