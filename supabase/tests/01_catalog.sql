@@ -32,6 +32,23 @@ begin
         if r.roles && array['anon', 'public']::name[] then
             v_fails := v_fails || format('%s: политика «%s» действует для %s', r.tablename, r.policyname, r.roles);
         end if;
+        if coalesce(r.qual, '') not like '%auth.uid()%' and coalesce(r.with_check, '') not like '%auth.uid()%' then
+            v_fails := v_fails || format('%s: политика «%s» не сверяет владельца через auth.uid()', r.tablename, r.policyname);
+        end if;
+        if r.qual is not null and r.qual not like '%auth.uid()%' then
+            v_fails := v_fails || format('%s: политика «%s»: using без auth.uid()', r.tablename, r.policyname);
+        end if;
+        if r.with_check is not null and r.with_check not like '%auth.uid()%' then
+            v_fails := v_fails || format('%s: политика «%s»: with check без auth.uid()', r.tablename, r.policyname);
+        end if;
+    end loop;
+
+    for r in
+        select p.tablename, p.policyname, p.cmd from pg_policies p
+        where p.schemaname = 'public' and p.cmd <> 'SELECT'
+          and p.tablename in (select name from tests.shared_tables)
+    loop
+        v_fails := v_fails || format('%s: общая таблица, а политика «%s» разрешает %s — менять общие данные может только сервер', r.tablename, r.policyname, r.cmd);
     end loop;
 
     for r in

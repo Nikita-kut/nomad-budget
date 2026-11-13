@@ -14,14 +14,25 @@ DESTRUCTIVE = [
     (re.compile(r"\bdrop\s+schema\b", re.I), "drop schema"),
     (re.compile(r"\btruncate\b", re.I), "truncate"),
     (re.compile(r"\balter\s+column\s+\S+\s+(set\s+data\s+)?type\b", re.I), "смена типа колонки"),
+    (re.compile(r"\bdisable\s+row\s+level\s+security\b", re.I), "выключение RLS"),
 ]
 WRITE = re.compile(r"\b(delete\s+from|update\s+(only\s+)?[\w.\"]+(\s+\w+)?\s+set)\b", re.I)
-WHERE = re.compile(r"\bwhere\b", re.I)
+WHERE = re.compile(r"\bwhere\b(?!\s+true\b)", re.I)
 LINE_COMMENT = re.compile(r"--[^\n]*")
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+PARENS = re.compile(r"\([^()]*\)")
 
 
 def statements(sql: str) -> list[str]:
-    return [part.strip() for part in LINE_COMMENT.sub("", sql).split(";") if part.strip()]
+    clean = LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", sql))
+    return [part.strip() for part in clean.split(";") if part.strip()]
+
+
+def top_level(stmt: str) -> str:
+    previous = None
+    while previous != stmt:
+        previous, stmt = stmt, PARENS.sub(" ", stmt)
+    return stmt
 
 
 def destructive(sql: str) -> list[str]:
@@ -30,7 +41,7 @@ def destructive(sql: str) -> list[str]:
         for pattern, name in DESTRUCTIVE:
             if pattern.search(stmt):
                 found.append(name)
-        if WRITE.search(stmt) and not WHERE.search(stmt):
+        if WRITE.search(stmt) and not WHERE.search(top_level(stmt)):
             found.append("delete или update без where")
     return sorted(set(found))
 

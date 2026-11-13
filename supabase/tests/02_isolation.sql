@@ -13,6 +13,12 @@ declare
     v_before text;
     v_fails text[] := '{}';
     v_checked int := 0;
+    v_col text;
+    v_col_type text;
+    v_value text;
+    v_detail text;
+    v_unprobed text[] := '{}';
+    v_unprobed_delete text[] := '{}';
 begin
     perform tests.seed_finance(v_a, 'A');
     perform tests.seed_finance(v_b, 'B');
@@ -48,25 +54,70 @@ begin
             v_fails := v_fails || format('%s: B видит %s строк A', r.name, v_n);
         end if;
 
-        begin
-            execute format('update public.%I set %I = %I where %I::text = any($1)', r.name, r.pk, r.pk, r.pk) using v_a_ids;
-            get diagnostics v_n = row_count;
-            if v_n <> 0 then
-                v_fails := v_fails || format('%s: B изменил %s строк A', r.name, v_n);
-            end if;
-        exception when insufficient_privilege then
-            null;
-        end;
+        execute 'reset role';
+        select f.col, f.col_type into v_col, v_col_type from tests.free_column(r.name) f;
+        if v_col is not null then
+            execute format('select %I::text from public.%I where %I::text = $1', v_col, r.name, r.pk) into v_value using v_b_ids[1];
+        end if;
+        perform tests.become(v_b);
+
+        if v_col is not null then
+            begin
+                execute format('update public.%I set %I = $1::%s', r.name, v_col, v_col_type) using v_value;
+                get diagnostics v_n = row_count;
+                raise exception using errcode = 'P0001', message = 'probe', detail = v_n::text;
+            exception when raise_exception then
+                if sqlerrm = 'probe' then
+                    get stacked diagnostics v_detail = pg_exception_detail;
+                    if v_detail::bigint > cardinality(v_b_ids) then
+                        v_fails := v_fails || format('%s: update без where от B задел %s строк, своих %s — политика пропускает чужие', r.name, v_detail, cardinality(v_b_ids));
+                    end if;
+                else
+                    v_fails := v_fails || format('%s: update без where — %s', r.name, sqlerrm);
+                end if;
+            when insufficient_privilege then
+                null;
+            when others then
+                v_fails := v_fails || format('%s: update без where — %s %s', r.name, sqlstate, sqlerrm);
+            end;
+        else
+            v_unprobed := v_unprobed || r.name;
+        end if;
 
         begin
-            execute format('delete from public.%I where %I::text = any($1)', r.name, r.pk) using v_a_ids;
+            execute format('delete from public.%I', r.name);
             get diagnostics v_n = row_count;
-            if v_n <> 0 then
-                v_fails := v_fails || format('%s: B удалил %s строк A', r.name, v_n);
+            raise exception using errcode = 'P0001', message = 'probe', detail = v_n::text;
+        exception when raise_exception then
+            if sqlerrm = 'probe' then
+                get stacked diagnostics v_detail = pg_exception_detail;
+                if v_detail::bigint > cardinality(v_b_ids) then
+                    v_fails := v_fails || format('%s: delete без where от B задел %s строк, своих %s — политика пропускает чужие', r.name, v_detail, cardinality(v_b_ids));
+                end if;
+            else
+                v_fails := v_fails || format('%s: delete без where — %s', r.name, sqlerrm);
             end if;
-        exception when insufficient_privilege then
+        when insufficient_privilege then
             null;
+        when foreign_key_violation then
+            v_unprobed_delete := v_unprobed_delete || r.name;
+        when others then
+            v_fails := v_fails || format('%s: delete без where — %s %s', r.name, sqlstate, sqlerrm);
         end;
+
+        if r.owner_sql = 'user_id = $1' then
+            begin
+                execute format('update public.%I set user_id = $1 where %I::text = $2', r.name, r.pk) using v_a, v_b_ids[1];
+                get diagnostics v_n = row_count;
+                if v_n <> 0 then
+                    v_fails := v_fails || format('%s: B передал свою строку A', r.name);
+                end if;
+            exception when insufficient_privilege then
+                null;
+            when others then
+                v_fails := v_fails || format('%s: передача строки A отклонена не политикой (%s %s)', r.name, sqlstate, sqlerrm);
+            end;
+        end if;
 
         begin
             execute format('insert into public.%I select * from jsonb_populate_record(null::public.%I, $1)', r.name, r.name) using v_row;
@@ -95,7 +146,7 @@ begin
     if cardinality(v_fails) > 0 then
         raise exception E'A2 изоляция — нарушений: %\n%', cardinality(v_fails), array_to_string(v_fails, E'\n');
     end if;
-    raise notice 'A2 изоляция: ok, таблиц %', v_checked;
+    raise notice 'A2 изоляция: ok, таблиц %, без пробы update (нет свободной колонки): %, delete без where упёрся в ссылки (покрывает A1): %', v_checked, v_unprobed, v_unprobed_delete;
 end $$;
 
 rollback;

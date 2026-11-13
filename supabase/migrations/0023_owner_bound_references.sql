@@ -8,7 +8,7 @@ declare
 begin
     for r in
         select c.oid, c.conname, child.relname as child, parent.relname as parent,
-               a.attname as col, pa.attname as parent_col, c.confdeltype
+               a.attname as col, pa.attname as parent_col, c.confdeltype, c.confupdtype, c.condeferrable, c.confmatchtype
         from pg_constraint c
         join pg_class child on child.oid = c.conrelid
         join pg_class parent on parent.oid = c.confrelid
@@ -34,6 +34,9 @@ begin
                            r.parent, r.parent || '_' || r.parent_col || '_user_key', r.parent_col);
         end if;
 
+        if r.confupdtype <> 'a' or r.condeferrable or r.confmatchtype <> 's' or r.confdeltype not in ('a', 'c', 'n', 'r') then
+            raise exception 'Внешний ключ % на %: неожиданные свойства, перенеси вручную', r.conname, r.child;
+        end if;
         v_action := case r.confdeltype
             when 'c' then 'on delete cascade'
             when 'n' then format('on delete set null (%I)', r.col)
@@ -54,4 +57,5 @@ revoke execute on all functions in schema public from public, anon;
 
 alter default privileges in schema public revoke all on tables from anon;
 alter default privileges in schema public revoke all on sequences from anon;
-alter default privileges in schema public revoke execute on functions from public, anon;
+alter default privileges in schema public revoke execute on functions from anon;
+alter default privileges for role postgres revoke execute on functions from public;

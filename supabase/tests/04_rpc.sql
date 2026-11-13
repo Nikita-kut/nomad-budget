@@ -9,6 +9,10 @@ declare
     r record;
     v_call text;
     v_cases jsonb;
+    v_must_succeed constant text[] := array[
+        'change_base_currency(text)', 'revert_base_currency()', 'ensure_currency(text)', 'delete_own_account()'
+    ];
+    v_sig text;
     v_fails text[] := '{}';
     v_checked int := 0;
 begin
@@ -45,11 +49,14 @@ begin
             v_fails := v_fails || format('%s: authenticated может вызвать, а тест-кейса нет — добавь в 04_rpc.sql', r.sig);
             continue;
         end if;
+        v_sig := replace(r.sig, 'public.', '');
         perform tests.become(v_b);
         begin
             execute v_call;
         exception when others then
-            null;
+            if v_sig = any(v_must_succeed) then
+                v_fails := v_fails || format('%s: у B вызов упал (%s %s) — кейс холостой, функция не дошла до записи', r.sig, sqlstate, sqlerrm);
+            end if;
         end;
         execute 'reset role';
         if tests.fingerprint(v_a) <> v_before then

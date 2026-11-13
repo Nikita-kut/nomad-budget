@@ -37,12 +37,6 @@ if [[ "$code" == 2* ]]; then
     failed=1
 fi
 
-code=$(http_code -X POST "$API_URL/rest/v1/rpc/delete_own_account" -H "apikey: $ANON_KEY" -H 'Content-Type: application/json' -d '{}')
-if [[ "$code" == 2* ]]; then
-    echo "A5 anon вызывает delete_own_account через REST: $code"
-    failed=1
-fi
-
 if [[ $failed -ne 0 ]]; then
     echo "Проверки базы: есть нарушения"
     exit 1

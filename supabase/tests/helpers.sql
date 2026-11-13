@@ -56,11 +56,15 @@ begin
     insert into public.capital_settings (user_id) values (p_user) on conflict do nothing;
     insert into public.debt_month_plans (user_id, debt_id, period_start, early_amount) values (p_user, v_debt, date '2026-11-01', 5000);
     insert into public.debt_payment_changes (user_id, debt_id, effective_from, monthly_payment, source_tx_id) values (p_user, v_debt, date '2026-11-01', 9000, v_tx);
-    insert into public.base_currency_changes (user_id, from_currency, to_currency, reverted_at, snapshot) values (p_user, 'USD', 'RUB', now(), '{}');
+    insert into public.base_currency_changes (user_id, from_currency, to_currency, changed_at, snapshot) values (p_user, 'USD', 'RUB', now() - interval '1 day', '{}');
     insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'RUB', 'USD') returning id into v_watch;
     insert into public.telegram_subscribers (watch_id, chat_id, title) values (v_watch, abs(hashtext(p_tag)), p_tag);
     insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'USD', 'RUB');
 end $$;
+
+insert into public.exchange_rates (rate_date, base, quote, rate, source)
+values (date '2026-01-01', 'RUB', 'USD', 90, 'test')
+on conflict do nothing;
 
 create or replace function tests.become(p_user uuid)
 returns void
@@ -127,6 +131,23 @@ begin
         into v_ids using p_user;
     return v_ids;
 end $$;
+
+create or replace function tests.free_column(p_table text)
+returns table (col text, col_type text)
+language sql
+stable
+as $$
+    select a.attname::text, format_type(a.atttypid, a.atttypmod)
+    from pg_attribute a
+    where a.attrelid = format('public.%I', p_table)::regclass
+      and a.attnum > 0 and not a.attisdropped
+      and a.attname not in ('user_id', 'id')
+      and has_column_privilege('authenticated', a.attrelid, a.attnum, 'UPDATE')
+      and not exists (select 1 from pg_constraint c where c.conrelid = a.attrelid and a.attnum = any(c.conkey) and c.contype in ('p', 'u', 'f'))
+      and not exists (select 1 from pg_index i where i.indrelid = a.attrelid and a.attnum = any(i.indkey::int2[]))
+    order by a.attnum
+    limit 1
+$$;
 
 create or replace function tests.fingerprint(p_user uuid)
 returns text
