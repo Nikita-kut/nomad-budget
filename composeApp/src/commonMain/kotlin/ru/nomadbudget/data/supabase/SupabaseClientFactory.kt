@@ -2,6 +2,7 @@ package ru.nomadbudget.data.supabase
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.SettingsCodeVerifierCache
 import io.github.jan.supabase.auth.SettingsSessionManager
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
@@ -16,6 +17,7 @@ object SupabaseClientFactory {
         install(Auth) {
             if (!AppConfig.IS_PROD) {
                 sessionManager = SettingsSessionManager(key = AppConfig.STORAGE_PREFIX + "session")
+                codeVerifierCache = SettingsCodeVerifierCache(key = AppConfig.STORAGE_PREFIX + "code_verifier")
             }
         }
         install(Postgrest)

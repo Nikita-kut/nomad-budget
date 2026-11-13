@@ -9,7 +9,8 @@ self.addEventListener('install', function () {
 
 self.addEventListener('activate', function (event) {
     event.waitUntil(
-        caches.keys()
+        adoptLegacy()
+            .then(function () { return caches.keys(); })
             .then(function (keys) {
                 const stale = keys.filter(function (k) { return k !== CACHE && (k.endsWith('@' + SCOPE) || LEGACY.indexOf(k) >= 0); });
                 return Promise.all(stale.map(function (k) { return caches.delete(k); }));
@@ -30,6 +31,19 @@ self.addEventListener('fetch', function (event) {
         event.respondWith(networkFirst(request));
     }
 });
+
+async function adoptLegacy() {
+    const target = await caches.open(CACHE);
+    for (const name of LEGACY) {
+        if (!(await caches.has(name))) continue;
+        const legacy = await caches.open(name);
+        for (const request of await legacy.keys()) {
+            if (await target.match(request)) continue;
+            const response = await legacy.match(request);
+            if (response) await target.put(request, response);
+        }
+    }
+}
 
 async function cacheFirst(request) {
     const cache = await caches.open(CACHE);

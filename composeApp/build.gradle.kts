@@ -17,6 +17,8 @@ val nomadSupabaseKey = providers.environmentVariable("NOMAD_SUPABASE_KEY").orEls
 fun storagePrefix(environment: String): String = if (environment == "prod") "nomad_budget:" else "nomad_budget_$environment:"
 
 val generateAppConfig by tasks.registering {
+    val prodUrl = prodSupabaseUrl
+    val prodKey = prodSupabaseKey
     val env = nomadEnv
     val url = nomadSupabaseUrl
     val key = nomadSupabaseKey
@@ -32,10 +34,13 @@ val generateAppConfig by tasks.registering {
         require(environment in setOf("prod", "staging", "local")) { "nomad.env: prod, staging или local, а не $environment" }
         require(Regex("^https?://[A-Za-z0-9.:-]+$").matches(supabaseUrl)) { "NOMAD_SUPABASE_URL: неверный адрес" }
         require(Regex("^[A-Za-z0-9._-]+$").matches(supabaseKey)) { "NOMAD_SUPABASE_KEY: неверный ключ" }
-        require((environment == "prod") == (supabaseUrl == prodSupabaseUrl)) {
-            "Сборка $environment указывает на ${if (supabaseUrl == prodSupabaseUrl) "прод" else "не прод"}: проверь NOMAD_ENV и NOMAD_SUPABASE_URL"
+        require((environment == "prod") == (supabaseUrl == prodUrl)) {
+            "Сборка $environment указывает на ${if (supabaseUrl == prodUrl) "прод" else "не прод"}: проверь NOMAD_ENV и NOMAD_SUPABASE_URL"
         }
-        val prefix = storagePrefix(environment)
+        require((environment == "prod") == (supabaseKey == prodKey)) {
+            "Сборка $environment с ${if (supabaseKey == prodKey) "ключом прода" else "чужим ключом"}: проверь NOMAD_SUPABASE_KEY"
+        }
+        val prefix = if (environment == "prod") "nomad_budget:" else "nomad_budget_$environment:"
         val file = output.get().file("ru/nomadbudget/core/config/AppConfig.kt").asFile
         file.parentFile.mkdirs()
         file.writeText(
@@ -114,8 +119,10 @@ kotlin {
 
 tasks.named<ProcessResources>("wasmJsProcessResources") {
     val prefix = nomadEnv.map(::storagePrefix)
+    val nameSuffix = nomadEnv.map { if (it == "prod") "" else " ($it)" }
     inputs.property("storagePrefix", prefix)
-    filesMatching("index.html") {
-        filter { line -> line.replace("@STORAGE_PREFIX@", prefix.get()) }
+    inputs.property("nameSuffix", nameSuffix)
+    filesMatching(listOf("index.html", "manifest.webmanifest")) {
+        filter { line -> line.replace("@STORAGE_PREFIX@", prefix.get()).replace("@NAME_SUFFIX@", nameSuffix.get()) }
     }
 }
