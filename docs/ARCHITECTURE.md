@@ -30,7 +30,7 @@ ru.nomadbudget
 │   └── <экраны>/      month, planning, journal, entry, accounts, exchange, rates (+BankRateWatchSection), capital, more,
 │                      settings, onboarding, auth
 ├── di/                Koin-модули; demo/ — вымышленные данные и demoModule
-└── core/              TodayProvider, SupabaseConfig
+└── core/              TodayProvider, AppConfig (генерируется при сборке)
 
 tools/rates/           fetch_rates.py (курсы раз в сутки), bank_watch.py (+test_bank_watch.py, ca/) — слежение за курсом банка,
                        bank_widgets.py (+test_bank_widgets.py) — HTML-виджеты Telegram
@@ -59,3 +59,15 @@ python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets
 ```
 
 Миграции БД — `supabase/migrations`, применяются до выкатки клиента, который их использует.
+
+## Окружения сборки
+
+`AppConfig` генерирует Gradle-таска `:composeApp:generateAppConfig`. Источники — `NOMAD_ENV` (или `-Pnomad.env`), `NOMAD_SUPABASE_URL` и `NOMAD_SUPABASE_KEY`.
+
+| `NOMAD_ENV` | База | Ключи браузера | Android |
+|---|---|---|---|
+| `prod` (по умолчанию) | прод, адрес и публичный ключ по умолчанию | `nomad_budget:*`, сессия под ключом supabase-kt по умолчанию | `ru.nomadbudget` |
+| `staging` | адрес и ключ staging обязательны | `nomad_budget_staging:*`, сессия `nomad_budget_staging:session` | `ru.nomadbudget.staging`, ставится рядом с прод-версией |
+| `local` | локальный `supabase start` | `nomad_budget_local:*` | `ru.nomadbudget.local` |
+
+Сборка падает, если окружение и адрес не сходятся: `staging` с адресом прода или `prod` с чужим адресом. Staging- и прод-сайт живут на одном домене `github.io`, поэтому хранилище браузера разделено префиксом. Кеш сервис-воркера привязан к своей папке и не трогает кеш соседнего сайта.

@@ -8,6 +8,57 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+val prodSupabaseUrl = "https://gncrjdgznnriuhyuatcv.supabase.co"
+val prodSupabaseKey = "sb_publishable_Q9BgpKUePZpEYW-i5KofKg_shXWf7PL"
+val nomadEnv = providers.gradleProperty("nomad.env").orElse(providers.environmentVariable("NOMAD_ENV")).orElse("prod")
+val nomadSupabaseUrl = providers.environmentVariable("NOMAD_SUPABASE_URL").orElse(prodSupabaseUrl)
+val nomadSupabaseKey = providers.environmentVariable("NOMAD_SUPABASE_KEY").orElse(prodSupabaseKey)
+
+fun storagePrefix(environment: String): String = if (environment == "prod") "nomad_budget:" else "nomad_budget_$environment:"
+
+val generateAppConfig by tasks.registering {
+    val prodUrl = prodSupabaseUrl
+    val prodKey = prodSupabaseKey
+    val env = nomadEnv
+    val url = nomadSupabaseUrl
+    val key = nomadSupabaseKey
+    val output = layout.buildDirectory.dir("generated/appConfig/kotlin")
+    inputs.property("env", env)
+    inputs.property("url", url)
+    inputs.property("key", key)
+    outputs.dir(output)
+    doLast {
+        val environment = env.get()
+        val supabaseUrl = url.get().trimEnd('/')
+        val supabaseKey = key.get()
+        require(environment in setOf("prod", "staging", "local")) { "nomad.env: prod, staging или local, а не $environment" }
+        require(Regex("^https?://[A-Za-z0-9.:-]+$").matches(supabaseUrl)) { "NOMAD_SUPABASE_URL: неверный адрес" }
+        require(Regex("^[A-Za-z0-9._-]+$").matches(supabaseKey)) { "NOMAD_SUPABASE_KEY: неверный ключ" }
+        require((environment == "prod") == (supabaseUrl == prodUrl)) {
+            "Сборка $environment указывает на ${if (supabaseUrl == prodUrl) "прод" else "не прод"}: проверь NOMAD_ENV и NOMAD_SUPABASE_URL"
+        }
+        require((environment == "prod") == (supabaseKey == prodKey)) {
+            "Сборка $environment с ${if (supabaseKey == prodKey) "ключом прода" else "чужим ключом"}: проверь NOMAD_SUPABASE_KEY"
+        }
+        val prefix = if (environment == "prod") "nomad_budget:" else "nomad_budget_$environment:"
+        val file = output.get().file("ru/nomadbudget/core/config/AppConfig.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            """
+            |package ru.nomadbudget.core.config
+            |
+            |object AppConfig {
+            |    const val ENVIRONMENT: String = "$environment"
+            |    const val IS_PROD: Boolean = ${environment == "prod"}
+            |    const val SUPABASE_URL: String = "$supabaseUrl"
+            |    const val SUPABASE_KEY: String = "$supabaseKey"
+            |    const val STORAGE_PREFIX: String = "$prefix"
+            |}
+            |""".trimMargin(),
+        )
+    }
+}
+
 kotlin {
     androidLibrary {
         namespace = "ru.nomadbudget"
@@ -33,6 +84,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain {
+            kotlin.srcDir(generateAppConfig)
+        }
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -60,5 +114,15 @@ kotlin {
         wasmJsMain.dependencies {
             implementation(libs.ktor.client.js)
         }
+    }
+}
+
+tasks.named<ProcessResources>("wasmJsProcessResources") {
+    val prefix = nomadEnv.map(::storagePrefix)
+    val nameSuffix = nomadEnv.map { if (it == "prod") "" else " ($it)" }
+    inputs.property("storagePrefix", prefix)
+    inputs.property("nameSuffix", nameSuffix)
+    filesMatching(listOf("index.html", "manifest.webmanifest")) {
+        filter { line -> line.replace("@STORAGE_PREFIX@", prefix.get()).replace("@NAME_SUFFIX@", nameSuffix.get()) }
     }
 }

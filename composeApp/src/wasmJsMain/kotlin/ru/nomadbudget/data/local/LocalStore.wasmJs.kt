@@ -1,5 +1,6 @@
 package ru.nomadbudget.data.local
 
+import ru.nomadbudget.core.config.AppConfig
 import ru.nomadbudget.domain.repository.KeyValueStore
 
 private fun storageGet(key: String): String? = js("localStorage.getItem(key)")
@@ -33,6 +34,6 @@ actual class LocalStore actual constructor() : KeyValueStore {
     actual override fun clear() = storageClear(PREFIX)
 
     private companion object {
-        const val PREFIX = "nomad_budget:"
+        const val PREFIX = AppConfig.STORAGE_PREFIX
     }
 }

@@ -2,12 +2,16 @@ name: Check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   push:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
-  group: check-${{ github.ref }}
+  group: check-${{ github.ref }}-${{ contains(fromJSON('["edited", "labeled", "unlabeled"]'), github.event.action) }}
   cancel-in-progress: true
 
 jobs:
@@ -27,9 +31,31 @@ jobs:
           set -euo pipefail
           git diff --name-only "$BASE_SHA"...HEAD > "$RUNNER_TEMP/changed.txt"
           python3 tools/quality/check_pr_checklist.py < "$RUNNER_TEMP/changed.txt"
+      - name: Migration guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          git diff --name-status "$BASE_SHA"...HEAD > "$RUNNER_TEMP/changes.txt"
+          python3 tools/quality/check_migrations.py < "$RUNNER_TEMP/changes.txt"
+
+  db:
+    if: ${{ !contains(fromJSON('["edited", "labeled", "unlabeled"]'), github.event.action) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - name: Start ephemeral Supabase (migrations from scratch)
+        run: supabase start -x studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Database checks (catalog, isolation, foreign refs, functions, anon)
+        run: bash supabase/tests/run.sh
 
   check:
-    if: github.event.action != 'edited'
+    if: ${{ !contains(fromJSON('["edited", "labeled", "unlabeled"]'), github.event.action) }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -37,7 +63,7 @@ jobs:
       - name: Project rules
         run: bash tools/check_rules.sh
       - name: Worker unit tests
-        run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py tools/quality/test_check_pr_checklist.py
+        run: python3 -m unittest tools/rates/test_bank_watch.py tools/rates/test_bank_widgets.py tools/rates/test_backfill_rates.py tools/quality/test_check_pr_checklist.py tools/quality/test_check_migrations.py
       - uses: actions/setup-node@v5
         with:
           node-version: 24
