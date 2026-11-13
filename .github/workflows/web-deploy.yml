@@ -2,8 +2,7 @@ name: Deploy web to GitHub Pages
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    tags: ["v*"]
 
 permissions:
   contents: read
@@ -15,7 +14,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  approve:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Прод-выкладка ${GITHUB_REF_NAME} подтверждена"
+
   build:
+    needs: approve
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
