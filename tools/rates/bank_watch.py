@@ -840,7 +840,7 @@ def handle_command(db: Supabase, tg: Telegram, chat: dict, text: str) -> None:
     command = parts[0].split("@")[0].lower()
     if command == "/start" and len(parts) > 1:
         code = parts[1].strip()
-        rows = db.select("rate_watches", "select=*&link_code=eq." + urllib.parse.quote(code) + "&limit=1")
+        rows = without_blocked(db.select("rate_watches", "select=*&link_code=eq." + urllib.parse.quote(code) + "&limit=1"), blocked_users(db))
         if not rows:
             tg.send(chat_id, "Ссылка не подошла: открой приложение и нажми «Подписаться в Telegram» ещё раз.")
             return
@@ -934,7 +934,7 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
     except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
         print(f"bot updates skipped: {type(e).__name__}", file=sys.stderr)
 
-    watches = db.select("rate_watches", "select=*&enabled=is.true")
+    watches = without_blocked(db.select("rate_watches", "select=*&enabled=is.true"), blocked_users(db))
     subscribers = db.select("telegram_subscribers", "select=watch_id,chat_id")
     holidays = load_holidays(db)
     paused = paused_chats(db, now_utc)
@@ -964,6 +964,18 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
 
     cutoff = (now_utc - dt.timedelta(days=RETENTION_DAYS)).isoformat()
     db.delete("bank_rate_snapshots", "taken_at=lt." + urllib.parse.quote(cutoff))
+
+
+def blocked_users(db: Supabase) -> set[str]:
+    try:
+        return {str(row["user_id"]) for row in db.select("account_blocks", "select=user_id")}
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
+        print(f"account blocks unavailable: {type(e).__name__}", file=sys.stderr)
+        return set()
+
+
+def without_blocked(watches: list[dict], blocked: set[str]) -> list[dict]:
+    return [watch for watch in watches if str(watch.get("user_id")) not in blocked]
 
 
 def paused_chats(db: Supabase, now_utc: dt.datetime) -> set[int]:
