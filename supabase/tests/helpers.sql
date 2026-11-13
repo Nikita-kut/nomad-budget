@@ -65,6 +65,7 @@ begin
     insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'RUB', 'USD') returning id into v_watch;
     insert into public.telegram_subscribers (watch_id, chat_id, title) values (v_watch, abs(hashtext(p_tag)), p_tag);
     insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'USD', 'RUB');
+    insert into public.owner_actions (user_id, action) values (p_user, 'reset_link_created');
 end $$;
 
 insert into public.exchange_rates (rate_date, base, quote, rate, source)
@@ -101,6 +102,13 @@ insert into tests.shared_tables values
     ('bot_info', 'состояние бота, пишет воркер'),
     ('telegram_chat_prefs', 'пауза чата бота, без политик, пишут только воркер и вебхук');
 
+create table if not exists tests.server_tables (name text primary key, why text not null);
+truncate tests.server_tables;
+insert into tests.server_tables values
+    ('app_admins', 'кто админ, читает только is_admin()'),
+    ('invites', 'приглашения, только сервер и админ-функция'),
+    ('account_blocks', 'блокировки, только сервер');
+
 create table if not exists tests.owned_via_parent (name text primary key, owner_sql text not null);
 truncate tests.owned_via_parent;
 insert into tests.owned_via_parent values
@@ -122,6 +130,7 @@ as $$
     left join tests.owned_via_parent v on v.name = c.relname
     where c.relkind = 'r'
       and c.relname not in (select s.name from tests.shared_tables s)
+      and c.relname not in (select s.name from tests.server_tables s)
     order by 1
 $$;
 

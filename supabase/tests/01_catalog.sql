@@ -60,6 +60,25 @@ begin
     end loop;
 
     for r in
+        select s.name, (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = s.name) as policies,
+               has_table_privilege('authenticated', format('public.%I', s.name), 'SELECT,INSERT,UPDATE,DELETE') as auth_rights
+        from tests.server_tables s
+    loop
+        if r.policies > 0 or r.auth_rights then
+            v_fails := v_fails || format('%s: служебная таблица доступна пользователю (политик %s, права authenticated %s)', r.name, r.policies, r.auth_rights);
+        end if;
+    end loop;
+
+    for r in
+        select p.oid::regprocedure as fn from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
+        where p.proname in ('claim_invite', 'release_invite', 'complete_invite')
+          and has_function_privilege('authenticated', p.oid, 'execute')
+    loop
+        v_fails := v_fails || format('%s: серверную функцию может вызвать пользователь', r.fn);
+    end loop;
+
+    for r in
         select c.relname, c.reloptions from pg_class c join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'public' and c.relkind in ('v', 'm')
           and not coalesce('security_invoker=true' = any(c.reloptions), false)

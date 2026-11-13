@@ -32,6 +32,7 @@ begin
         'rub_per_unit(text,date)', 'select public.rub_per_unit(''USD'', current_date)',
         'base_factor(text,text,date)', 'select public.base_factor(''USD'', ''RUB'', current_date)',
         'convert_base_minor(bigint,text,text,date)', 'select public.convert_base_minor(100, ''USD'', ''RUB'', current_date)',
+        'is_admin()', 'select public.is_admin()',
         'delete_own_account()', 'select public.delete_own_account()'
     );
 

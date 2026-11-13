@@ -59,6 +59,9 @@ def reset_sql(password: str) -> str:
             parts.append(f"select tests.seed_finance((select id from auth.users where email = {literal(email)}), {literal(name.upper())});")
         if kind == "blocked":
             parts.append(f"update auth.users set banned_until = 'infinity' where email = {literal(email)};")
+            parts.append(f"insert into public.account_blocks (user_id) select id from auth.users where email = {literal(email)};")
+        if name == "admin":
+            parts.append(f"insert into public.app_admins (user_id) select id from auth.users where email = {literal(email)};")
     return "\n".join(parts)
 
 

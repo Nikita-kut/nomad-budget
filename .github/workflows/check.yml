@@ -50,7 +50,7 @@ jobs:
         with:
           version: 2.117.0
       - name: Start ephemeral Supabase (migrations from scratch)
-        run: supabase start -x studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta
+        run: supabase start -x studio,imgproxy,mailpit,realtime,logflare,vector,supavisor,postgres-meta
       - name: Database checks (catalog, isolation, foreign refs, functions, anon)
         run: bash supabase/tests/run.sh
 
@@ -68,7 +68,7 @@ jobs:
         with:
           node-version: 24
       - name: Webhook unit tests
-        run: node --test supabase/functions/telegram-webhook/*_test.ts
+        run: node --test supabase/functions/telegram-webhook/*_test.ts supabase/functions/_shared/*_test.ts
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
