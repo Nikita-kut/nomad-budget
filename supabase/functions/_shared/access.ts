@@ -30,7 +30,7 @@ export function validUserId(raw: unknown): string | null {
 
 export function passwordProblem(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length < MIN_PASSWORD) return `Пароль — не короче ${MIN_PASSWORD} символов`;
-  if (raw.length > 72) return "Пароль — не длиннее 72 символов";
+  if (new TextEncoder().encode(raw).length > 72) return "Пароль слишком длинный: до 72 латинских или 36 русских букв";
   return null;
 }
 
@@ -58,7 +58,7 @@ export async function sha256Hex(text: string): Promise<string> {
 
 export function siteLink(site: string, param: "invite" | "reset", value: string): string {
   const base = site.endsWith("/") ? site : `${site}/`;
-  return `${base}?${param}=${encodeURIComponent(value)}`;
+  return `${base}#${param}=${encodeURIComponent(value)}`;
 }
 
 export function json(status: number, body: unknown): Response {
@@ -80,4 +80,5 @@ export function userRow(user: AuthUser, now: Date): Record<string, unknown> {
   };
 }
 
-export const ADMIN_TABLES = ["invites", "owner_actions", "account_blocks"] as const;
+export const ADMIN_TABLES = ["invites", "owner_actions", "account_blocks", "app_admins"] as const;
+export const ADMIN_RPCS = ["is_admin"] as const;

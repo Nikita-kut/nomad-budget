@@ -47,7 +47,10 @@ class Api:
 
 
 def param(url: str, name: str) -> str:
-    return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)[name][0]
+    parsed = urllib.parse.urlparse(url)
+    if parsed.query:
+        raise ValueError("код в query попадёт в логи сайта, нужен фрагмент #")
+    return urllib.parse.parse_qs(parsed.fragment)[name][0]
 
 
 def main() -> int:
@@ -131,6 +134,8 @@ def main() -> int:
 
         status, _ = api.admin(admin_token, action="block", user_id=new_user["id"])
         check(status == 200, f"A12 блокировка не прошла ({status})")
+        status, rows = api.call("/rest/v1/accounts?select=id", token=user_token)
+        check(status >= 400, f"A12 заблокированный читает данные старым токеном ({status})")
         status, _ = api.login(new_email, password)
         check(status >= 400, f"A12 заблокированный вошёл ({status})")
         refresh = user_session.get("refresh_token")
@@ -139,6 +144,13 @@ def main() -> int:
         status, _ = api.admin(admin_token, action="unblock", user_id=new_user["id"])
         status, _ = api.login(new_email, password)
         check(status == 200, f"A12 после разблокировки вход не работает ({status})")
+
+    admin_id = next((u["id"] for u in users if u.get("email") == admin_email.lower()), None) if isinstance(users, list) else None
+    if admin_id:
+        status, _ = api.admin(admin_token, action="block", user_id=admin_id)
+        check(status == 400, f"админ заблокировал админа ({status})")
+        status, _ = api.admin(admin_token, action="reset_link", user_id=admin_id)
+        check(status == 400, f"админ получил ссылку входа в учётку админа ({status})")
 
     status, _ = api.call("/auth/v1/signup", "POST", {"email": f"stranger-{run}@{DOMAIN}", "password": password})
     check(status >= 400, f"A6 регистрация без приглашения открыта ({status})")

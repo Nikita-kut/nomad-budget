@@ -42,11 +42,16 @@ begin
         v_fails := v_fails || 'A6: занятое приглашение занято второй раз'::text;
     end if;
 
+    perform public.release_invite(gen_random_uuid());
+    if public.claim_invite(v_hash, 'new@example.test') is not null then
+        v_fails := v_fails || 'A6: чужой токен освободил занятое приглашение'::text;
+    end if;
     perform public.release_invite(v_id);
     v_id := public.claim_invite(v_hash, 'new@example.test');
     if v_id is null then
         v_fails := v_fails || 'A6: после неудачного создания учётки приглашение не освободилось'::text;
     end if;
+    perform public.complete_invite(v_id, v_b);
     perform public.complete_invite(v_id, v_b);
     if public.claim_invite(v_hash, 'new@example.test') is not null then
         v_fails := v_fails || 'A6: использованное приглашение погашено снова'::text;
@@ -62,6 +67,42 @@ begin
     exception when raise_exception then
         null;
     end;
+
+    insert into public.invites (email, code_hash, created_by, expires_at)
+    values ('late@example.test', encode(extensions.digest('code-late', 'sha256'), 'hex'), v_owner, now() + interval '7 days');
+    v_second := public.claim_invite(encode(extensions.digest('code-late', 'sha256'), 'hex'), 'late@example.test');
+    update public.invites set revoked_at = now() where email = 'late@example.test';
+    begin
+        perform public.complete_invite(v_second, v_b);
+        v_fails := v_fails || 'A6: приглашение, отозванное после занятия, закрылось'::text;
+    exception when raise_exception then
+        null;
+    end;
+
+    insert into public.account_blocks (user_id) values (v_b);
+    perform tests.become(v_b);
+    begin
+        perform private.reject_blocked();
+        v_fails := v_fails || 'A12: проверка блокировки пропустила заблокированного'::text;
+    exception when insufficient_privilege then
+        null;
+    end;
+    execute 'reset role';
+    delete from public.account_blocks where user_id = v_b;
+    perform tests.become(v_b);
+    begin
+        perform private.reject_blocked();
+    exception when others then
+        v_fails := v_fails || format('A12: проверка блокировки не пускает обычного пользователя (%s)', sqlstate);
+    end;
+    execute 'reset role';
+    perform tests.become_anon();
+    begin
+        perform private.reject_blocked();
+    exception when others then
+        v_fails := v_fails || format('A12: проверка блокировки не пускает анонима (%s)', sqlstate);
+    end;
+    execute 'reset role';
 
     perform tests.become(v_b);
     if public.is_admin() then

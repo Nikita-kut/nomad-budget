@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  ADMIN_RPCS,
   ADMIN_TABLES,
   INVITE_DAYS_DEFAULT,
   INVITE_DAYS_MAX,
@@ -42,6 +43,8 @@ test("password needs at least 10 characters", () => {
   assert.notEqual(passwordProblem(undefined), null);
   assert.equal(passwordProblem("long-enough-1"), null);
   assert.notEqual(passwordProblem("x".repeat(73)), null);
+  assert.notEqual(passwordProblem("я".repeat(40)), null);
+  assert.equal(passwordProblem("я".repeat(36)), null);
 });
 
 test("invite lifetime is clamped", () => {
@@ -52,8 +55,8 @@ test("invite lifetime is clamped", () => {
 });
 
 test("links point to the site with one parameter", () => {
-  assert.equal(siteLink("https://x.test/app", "invite", "a_b"), "https://x.test/app/?invite=a_b");
-  assert.equal(siteLink("https://x.test/app/", "reset", "t"), "https://x.test/app/?reset=t");
+  assert.equal(siteLink("https://x.test/app", "invite", "a_b"), "https://x.test/app/#invite=a_b");
+  assert.equal(siteLink("https://x.test/app/", "reset", "t"), "https://x.test/app/#reset=t");
 });
 
 test("user rows carry no finance and compute blocked", () => {
@@ -71,9 +74,14 @@ test("user id must be a uuid", () => {
 
 test("admin function touches only service tables", () => {
   const source = readFileSync(new URL("../admin/index.ts", import.meta.url), "utf8");
-  const tables = [...source.matchAll(/\/rest\/v1\/([a-z_]+)/g)].map((m) => m[1]).filter((t) => t !== "rpc");
-  assert.ok(tables.length > 0);
-  for (const table of tables) {
-    assert.ok((ADMIN_TABLES as readonly string[]).includes(table), `admin reads ${table}`);
+  const paths = [...source.matchAll(/\/rest\/v1\/([a-z_]+)(?:\/([a-z_]+))?/g)];
+  assert.ok(paths.length > 0);
+  for (const [, first, second] of paths) {
+    if (first === "rpc") {
+      assert.ok((ADMIN_RPCS as readonly string[]).includes(second ?? ""), `admin calls rpc ${second}`);
+    } else {
+      assert.ok((ADMIN_TABLES as readonly string[]).includes(first), `admin reads ${first}`);
+    }
   }
+  assert.doesNotMatch(source, /\/rest\/v1\/\$\{/, "admin builds a REST path dynamically");
 });

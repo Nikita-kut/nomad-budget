@@ -49,6 +49,11 @@ async function getUser(id: string): Promise<AuthUser> {
   return await service(`/auth/v1/admin/users/${id}`, { method: "GET" }) as AuthUser;
 }
 
+async function isAdmin(userId: string): Promise<boolean> {
+  const rows = await service(`/rest/v1/app_admins?select=user_id&user_id=eq.${userId}`, { method: "GET" }) as unknown[];
+  return rows.length > 0;
+}
+
 async function audit(userId: string, action: string): Promise<void> {
   await service("/rest/v1/owner_actions", { method: "POST", body: JSON.stringify({ user_id: userId, action }) });
 }
@@ -82,6 +87,7 @@ async function handle(action: string, body: Record<string, unknown>, adminId: st
     case "reset_link": {
       const id = validUserId(body.user_id);
       if (!id) throw new HttpError(400, "user_id");
+      if (id === adminId || await isAdmin(id)) throw new HttpError(400, "admin");
       const user = await getUser(id);
       const link = await service("/auth/v1/admin/generate_link", {
         method: "POST",
@@ -96,12 +102,13 @@ async function handle(action: string, body: Record<string, unknown>, adminId: st
     case "unblock": {
       const id = validUserId(body.user_id);
       if (!id) throw new HttpError(400, "user_id");
-      if (id === adminId) throw new HttpError(400, "self");
+      if (id === adminId || await isAdmin(id)) throw new HttpError(400, "admin");
       const blocking = action === "block";
-      await service(`/auth/v1/admin/users/${id}`, { method: "PUT", body: JSON.stringify({ ban_duration: blocking ? BAN_FOREVER : "none" }) });
       if (blocking) {
         await service("/rest/v1/account_blocks", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ user_id: id }) });
+        await service(`/auth/v1/admin/users/${id}`, { method: "PUT", body: JSON.stringify({ ban_duration: BAN_FOREVER }) });
       } else {
+        await service(`/auth/v1/admin/users/${id}`, { method: "PUT", body: JSON.stringify({ ban_duration: "none" }) });
         await service(`/rest/v1/account_blocks?user_id=eq.${id}`, { method: "DELETE" });
       }
       await audit(id, blocking ? "blocked" : "unblocked");

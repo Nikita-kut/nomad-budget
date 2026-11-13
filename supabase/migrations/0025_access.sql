@@ -14,6 +14,7 @@ create table public.invites (
     created_at timestamptz not null default now(),
     expires_at timestamptz not null,
     claimed_at timestamptz,
+    claim_token uuid,
     used_at    timestamptz,
     used_by    uuid references auth.users (id) on delete set null,
     revoked_at timestamptz,
@@ -61,7 +62,7 @@ $$;
 revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
--- Погашение приглашения в два шага: занять (атомарно, один победитель), затем закрыть после создания учётки.
+-- Погашение приглашения в два шага: занять (атомарно, один победитель, со своим токеном), затем закрыть после создания учётки.
 create or replace function public.claim_invite(p_code_hash text, p_email text)
 returns uuid
 language sql
@@ -69,35 +70,39 @@ security definer
 set search_path = public
 as $$
     update public.invites
-    set claimed_at = now()
+    set claimed_at = now(), claim_token = gen_random_uuid()
     where code_hash = p_code_hash
       and email = lower(trim(p_email))
       and used_at is null
       and revoked_at is null
       and expires_at > now()
       and (claimed_at is null or claimed_at < now() - interval '2 minutes')
-    returning id
+    returning claim_token
 $$;
 
-create or replace function public.release_invite(p_id uuid)
+create or replace function public.release_invite(p_claim uuid)
 returns void
 language sql
 security definer
 set search_path = public
 as $$
-    update public.invites set claimed_at = null where id = p_id and used_at is null
+    update public.invites set claimed_at = null, claim_token = null where claim_token = p_claim and used_at is null
 $$;
 
-create or replace function public.complete_invite(p_id uuid, p_user uuid)
+create or replace function public.complete_invite(p_claim uuid, p_user uuid)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-    update public.invites set used_at = now(), used_by = p_user where id = p_id and used_at is null and claimed_at is not null;
+    if exists (select 1 from public.invites where used_by = p_user and claim_token = p_claim) then
+        return;
+    end if;
+    update public.invites set used_at = now(), used_by = p_user
+    where claim_token = p_claim and used_at is null and revoked_at is null;
     if not found then
-        raise exception 'invite % is not claimed', p_id;
+        raise exception 'invite claim is not active';
     end if;
     insert into public.owner_actions (user_id, action) values (p_user, 'invite_redeemed');
 end $$;
@@ -108,3 +113,27 @@ revoke execute on function public.complete_invite(uuid, uuid) from public, anon,
 grant execute on function public.claim_invite(text, text) to service_role;
 grant execute on function public.release_invite(uuid) to service_role;
 grant execute on function public.complete_invite(uuid, uuid) to service_role;
+
+-- Заблокированный теряет доступ к данным сразу, не дожидаясь конца срока токена: проверка на каждый запрос PostgREST.
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to anon, authenticated, authenticator;
+
+create or replace function private.reject_blocked()
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+    if auth.uid() is not null and exists (select 1 from public.account_blocks where user_id = auth.uid()) then
+        raise exception 'account blocked' using errcode = '42501';
+    end if;
+end $$;
+
+revoke execute on function private.reject_blocked() from public;
+grant execute on function private.reject_blocked() to anon, authenticated, authenticator;
+
+alter role authenticator set pgrst.db_pre_request = 'private.reject_blocked';
+notify pgrst, 'reload config';
