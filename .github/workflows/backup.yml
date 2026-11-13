@@ -1,0 +1,45 @@
+name: Backup
+
+on:
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+      RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check configuration
+        run: |
+          set -euo pipefail
+          if [ -z "$PROD_DB_URL" ] || [ -z "$RECIPIENT" ]; then
+            echo "::error::Нет PROD_DB_URL или BACKUP_AGE_RECIPIENT"
+            exit 1
+          fi
+      - name: Tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age postgresql-client >/dev/null
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - name: Dump prod (read-only role)
+        run: bash tools/backup/dump.sh "$RUNNER_TEMP/dump"
+      - name: Start empty Supabase for the restore check
+        run: supabase start -x studio,imgproxy,mailpit,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta,storage-api
+      - name: Restore into the empty database and compare row counts
+        run: bash tools/backup/restore_check.sh "$RUNNER_TEMP/dump"
+      - name: Encrypt and store
+        env:
+          DEPLOY_KEY: ${{ secrets.BACKUP_DEPLOY_KEY }}
+        run: bash tools/backup/store.sh "$RUNNER_TEMP/dump"

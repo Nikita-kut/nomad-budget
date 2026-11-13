@@ -11,6 +11,7 @@ on:
       - Backfill exchange rates
       - Release
       - Deploy web to GitHub Pages
+      - Backup
     types: [completed]
 
 permissions:
