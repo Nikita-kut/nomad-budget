@@ -1,6 +1,6 @@
 {
-  "name": "Nomad Budget",
-  "short_name": "Budget",
+  "name": "Nomad Budget@NAME_SUFFIX@",
+  "short_name": "Budget@NAME_SUFFIX@",
   "description": "Личный мультивалютный бюджет",
   "start_url": "./",
   "scope": "./",

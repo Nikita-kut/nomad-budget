@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+val nomadEnv = providers.gradleProperty("nomad.env").orElse(providers.environmentVariable("NOMAD_ENV")).orElse("prod").get()
+
 android {
     namespace = "ru.nomadbudget.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -14,6 +16,10 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        if (nomadEnv != "prod") {
+            applicationIdSuffix = ".$nomadEnv"
+            versionNameSuffix = "-$nomadEnv"
+        }
     }
 
     buildTypes {
