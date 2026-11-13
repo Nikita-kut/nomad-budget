@@ -49,6 +49,7 @@ import kotlinx.datetime.plus
 import ru.nomadbudget.domain.logic.DebtMonth
 import ru.nomadbudget.domain.logic.DebtObligation
 import ru.nomadbudget.domain.logic.ObligationStatus
+import ru.nomadbudget.domain.model.sumIn
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCalculator
@@ -225,15 +226,16 @@ private fun DebtsSummary(state: HomeState, wide: Boolean) {
     val forecasts = state.openDebts.map { debt -> DebtCalculator.forecast(debt, debt.plannedPayment)?.months }
     val lastClose = if (forecasts.any { it == null }) null else forecasts.filterNotNull().maxOrNull()
     val paid = month.debtsPaid
+    val obligatory = state.openDebts.mapNotNull { state.rates.toBaseOrNull(it.monthlyPayment) }.sumIn(state.base)
     TileRow(
         wide,
         listOf(
             { m -> StatTile("Остаток долга", MoneyFormat.format(owed, false), "тело по ${plural(state.openDebts.size, "кредиту", "кредитам", "кредитам")}", modifier = m, accent = true) },
             { m ->
                 StatTile(
-                    "Платежи в этом месяце",
-                    MoneyFormat.format(month.debtsPlanned, false),
-                    "оплачено $paid из ${month.debts.size}",
+                    "Обязательно в месяц",
+                    MoneyFormat.format(obligatory, false),
+                    "в этом месяце оплачено $paid из ${month.debts.size}",
                     modifier = m,
                     progress = if (month.debts.isEmpty()) null else paid.toFloat() / month.debts.size,
                     progressColor = AppTheme.colors.good,

@@ -48,6 +48,16 @@ class DebtLoadTest {
     }
 
     @Test
+    fun closedThisMonth_leavesCurrentObligation_butStaysInPastMonths() {
+        val small = Debt(
+            "s", "Рассрочка", Currency.RUB, Money.rub(0L), Money.rub(130_000L), null, payDay = 16,
+            openedOn = LocalDate(2026, 10, 5), isClosed = true, closedOn = LocalDate(2026, 12, 12),
+        )
+        val withClosed = DebtLoad.months(listOf(mortgage, small), tx, rates, today, TEST_START_DAY, emptySet())
+        assertEquals(listOf(2_130_000L, 2_130_000L, 1_500_000L), withClosed.map { it.obligatory.minor })
+    }
+
+    @Test
     fun earlyAndRegularPaymentsSeparate() {
         val november = months[1]
         assertEquals(Money.rub(2_000_000L), november.regularPaid)
