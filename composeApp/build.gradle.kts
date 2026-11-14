@@ -13,6 +13,7 @@ val prodSupabaseKey = "sb_publishable_Q9BgpKUePZpEYW-i5KofKg_shXWf7PL"
 val nomadEnv = providers.gradleProperty("nomad.env").orElse(providers.environmentVariable("NOMAD_ENV")).orElse("prod")
 val nomadSupabaseUrl = providers.environmentVariable("NOMAD_SUPABASE_URL").orElse(prodSupabaseUrl)
 val nomadSupabaseKey = providers.environmentVariable("NOMAD_SUPABASE_KEY").orElse(prodSupabaseKey)
+val nomadOwnerContact = providers.environmentVariable("NOMAD_OWNER_CONTACT").orElse("")
 
 fun storagePrefix(environment: String): String = if (environment == "prod") "nomad_budget:" else "nomad_budget_$environment:"
 
@@ -22,15 +23,19 @@ val generateAppConfig by tasks.registering {
     val env = nomadEnv
     val url = nomadSupabaseUrl
     val key = nomadSupabaseKey
+    val contact = nomadOwnerContact
     val output = layout.buildDirectory.dir("generated/appConfig/kotlin")
     inputs.property("env", env)
     inputs.property("url", url)
     inputs.property("key", key)
+    inputs.property("contact", contact)
     outputs.dir(output)
     doLast {
         val environment = env.get()
         val supabaseUrl = url.get().trimEnd('/')
         val supabaseKey = key.get()
+        val ownerContact = contact.get().trim()
+        require(Regex("^[A-Za-z0-9@._:/+ -]{0,80}$").matches(ownerContact)) { "NOMAD_OWNER_CONTACT: только латиница, цифры и @._:/+-" }
         require(environment in setOf("prod", "staging", "local")) { "nomad.env: prod, staging или local, а не $environment" }
         require(Regex("^https?://[A-Za-z0-9.:-]+$").matches(supabaseUrl)) { "NOMAD_SUPABASE_URL: неверный адрес" }
         require(Regex("^[A-Za-z0-9._-]+$").matches(supabaseKey)) { "NOMAD_SUPABASE_KEY: неверный ключ" }
@@ -53,6 +58,7 @@ val generateAppConfig by tasks.registering {
             |    const val SUPABASE_URL: String = "$supabaseUrl"
             |    const val SUPABASE_KEY: String = "$supabaseKey"
             |    const val STORAGE_PREFIX: String = "$prefix"
+            |    const val OWNER_CONTACT: String = "$ownerContact"
             |}
             |""".trimMargin(),
         )

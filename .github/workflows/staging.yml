@@ -49,6 +49,7 @@ jobs:
     timeout-minutes: 30
     env:
       NOMAD_ENV: staging
+      NOMAD_OWNER_CONTACT: ${{ vars.NOMAD_OWNER_CONTACT }}
       NOMAD_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
       NOMAD_SUPABASE_KEY: ${{ vars.STAGING_SUPABASE_KEY }}
     steps:
