@@ -38,7 +38,12 @@ class AccessScreensUiTest {
         override suspend fun deleteAccount() = Unit
     }
 
-    private class FakeAccess(private val redeemError: String? = null, private val admin: Boolean = false) : AccessRepository {
+    private class FakeAccess(
+        private val redeemError: String? = null,
+        private val admin: Boolean = false,
+        private val rows: List<AccountRow> = emptyList(),
+        private val inviteRows: List<InviteRow> = emptyList(),
+    ) : AccessRepository {
         val calls = mutableListOf<String>()
         override suspend fun redeemInvite(code: String, email: String, password: String) {
             calls += "redeem:$code:$email"
@@ -47,12 +52,18 @@ class AccessScreensUiTest {
         override suspend fun openResetLink(tokenHash: String) { calls += "open:$tokenHash" }
         override suspend fun isAdmin() = admin
         override suspend fun ownerActions() = listOf(OwnerAction("reset_link_created", Instant.parse("2026-11-14T10:00:00Z")))
-        override suspend fun createInvite(email: String) = "u"
-        override suspend fun invites() = emptyList<InviteRow>()
-        override suspend fun revokeInvite(id: String) = Unit
-        override suspend fun accounts() = emptyList<AccountRow>()
-        override suspend fun resetLink(userId: String) = "u"
-        override suspend fun setBlocked(userId: String, blocked: Boolean) = Unit
+        override suspend fun createInvite(email: String): String {
+            calls += "invite:$email"
+            return "https://site.test/#invite=CODE"
+        }
+        override suspend fun invites() = inviteRows
+        override suspend fun revokeInvite(id: String) { calls += "revoke:$id" }
+        override suspend fun accounts() = rows
+        override suspend fun resetLink(userId: String): String {
+            calls += "reset:$userId"
+            return "https://site.test/#reset=TOKEN"
+        }
+        override suspend fun setBlocked(userId: String, blocked: Boolean) { calls += "block:$userId:$blocked" }
     }
 
     @Test
@@ -129,5 +140,42 @@ class AccessScreensUiTest {
         setContent { AppTheme { DataAndAccessCard(FakeAccess(admin = true), onOpenAdmin = {}) } }
         waitForIdle()
         onNodeWithText("Открыть админку").assertExists()
+    }
+
+    private val me = AccountRow("me", "owner@example.test", null, null, blocked = false)
+    private val other = AccountRow("u2", "friend@example.test", Instant.parse("2026-11-14T10:00:00Z"), null, blocked = false)
+    private val openInvite = InviteRow("i1", "new@example.test", Instant.parse("2026-11-14T10:00:00Z"), Instant.parse("2099-01-01T00:00:00Z"), null, null)
+
+    @Test
+    fun adminCreatesInviteAndSeesTheLinkOnce() = runComposeUiTest {
+        val access = FakeAccess(rows = listOf(me))
+        setContent { AppTheme { AdminScreen(access, myUserId = "me", onBack = null) } }
+        onNodeWithTag(AdminTags.INVITE_EMAIL).performTextInput(" new@example.test ")
+        onNodeWithTag(AdminTags.INVITE_CREATE).performClick()
+        waitForIdle()
+        assertEquals(listOf("invite:new@example.test"), access.calls)
+        onNodeWithTag(AdminTags.LINK).assertTextEquals("https://site.test/#invite=CODE")
+    }
+
+    @Test
+    fun adminCannotActOnSelfAndConfirmsBeforeResetAndBlock() = runComposeUiTest {
+        val access = FakeAccess(rows = listOf(me, other), inviteRows = listOf(openInvite))
+        setContent { AppTheme { AdminScreen(access, myUserId = "me", onBack = null) } }
+        waitForIdle()
+        onNodeWithText("это ты").assertExists()
+        onNodeWithText("Ссылка для входа").performClick()
+        waitForIdle()
+        assertEquals(emptyList(), access.calls)
+        onNodeWithText("Создать ссылку").performClick()
+        waitForIdle()
+        onNodeWithTag(AdminTags.LINK).assertTextEquals("https://site.test/#reset=TOKEN")
+        onNodeWithText("Заблокировать").performClick()
+        waitForIdle()
+        onNodeWithText("Заблокировать friend@example.test?").assertExists()
+        onNodeWithText("Отмена").performClick()
+        waitForIdle()
+        onNodeWithText("Отозвать").performClick()
+        waitForIdle()
+        assertEquals(listOf("reset:u2", "revoke:i1"), access.calls)
     }
 }
