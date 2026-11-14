@@ -33,9 +33,17 @@ SQL
 
 psql "$DB_URL" -q -v ON_ERROR_STOP=1 -At -f tools/backup/counts.sql > "$dump/restored_counts.txt"
 
-if ! diff -q "$dump/counts.txt" "$dump/restored_counts.txt" >/dev/null; then
-    echo "::error::Восстановленный дамп не совпадает с продом по числу строк. Таблицы:"
-    diff "$dump/counts.txt" "$dump/restored_counts.txt" | grep '^[<>]' | awk '{print $2}' | sort -u
-    exit 1
-fi
-echo "Восстановление проверено: таблиц $(wc -l < "$dump/counts.txt"), числа строк совпали"
+python3 - "$dump/counts.txt" "$dump/restored_counts.txt" <<'PY'
+import sys
+def load(path):
+    return dict(line.rsplit(" ", 1) for line in open(path).read().splitlines() if line.strip())
+prod, restored = load(sys.argv[1]), load(sys.argv[2])
+bad = sorted(t for t in prod if restored.get(t) != prod[t])
+bad += sorted(t for t in restored if t not in prod and restored[t] != "0")
+if bad:
+    print("::error::Восстановленный дамп не совпадает с продом по числу строк. Таблицы:")
+    print("\n".join(bad))
+    sys.exit(1)
+extra = sorted(t for t in restored if t not in prod)
+print(f"Восстановление проверено: таблиц {len(prod)}, числа строк совпали" + (f"; новых пустых таблиц из миграций: {len(extra)}" if extra else ""))
+PY
