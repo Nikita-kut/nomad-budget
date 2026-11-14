@@ -648,6 +648,49 @@ class RetryTest(unittest.TestCase):
         self.assertEqual(1, len(calls))
 
 
+class BlockedUsersTest(unittest.TestCase):
+    def test_watches_of_blocked_users_are_dropped(self):
+        watches = [{"id": "w1", "user_id": "u1"}, {"id": "w2", "user_id": "u2"}]
+        self.assertEqual([{"id": "w2", "user_id": "u2"}], bw.without_blocked(watches, {"u1"}))
+
+    def test_blocked_users_read_from_account_blocks(self):
+        class Db:
+            def select(self, table, query=""):
+                return [{"user_id": "u1"}] if table == "account_blocks" else []
+        self.assertEqual({"u1"}, bw.blocked_users(Db()))
+
+    def test_missing_blocks_table_blocks_nobody(self):
+        class Db:
+            def select(self, table, query=""):
+                raise RuntimeError("404")
+        self.assertEqual(set(), bw.blocked_users(Db()))
+
+    def test_blocked_user_cannot_subscribe_by_link(self):
+        sent = []
+
+        class Db:
+            inserted = []
+
+            def select(self, table, query=""):
+                if table == "rate_watches":
+                    return [{"id": "w1", "user_id": "u1", "from_currency": "RUB", "to_currency": "USD"}]
+                if table == "account_blocks":
+                    return [{"user_id": "u1"}]
+                return []
+
+            def insert(self, table, row, prefer=""):
+                self.inserted.append(table)
+
+        class Tg:
+            def send(self, chat_id, text):
+                sent.append(text)
+
+        db = Db()
+        bw.handle_command(db, Tg(), {"id": 5, "first_name": "X"}, "/start code")
+        self.assertEqual([], db.inserted)
+        self.assertTrue(sent and sent[0].startswith("Ссылка не подошла"))
+
+
 class FakeDb:
     def __init__(self):
         self.upserts = []

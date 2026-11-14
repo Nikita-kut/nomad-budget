@@ -16,7 +16,7 @@ const HOUR_MS = 3_600_000;
 
 type Chat = { id: number; first_name?: string; username?: string; title?: string };
 type WatchState = { now_text?: string; now_widget?: string; now_caption?: string; widgets_ok?: boolean };
-type Watch = { id: string; from_currency: string; to_currency: string; state?: WatchState };
+type Watch = { id: string; user_id?: string; from_currency: string; to_currency: string; state?: WatchState };
 type Answer = { text: string; widget?: { html: string; caption: string } };
 
 async function rest(path: string, init: RequestInit = {}): Promise<unknown> {
@@ -39,8 +39,18 @@ function subscribeText(watch: Watch): string {
     "Курс сейчас — /rate, отписаться — /stop";
 }
 
+async function isBlocked(userId: string | undefined): Promise<boolean> {
+  if (!userId) return false;
+  const rows = await rest(`account_blocks?select=user_id&user_id=eq.${encodeURIComponent(userId)}`) as unknown[];
+  return rows.length > 0;
+}
+
 async function nowAnswer(chatId: number): Promise<Answer> {
-  const rows = await rest(`telegram_subscribers?select=rate_watches(state)&chat_id=eq.${chatId}`) as { rate_watches?: Watch }[];
+  const all = await rest(`telegram_subscribers?select=rate_watches(user_id,state)&chat_id=eq.${chatId}`) as { rate_watches?: Watch }[];
+  const rows = [];
+  for (const row of all) {
+    if (!(await isBlocked(row.rate_watches?.user_id))) rows.push(row);
+  }
   if (rows.length === 0) return { text: NOT_SUBSCRIBED_TEXT };
   const states = rows.map((row) => row.rate_watches?.state).filter((state): state is WatchState => !!state);
   const texts = states.map((state) => state.now_text).filter((text): text is string => !!text);
@@ -53,9 +63,9 @@ async function nowAnswer(chatId: number): Promise<Answer> {
 }
 
 async function subscribe(chat: Chat, code: string): Promise<string> {
-  const watches = await rest(`rate_watches?select=id,from_currency,to_currency,state&link_code=eq.${encodeURIComponent(code)}&limit=1`) as Watch[];
+  const watches = await rest(`rate_watches?select=id,user_id,from_currency,to_currency,state&link_code=eq.${encodeURIComponent(code)}&limit=1`) as Watch[];
   const watch = watches[0];
-  if (!watch) return BAD_LINK_TEXT;
+  if (!watch || await isBlocked(watch.user_id)) return BAD_LINK_TEXT;
   const title = (chat.first_name ?? chat.username ?? chat.title ?? "").slice(0, TITLE_LIMIT) || null;
   await rest("telegram_subscribers?on_conflict=watch_id,chat_id", {
     method: "POST",

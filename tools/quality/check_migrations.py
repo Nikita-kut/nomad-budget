@@ -12,7 +12,7 @@ DESTRUCTIVE = [
     (re.compile(r"\bdrop\s+table\b", re.I), "drop table"),
     (re.compile(r"\bdrop\s+column\b", re.I), "drop column"),
     (re.compile(r"\bdrop\s+schema\b", re.I), "drop schema"),
-    (re.compile(r"\btruncate\b", re.I), "truncate"),
+    (re.compile(r"^\s*truncate\b", re.I), "truncate"),
     (re.compile(r"\balter\s+column\s+\S+\s+(set\s+data\s+)?type\b", re.I), "смена типа колонки"),
     (re.compile(r"\bdisable\s+row\s+level\s+security\b", re.I), "выключение RLS"),
 ]

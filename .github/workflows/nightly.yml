@@ -37,4 +37,6 @@ jobs:
           export STAGING_TEST_PASSWORD
           python3 tools/staging/reset.py
           python3 tools/staging/smoke.py
+          API_URL="$STAGING_SUPABASE_URL" ANON_KEY="$STAGING_SUPABASE_KEY" ADMIN_EMAIL=admin@example.test ADMIN_PASSWORD="$STAGING_TEST_PASSWORD" python3 tools/quality/access_e2e.py
+          python3 tools/staging/reset.py
           PROBE_URL="$STAGING_SUPABASE_URL" PROBE_KEY="$STAGING_SUPABASE_KEY" PROBE_STRICT=1 python3 tools/quality/prod_probe.py

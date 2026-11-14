@@ -37,6 +37,11 @@ jobs:
           set -euo pipefail
           supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
           supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+      - name: Edge Functions to staging
+        run: |
+          set -euo pipefail
+          supabase secrets set --project-ref "$PROJECT_REF" SITE_URL=https://nikita-kut.github.io/nomad-budget-staging/
+          supabase functions deploy redeem-invite admin --project-ref "$PROJECT_REF"
 
   web:
     needs: db
