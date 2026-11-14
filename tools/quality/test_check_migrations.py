@@ -48,7 +48,7 @@ class MigrationGuardTest(unittest.TestCase):
 
     def test_comment_and_constraint_drop_are_not_destructive(self):
         path = "supabase/migrations/0023_c.sql"
-        sql = "-- drop table x\n/* truncate y */\nalter table public.x drop constraint x_fkey;\ndelete from public.x where id = (select 1);"
+        sql = "-- drop table x\n/* truncate y */\nalter table public.x drop constraint x_fkey;\nrevoke insert, update, delete, truncate on public.x from anon;\ndelete from public.x where id = (select 1);"
         self.assertEqual([], run([("A", path)], {path: sql}))
 
     def test_owner_bound_references_migration_is_not_destructive(self):
