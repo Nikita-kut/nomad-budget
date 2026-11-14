@@ -42,6 +42,10 @@ import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.IncomeDaysEditor
 import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
+import ru.nomadbudget.presentation.access.DataAndAccessCard
+import ru.nomadbudget.presentation.access.MIN_PASSWORD
+import ru.nomadbudget.domain.repository.AccessRepository
+import org.koin.compose.koinInject
 import ru.nomadbudget.presentation.components.StartDayPicker
 import ru.nomadbudget.presentation.components.TrashIconButton
 import ru.nomadbudget.presentation.components.Ui
@@ -74,7 +78,9 @@ fun SettingsScreen(
     onChangePassword: (String) -> Unit,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
+    onOpenAdmin: () -> Unit = {},
 ) {
+    val access = koinInject<AccessRepository>()
     val settings = state.settings
     var pendingStartDay by remember { mutableStateOf<Int?>(null) }
     var incomeDays by remember(settings.incomeDays) { mutableStateOf(settings.incomeDays.toSet()) }
@@ -207,6 +213,9 @@ fun SettingsScreen(
                 }
             }
         }
+
+        item { SectionTitle("Данные и доступ") }
+        item { DataAndAccessCard(access, onOpenAdmin) }
 
         item { SectionTitle("Аккаунт", hint = platformName()) }
         item {
@@ -374,7 +383,6 @@ private fun themeLabel(mode: ThemeMode): String = when (mode) {
 
 private fun formatReturn(value: Double): String = if (value == 0.0) "без доходности" else "${MoneyFormat.formatPercentValue(value)} годовых"
 
-private const val MIN_PASSWORD = 8
 private const val DELETE_WORD = "УДАЛИТЬ"
 
 @Composable

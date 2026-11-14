@@ -39,7 +39,12 @@ import ru.nomadbudget.domain.model.Subcategory
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.model.UserSettings
 import ru.nomadbudget.domain.repository.AccountRepository
+import ru.nomadbudget.domain.repository.AccessException
+import ru.nomadbudget.domain.repository.AccessRepository
+import ru.nomadbudget.domain.repository.AccountRow
 import ru.nomadbudget.domain.repository.AuthRepository
+import ru.nomadbudget.domain.repository.InviteRow
+import ru.nomadbudget.domain.repository.OwnerAction
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BankRateWatchRepository
@@ -75,6 +80,7 @@ val demoModule = module {
         }
     }
     single<AuthRepository> { DemoAuthRepository() }
+    single<AccessRepository> { DemoAccessRepository }
     single<CurrencyRepository> { DemoCurrencyRepository(get()) }
     single<AccountRepository> { DemoAccountRepository(get()) }
     single<CategoryRepository> { DemoCategoryRepository(get()) }
@@ -392,4 +398,18 @@ private class DemoCapitalRepository(private val db: DemoDatabase) : ru.nomadbudg
     override suspend fun deleteGoal(id: String) {
         db.capitalGoals.removeAll { it.id == id }
     }
+}
+
+object DemoAccessRepository : AccessRepository {
+    private fun unavailable(): Nothing = throw AccessException("В демо недоступно")
+    override suspend fun redeemInvite(code: String, email: String, password: String) = unavailable()
+    override suspend fun openResetLink(tokenHash: String) = unavailable()
+    override suspend fun isAdmin(): Boolean = false
+    override suspend fun ownerActions(): List<OwnerAction> = emptyList()
+    override suspend fun createInvite(email: String): String = unavailable()
+    override suspend fun invites(): List<InviteRow> = emptyList()
+    override suspend fun revokeInvite(id: String) = unavailable()
+    override suspend fun accounts(): List<AccountRow> = emptyList()
+    override suspend fun resetLink(userId: String): String = unavailable()
+    override suspend fun setBlocked(userId: String, blocked: Boolean) = unavailable()
 }

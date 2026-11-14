@@ -67,6 +67,9 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.getKoin
+import org.koin.compose.koinInject
+import ru.nomadbudget.domain.repository.AuthRepository
+import ru.nomadbudget.presentation.access.AdminScreen
 import org.koin.compose.viewmodel.koinViewModel
 import ru.nomadbudget.demo.DemoMode
 import ru.nomadbudget.di.DEVICE_STORE
@@ -134,6 +137,9 @@ object CapitalRoute
 
 @Serializable
 object MoreRoute
+
+@Serializable
+object AdminRoute
 
 @Serializable
 object CategoriesRoute
@@ -482,7 +488,11 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onChangePassword = viewModel::changePassword,
                                     onSignOut = viewModel::signOut,
                                     onDeleteAccount = viewModel::deleteAccount,
+                                    onOpenAdmin = { navController.navigate(AdminRoute) },
                                 )
+                            }
+                            composable<AdminRoute> {
+                                AdminScreen(access = koinInject(), myUserId = koinInject<AuthRepository>().currentUserId, onBack = back)
                             }
                             composable<CategoriesRoute> {
                                 CategoriesScreen(

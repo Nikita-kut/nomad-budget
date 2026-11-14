@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ru.nomadbudget.core.config.AppConfig
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -84,9 +85,18 @@ fun LoginScreen(auth: AuthRepository, notice: String? = null) {
             ) {
                 Text(if (busy) "Вход…" else "Войти")
             }
+            Text(
+                ownerContactText(AppConfig.OWNER_CONTACT),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
+
+fun ownerContactText(contact: String): String =
+    "Регистрация — только по приглашению: открой ссылку из него. Нет доступа или забыл пароль — " +
+        if (contact.isBlank()) "напиши владельцу приложения." else "напиши владельцу: $contact."
 
 object LoginTags {
     const val EMAIL = "login.email"

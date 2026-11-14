@@ -32,6 +32,8 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
       - name: Build Wasm distribution
+        env:
+          NOMAD_OWNER_CONTACT: ${{ vars.NOMAD_OWNER_CONTACT }}
         run: ./gradlew :composeApp:wasmJsBrowserDistribution
       - uses: actions/upload-pages-artifact@v5
         with:
