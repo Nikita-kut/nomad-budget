@@ -117,7 +117,7 @@ grant execute on function public.complete_invite(uuid, uuid) to service_role;
 -- Заблокированный теряет доступ к данным сразу, не дожидаясь конца срока токена: проверка на каждый запрос PostgREST.
 create schema if not exists private;
 revoke all on schema private from public;
-grant usage on schema private to anon, authenticated, authenticator;
+grant usage on schema private to anon, authenticated, service_role, authenticator;
 
 create or replace function private.reject_blocked()
 returns void
@@ -133,7 +133,7 @@ begin
 end $$;
 
 revoke execute on function private.reject_blocked() from public;
-grant execute on function private.reject_blocked() to anon, authenticated, authenticator;
+grant execute on function private.reject_blocked() to anon, authenticated, service_role, authenticator;
 
 alter role authenticator set pgrst.db_pre_request = 'private.reject_blocked';
 notify pgrst, 'reload config';

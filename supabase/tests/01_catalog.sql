@@ -79,9 +79,14 @@ begin
         v_fails := v_fails || format('%s: серверную функцию может вызвать пользователь', r.fn);
     end loop;
 
-    if coalesce((select array_to_string(r.rolconfig, ',') from pg_roles r where r.rolname = 'authenticator'), '') not like '%pgrst.db_pre_request=private.reject_blocked%' then
+    if coalesce((select array_to_string(pr.rolconfig, ',') from pg_roles pr where pr.rolname = 'authenticator'), '') not like '%pgrst.db_pre_request=private.reject_blocked%' then
         v_fails := v_fails || 'authenticator: не задан pgrst.db_pre_request — блокировка не действует до конца срока токена'::text;
     end if;
+    for r in select unnest(array['anon', 'authenticated', 'service_role']) as role loop
+        if not has_function_privilege(r.role, 'private.reject_blocked()', 'execute') then
+            v_fails := v_fails || format('%s не может выполнить private.reject_blocked — все запросы этой роли к API упадут', r.role);
+        end if;
+    end loop;
 
     for r in
         select c.relname, c.reloptions from pg_class c join pg_namespace n on n.oid = c.relnamespace

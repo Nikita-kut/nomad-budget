@@ -46,7 +46,9 @@ class Api:
         return self.call("/functions/v1/redeem-invite", "POST", {"code": code, "email": email, "password": password})
 
 
-def param(url: str, name: str) -> str:
+def param(url: object, name: str) -> str:
+    if not isinstance(url, str):
+        return ""
     parsed = urllib.parse.urlparse(url)
     if parsed.query:
         raise ValueError("код в query попадёт в логи сайта, нужен фрагмент #")
@@ -76,9 +78,12 @@ def main() -> int:
     check(status == 401, f"A7 админ-функция без входа отвечает {status}, ожидался 401")
 
     new_email = f"new-{run}@{DOMAIN}"
+    status, body = api.call("/rest/v1/currencies?select=code&limit=1", token=admin_token)
+    check(status == 200, f"обычный запрос к API после проверки блокировки не проходит ({status} {body})")
+
     status, invite = api.admin(admin_token, action="invite_create", email=new_email.upper())
     check(status == 200 and isinstance(invite, dict) and "url" in invite, f"A6 приглашение не создано ({status})")
-    code = param(invite["url"], "invite") if isinstance(invite, dict) and "url" in invite else ""
+    code = param(invite.get("url") if isinstance(invite, dict) else None, "invite")
 
     status, _ = api.redeem(code, f"other-{run}@{DOMAIN}", password)
     check(status == 400, f"A6 приглашение принято с чужой почтой ({status})")
@@ -102,7 +107,7 @@ def main() -> int:
 
     race_email = f"race-{run}@{DOMAIN}"
     status, race = api.admin(admin_token, action="invite_create", email=race_email)
-    race_code = param(race["url"], "invite") if isinstance(race, dict) and "url" in race else ""
+    race_code = param(race.get("url") if isinstance(race, dict) else None, "invite")
     with ThreadPoolExecutor(max_workers=10) as pool:
         results = list(pool.map(lambda _: api.redeem(race_code, race_email, password)[0], range(10)))
     check(results.count(200) == 1, f"A6 10 параллельных погашений: успешных {results.count(200)}, ожидалось 1")
@@ -112,7 +117,7 @@ def main() -> int:
     _, invites = api.admin(admin_token, action="invite_list")
     gone_id = next((i["id"] for i in invites if i["email"] == gone_email), None) if isinstance(invites, list) else None
     api.admin(admin_token, action="invite_revoke", id=gone_id)
-    status, _ = api.redeem(param(gone["url"], "invite"), gone_email, password)
+    status, _ = api.redeem(param(gone.get("url") if isinstance(gone, dict) else None, "invite"), gone_email, password)
     check(status == 400, f"A6 отозванное приглашение погашено ({status})")
 
     status, users = api.admin(admin_token, action="users_list")
@@ -123,7 +128,7 @@ def main() -> int:
 
     if new_user and user_token:
         status, link = api.admin(admin_token, action="reset_link", user_id=new_user["id"])
-        token_hash = param(link["url"], "reset") if isinstance(link, dict) and "url" in link else ""
+        token_hash = param(link.get("url") if isinstance(link, dict) else None, "reset")
         status, verified = api.call("/auth/v1/verify", "POST", {"type": "recovery", "token_hash": token_hash})
         check(status == 200 and isinstance(verified, dict) and verified.get("access_token"), f"A11 ссылка сброса не сработала ({status})")
         status, _ = api.call("/auth/v1/verify", "POST", {"type": "recovery", "token_hash": token_hash})
