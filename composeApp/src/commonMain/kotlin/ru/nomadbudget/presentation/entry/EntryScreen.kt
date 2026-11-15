@@ -249,7 +249,7 @@ fun EntryScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(AppIcons.ArrowLeft, contentDescription = "Назад") }
                     Text("Новая запись", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onOpenExchange) { Text("Обмен валюты") }
+                    if (FeatureGate.isOn(Feature.CURRENCIES_EXCHANGE)) TextButton(onClick = onOpenExchange) { Text("Обмен валюты") }
                     if (form.isDirty) TextButton(onClick = form::clear) { Text("Очистить") }
                 }
             }

@@ -42,6 +42,10 @@ fun moduleData(module: AppModule, state: HomeState): String? = when (module) {
     AppModule.INBOX -> state.drafts.takeIf { it.isNotEmpty() }?.let { "заметок во «Входящих»: ${it.size}" }
 }
 
+private val PLAN_MODULES = setOf(AppModule.DEBTS, AppModule.FUNDS, AppModule.CUSHION)
+
+private fun requiresClosureOf(module: AppModule): Set<AppModule> = ru.nomadbudget.features.requiresClosure(module)
+
 object ModulesTags {
     fun module(module: AppModule) = "modules.${module.key}"
     fun block(feature: Feature) = "modules.block.${feature.key}"
@@ -85,7 +89,10 @@ fun ModulesScreen(
                             Switch(
                                 checked = on,
                                 onCheckedChange = { turnOn ->
-                                    val data = moduleData(module, state)
+                                    val data = (listOf(module) + AppModule.entries.filter { module in requiresClosureOf(it) && it in enabled })
+                                        .mapNotNull { m -> moduleData(m, state)?.let { "${m.title}: $it" } }
+                                        .joinToString("; ")
+                                        .ifEmpty { null }
                                     if (!turnOn && data != null) confirmOff = module to data else onSave(withModule(modulesOff, module, turnOn), blocksOff)
                                 },
                                 modifier = Modifier.testTag(ModulesTags.module(module)),
@@ -114,7 +121,8 @@ fun ModulesScreen(
     confirmOff?.let { (module, data) ->
         ConfirmDialog(
             title = "Выключить «${module.title}»?",
-            text = "В модуле есть данные ($data). Они не удалятся и продолжат участвовать в расчётах: в плане появится строка «Скрытые модули». " +
+            text = "В модуле есть данные ($data). Они не удалятся и продолжат участвовать в расчётах" +
+                (if (module in PLAN_MODULES) ": в плане появится строка «Скрытые модули». " else ". ") +
                 (AppModule.entries.filter { module in it.requires }.takeIf { it.isNotEmpty() }?.let { "Вместе с ним выключится: ${it.joinToString { m -> m.title }}." } ?: ""),
             confirmText = "Выключить",
             onDismiss = { confirmOff = null },

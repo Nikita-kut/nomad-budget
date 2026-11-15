@@ -704,18 +704,27 @@ class TicketNotifyTest(unittest.TestCase):
 
 class FeatureStageTest(unittest.TestCase):
     class Db:
-        def __init__(self, stage, admins=(), modules_off=None):
+        def __init__(self, stage, admins=(), modules_off=None, blocks_off=None, rates_stage=None, broken=None):
             self.stage = stage
+            self.rates_stage = rates_stage
             self.admins = admins
             self.modules_off = modules_off or {}
+            self.blocks_off = blocks_off or {}
+            self.broken = broken
 
         def select(self, table, query=""):
+            if table == self.broken:
+                raise RuntimeError("500")
             if table == "feature_stages":
-                return [{"stage": self.stage}] if self.stage else []
+                rows = [{"key": "bank_watch.rates", "stage": self.stage}] if self.stage else []
+                if self.rates_stage:
+                    rows.append({"key": "currencies.rates", "stage": self.rates_stage})
+                return rows
             if table == "app_admins":
                 return [{"user_id": a} for a in self.admins]
             if table == "user_settings":
-                return [{"user_id": u, "modules_off": m} for u, m in self.modules_off.items()]
+                users = set(self.modules_off) | set(self.blocks_off)
+                return [{"user_id": u, "modules_off": self.modules_off.get(u, []), "blocks_off": self.blocks_off.get(u, [])} for u in users]
             return []
 
     watches = [{"id": "w1", "user_id": "owner"}, {"id": "w2", "user_id": "friend"}]
@@ -732,6 +741,15 @@ class FeatureStageTest(unittest.TestCase):
     def test_user_who_turned_the_module_off_gets_nothing(self):
         db = self.Db("all", modules_off={"friend": ["currencies"], "owner": []})
         self.assertEqual({"owner"}, bw.allowed_watch_users(db, self.watches))
+
+    def test_hidden_rates_block_or_screen_stops_messages(self):
+        db = self.Db("all", blocks_off={"friend": ["currencies.rates"]})
+        self.assertEqual({"owner"}, bw.allowed_watch_users(db, self.watches))
+        self.assertEqual(set(), bw.allowed_watch_users(self.Db("all", rates_stage="off"), self.watches))
+
+    def test_failure_on_admins_or_settings_does_not_crash(self):
+        self.assertIsNone(bw.allowed_watch_users(self.Db("owner", broken="app_admins"), self.watches))
+        self.assertIsNone(bw.allowed_watch_users(self.Db("all", broken="user_settings"), self.watches))
 
     def test_missing_table_keeps_old_behaviour(self):
         class Broken:

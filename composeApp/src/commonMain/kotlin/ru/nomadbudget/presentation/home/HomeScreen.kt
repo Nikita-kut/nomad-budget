@@ -240,7 +240,12 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
 
     val featureRepository = koinInject<FeatureRepository>()
     var featureAccess by remember { mutableStateOf(featureRepository.cached()) }
-    LaunchedEffect(Unit) { runCatching { featureAccess = featureRepository.load() } }
+    var featureReload by remember { mutableStateOf(0) }
+    LifecycleResumeEffect(featureRepository) {
+        featureReload++
+        onPauseOrDispose {}
+    }
+    LaunchedEffect(featureReload) { runCatching { featureAccess = featureRepository.load() } }
     val features = FeatureState(
         stages = featureAccess?.stages ?: emptyMap(),
         isAdmin = featureAccess?.isAdmin ?: false,
@@ -273,8 +278,8 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
     val ticketLauncher = remember { TicketLauncher() }
     val ticketRoute by navController.currentBackStackEntryAsState()
     SideEffect { FeatureGate.state = features }
-    LaunchedEffect(features, featureAccess) {
-        if (featureAccess == null) return@LaunchedEffect
+    val currentRoute by navController.currentBackStackEntryAsState()
+    LaunchedEffect(features, currentRoute?.destination?.route) {
         val hidden = allTabs.firstOrNull { tab -> tab.feature != null && !features.isOn(tab.feature) && tab.isSelected(navController) }
         if (hidden != null) navController.switchTo(MonthRoute)
     }
@@ -434,6 +439,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onOpenAccounts = { navController.switchTo(AccountsRoute) },
                                     twoColumns = twoColumns,
                                     onOpenCapital = { navController.switchTo(CapitalRoute) },
+                                    onOpenModules = { navController.navigate(ModulesRoute) },
                                 )
                             }
                             composable<EntryRoute> {
@@ -652,8 +658,8 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
                             HeaderAmount("Всего", state.totalBase, emphasize = true)
                             HeaderAmount("На жизнь", state.operationalBase)
-                            if (state.fundAccounts.isNotEmpty() && FeatureGate.isOn(Feature.FUNDS_HEADER)) HeaderAmount("Копилки", state.fundsBalance)
-                            if (FeatureGate.isOn(Feature.CUSHION_HEADER)) HeaderAmount("Подушка", state.savingsBalance)
+                            if (state.fundAccounts.isNotEmpty() && (FeatureGate.isOn(Feature.FUNDS_HEADER) || !state.fundsBalance.isZero)) HeaderAmount("Копилки", state.fundsBalance)
+                            if (FeatureGate.isOn(Feature.CUSHION_HEADER) || !state.savingsBalance.isZero) HeaderAmount("Подушка", state.savingsBalance)
                         }
                     }
                     PeriodSwitcher(state, viewModel)

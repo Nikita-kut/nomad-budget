@@ -1011,29 +1011,32 @@ def blocked_users(db: Supabase) -> set[str]:
         return set()
 
 
-BANK_WATCH_STAGE_KEY = "bank_watch.rates"
+BANK_WATCH_STAGE_KEYS = ("bank_watch.rates", "currencies.rates")
 BANK_WATCH_MODULES = {"bank_watch", "currencies"}
 
 
 def allowed_watch_users(db: Supabase, watches: list[dict]) -> set[str] | None:
     try:
-        stage_rows = db.select("feature_stages", f"select=stage&key=eq.{BANK_WATCH_STAGE_KEY}")
-    except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
+        keys = ",".join(BANK_WATCH_STAGE_KEYS)
+        stages = {row["key"]: row["stage"] for row in db.select("feature_stages", f"select=key,stage&key=in.({keys})")}
+        effective = [stages.get(key, "all") for key in BANK_WATCH_STAGE_KEYS]
+        users = {str(w.get("user_id")) for w in watches}
+        if "off" in effective:
+            return set()
+        if "owner" in effective:
+            admins = {str(r["user_id"]) for r in db.select("app_admins", "select=user_id")}
+            users &= admins
+        ids = sorted(users)
+        for start in range(0, len(ids), 100):
+            batch = ",".join(ids[start:start + 100])
+            for row in db.select("user_settings", f"select=user_id,modules_off,blocks_off&user_id=in.({batch})"):
+                hidden = BANK_WATCH_MODULES & set(row.get("modules_off") or []) or set(BANK_WATCH_STAGE_KEYS) & set(row.get("blocks_off") or [])
+                if hidden:
+                    users.discard(str(row["user_id"]))
+        return users
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError, KeyError) as e:
         print(f"feature stages unavailable: {type(e).__name__}", file=sys.stderr)
         return None
-    stage = stage_rows[0]["stage"] if stage_rows else "all"
-    users = {str(w.get("user_id")) for w in watches}
-    if stage == "off":
-        return set()
-    if stage == "owner":
-        admins = {str(r["user_id"]) for r in db.select("app_admins", "select=user_id")}
-        users &= admins
-    if users:
-        ids = ",".join(sorted(users))
-        rows = db.select("user_settings", f"select=user_id,modules_off&user_id=in.({ids})")
-        off = {str(r["user_id"]) for r in rows if BANK_WATCH_MODULES & set(r.get("modules_off") or [])}
-        users -= off
-    return users
 
 
 def only_allowed(watches: list[dict], allowed: set[str] | None) -> list[dict]:

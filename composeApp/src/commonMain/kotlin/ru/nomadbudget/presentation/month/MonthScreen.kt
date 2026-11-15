@@ -581,7 +581,7 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
             subColor = if (month.savingsProgress == SavingsProgress.MISSED) colors.bad else null,
         )
     }
-    if (month.debts.isNotEmpty() && FeatureGate.isOn(Feature.DEBTS_MONTH_TILE)) {
+    if (month.debts.isNotEmpty() && (FeatureGate.isOn(Feature.DEBTS_MONTH_TILE) || month.debtsOverdue)) {
         val next = month.nextObligation
         val overdue = month.debtsOverdue
         tiles += { m ->

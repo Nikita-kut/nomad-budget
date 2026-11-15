@@ -38,8 +38,12 @@ insert into public.feature_stages (key, stage) values
     ('tickets.button', 'all');
 
 alter table public.user_settings
-    add column modules_off text[] not null default '{}' check (cardinality(modules_off) <= 32),
-    add column blocks_off text[] not null default '{}' check (cardinality(blocks_off) <= 128);
+    add column modules_off text[] not null default '{}' check (
+        cardinality(modules_off) <= 32 and array_to_string(modules_off, ',') ~ '^([a-z_]{1,32}(,|$))*$'
+    ),
+    add column blocks_off text[] not null default '{}' check (
+        cardinality(blocks_off) <= 128 and array_to_string(blocks_off, ',') ~ '^([a-z_]{1,32}\.[a-z_]{1,32}(,|$))*$'
+    );
 
 comment on column public.user_settings.modules_off is 'Модули, которые пользователь выключил (ключи из реестра Features.kt). Пусто — всё включено';
 comment on column public.user_settings.blocks_off is 'Блоки внутри включённых модулей, которые пользователь скрыл';

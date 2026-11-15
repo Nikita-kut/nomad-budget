@@ -51,7 +51,8 @@ class FeaturesTest {
                                 modulesOff = off,
                                 blocksOff = if (hidden) setOf(feature.key) else emptySet(),
                             )
-                            val stageOk = stage == Stage.ALL || (stage == Stage.OWNER && admin)
+                            val effective = stage ?: feature.defaultStage
+                            val stageOk = effective == Stage.ALL || (effective == Stage.OWNER && admin)
                             val moduleOk = feature.module == null || feature.module.key !in off
                             assertEquals(stageOk && moduleOk && !hidden, state.isOn(feature), "$feature $stage admin=$admin hidden=$hidden off=$off")
                         }
@@ -62,8 +63,13 @@ class FeaturesTest {
     }
 
     @Test
-    fun unknownStageHidesAndOwnerStageHidesFromOthers() {
-        assertFalse(FeatureState().isOn(Feature.CHARTS_SCREEN))
+    fun withoutServerDataReleasedBlocksStayVisible() {
+        val offline = FeatureState()
+        Feature.entries.filter { it.defaultStage == Stage.ALL }.forEach { assertTrue(offline.isOn(it), it.key) }
+    }
+
+    @Test
+    fun unknownStageFallsBackToDefaultAndOwnerStageHidesFromOthers() {
         val owner = FeatureState(stages = mapOf(Feature.CHARTS_SCREEN.key to Stage.OWNER))
         assertFalse(owner.isOn(Feature.CHARTS_SCREEN))
         assertTrue(owner.copy(isAdmin = true).isOn(Feature.CHARTS_SCREEN))

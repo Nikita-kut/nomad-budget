@@ -66,6 +66,14 @@ class MigrationGuardTest(unittest.TestCase):
         self.assertEqual(1, len(run([("A", path)], {path: "insert into public.feature_stages (key, stage) values ('x.y', 'all');"})))
         self.assertEqual(1, len(run([("A", path)], {path: "update public.feature_stages set stage = 'off' where key = 'x.y';"})))
         self.assertEqual([], run([("A", path)], {path: "insert into public.feature_stages (key, stage) values ('x.y', 'all');"}, labels=["feature-stage-ok"]))
+        for sql in [
+            "insert into feature_stages (key, stage) values ('x.y', 'all');",
+            'insert into "public"."feature_stages" (key, stage) values (\'x.y\', \'off\');',
+            "insert into public.feature_stages (key) values ('x.y') on conflict (key) do update set stage = 'all';",
+            "alter table public.feature_stages alter column stage set default 'all';",
+        ]:
+            with self.subTest(sql=sql):
+                self.assertEqual(1, len(run([("A", path)], {path: sql})))
 
     def test_files_outside_migrations_are_ignored(self):
         self.assertEqual([], run([("M", "supabase/tests/02_isolation.sql")], {}))

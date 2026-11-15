@@ -89,6 +89,7 @@ fun PlanningScreen(
     onOpenAccounts: () -> Unit = {},
     twoColumns: Boolean = false,
     onOpenCapital: () -> Unit = {},
+    onOpenModules: () -> Unit = {},
     onSetEarlyPlan: (String, Money, Boolean) -> Unit = { _, _, _ -> },
 ) {
     var editing by remember { mutableStateOf<Category?>(null) }
@@ -114,7 +115,7 @@ fun PlanningScreen(
         }
         item { PlanSummaryTiles(month, state.period, twoColumns, state.carryOverProjection) }
         item { SectionTitle("Куда распределено", hint = "от ${MoneyFormat.format(month.available, false)} на месяц") }
-        item { AllocationCard(month) }
+        item { AllocationCard(month, onOpenModules) }
         item {
             if (!month.hasPlan) {
                 PrimaryButton(onClick = onCopyPlan, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) { Text("Скопировать план с прошлого месяца") }
@@ -264,43 +265,67 @@ private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean, p
     )
 }
 
-fun hiddenAllocation(month: MonthModel, zero: Money): Pair<String, Money>? =
-    hiddenAllocation(month.debtsPlanned, month.fundsPlanned, month.savingsTarget ?: zero, zero)
+enum class AllocationKind { DEBTS, FUNDS, ENVELOPES, SAVINGS, HIDDEN, REST }
 
-fun hiddenAllocation(debts: Money, funds: Money, savings: Money, zero: Money): Pair<String, Money>? {
+data class AllocationPart(val kind: AllocationKind, val label: String, val money: Money)
+
+fun allocationParts(debts: Money, funds: Money, envelopes: Money, savings: Money, unallocated: Money, debtsLabel: String = "Кредиты"): List<AllocationPart> {
+    val zero = Money.zero(envelopes.currency)
     val hidden = listOfNotNull(
         ("кредиты" to debts).takeUnless { FeatureGate.isOn(Feature.DEBTS_PLAN) },
         ("копилки" to funds).takeUnless { FeatureGate.isOn(Feature.FUNDS_PLAN) },
         ("«Себе»" to savings).takeUnless { FeatureGate.isOn(Feature.CUSHION_PLAN) },
     ).filter { it.second.minor > 0L }
-    if (hidden.isEmpty()) return null
-    return hidden.joinToString(", ") { it.first } to hidden.fold(zero) { sum, part -> sum + part.second }
+    val negative = unallocated.isNegative
+    return listOfNotNull(
+        AllocationPart(AllocationKind.DEBTS, debtsLabel, debts).takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
+        AllocationPart(AllocationKind.FUNDS, "Взносы в копилки", funds).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
+        AllocationPart(AllocationKind.ENVELOPES, "Конверты", envelopes),
+        AllocationPart(AllocationKind.SAVINGS, "Себе", savings).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
+        hidden.takeIf { it.isNotEmpty() }?.let { list ->
+            AllocationPart(AllocationKind.HIDDEN, "Скрытые модули: ${list.joinToString(", ") { it.first }}", list.fold(zero) { sum, part -> sum + part.second })
+        },
+        AllocationPart(AllocationKind.REST, if (negative) "Не хватает" else "Не распределено", if (negative) -unallocated else unallocated),
+    ).filter { it.money.minor > 0L }
 }
 
 @Composable
-private fun AllocationCard(month: MonthModel) {
+private fun AllocationCard(month: MonthModel, onOpenModules: () -> Unit) {
     val base = LocalBaseCurrency.current
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
-    val hidden = hiddenAllocation(month, Money.zero(base))
-    val parts = listOfNotNull(
-        Triple(if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки", month.debtsPlanned, MaterialTheme.colorScheme.outline)
-            .takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
-        Triple("Взносы в копилки", month.fundsPlanned, colors.warning).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
-        Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
-        Triple("Себе", month.savingsTarget ?: Money.zero(base), colors.save).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
-        hidden?.let { Triple("Скрытые модули: ${it.first}", it.second, MaterialTheme.colorScheme.outlineVariant) },
-        Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
-    ).filter { it.second.minor > 0L }
+    val outline = MaterialTheme.colorScheme.outline
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
+    val primary = MaterialTheme.colorScheme.primary
+    val parts = allocationParts(
+        debts = month.debtsPlanned,
+        funds = month.fundsPlanned,
+        envelopes = month.flexiblePlanned,
+        savings = month.savingsTarget ?: Money.zero(base),
+        unallocated = month.unallocated,
+        debtsLabel = if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки",
+    ).map { part ->
+        val color = when (part.kind) {
+            AllocationKind.DEBTS -> outline
+            AllocationKind.FUNDS -> colors.warning
+            AllocationKind.ENVELOPES -> primary
+            AllocationKind.SAVINGS -> colors.save
+            AllocationKind.HIDDEN -> outlineVariant
+            AllocationKind.REST -> if (negative) colors.bad else colors.good
+        }
+        Triple(part, part.money, color)
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (month.available.minor > 0L) {
-                SegmentBar(parts.filterNot { negative && it.first == "Не хватает" }.map { it.second to it.third })
+                SegmentBar(parts.filterNot { negative && it.first.kind == AllocationKind.REST }.map { it.second to it.third })
             }
             Column {
-                parts.forEachIndexed { index, (label, money, color) ->
+                parts.forEachIndexed { index, (part, money, color) ->
+                    val label = part.label
                     if (index > 0) HorizontalDivider()
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val rowModifier = if (part.kind == AllocationKind.HIDDEN) Modifier.fillMaxWidth().clickable(onClick = onOpenModules) else Modifier.fillMaxWidth()
+                    Row(modifier = rowModifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
                         Text(label, modifier = Modifier.weight(1f))
                         AmountCell(MoneyFormat.format(money, false), bold = true)
@@ -384,7 +409,7 @@ private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -
                 c.paceMedian?.let { median ->
                     PlanLine("Через 12 мес. «как сейчас»: ${MoneyFormat.formatSigned(median, false)} в месяц, медиана за ${c.paceMonths} мес.", MoneyFormat.format(byFact, false))
                 }
-                TextButton(onClick = onOpenCapital, modifier = Modifier.padding(start = 0.dp)) { Text("Подробнее в «Капитале» →") }
+                if (FeatureGate.isOn(Feature.CAPITAL_SCREEN)) TextButton(onClick = onOpenCapital, modifier = Modifier.padding(start = 0.dp)) { Text("Подробнее в «Капитале» →") }
             }
         }
     }

@@ -9,8 +9,7 @@ from pathlib import Path
 MIGRATION = re.compile(r"^supabase/migrations/(\d{4})_[a-z0-9_]+\.sql$")
 LABEL = "destructive-ok"
 STAGE_LABEL = "feature-stage-ok"
-STAGE_INSERT = re.compile(r"\binsert\s+into\s+public\.feature_stages\b", re.I)
-STAGE_UPDATE = re.compile(r"\bupdate\s+public\.feature_stages\b", re.I)
+STAGE_TOUCH = re.compile(r"\b(insert\s+into|update|alter\s+table)\s+(only\s+)?(\"?public\"?\.)?\"?feature_stages\"?", re.I)
 OPEN_STAGE = re.compile(r"'(all|off)'", re.I)
 DESTRUCTIVE = [
     (re.compile(r"\bdrop\s+table\b", re.I), "drop table"),
@@ -51,7 +50,7 @@ def destructive(sql: str) -> list[str]:
 
 
 def opens_features(sql: str) -> bool:
-    return any((STAGE_INSERT.search(stmt) or STAGE_UPDATE.search(stmt)) and OPEN_STAGE.search(stmt) for stmt in statements(sql))
+    return any(STAGE_TOUCH.search(stmt) and OPEN_STAGE.search(stmt) for stmt in statements(sql))
 
 
 def check(changes: list[tuple[str, str]], existing: list[str], read, labels: set[str]) -> list[str]:

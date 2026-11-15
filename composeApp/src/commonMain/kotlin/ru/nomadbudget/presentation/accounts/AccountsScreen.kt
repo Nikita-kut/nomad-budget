@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.features.AppModule
 import ru.nomadbudget.features.FeatureGate
 import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
@@ -489,7 +490,13 @@ private fun RolePicker(selected: AccountRole, onSelect: (AccountRole) -> Unit) {
             AccountRole.LIFE to ("На жизнь" to "карты и наличные, из них идут обычные траты"),
             AccountRole.FUND to ("Копилка" to "копишь на крупную регулярную трату и платишь её отсюда"),
             AccountRole.CUSHION to ("Подушка" to "запас на чёрный день, переводы сюда — «Себе»"),
-        ).forEach { (role, texts) ->
+        ).filter { (role, _) ->
+            role == selected || when (role) {
+                AccountRole.FUND -> FeatureGate.isOn(AppModule.FUNDS)
+                AccountRole.CUSHION -> FeatureGate.isOn(AppModule.CUSHION)
+                else -> true
+            }
+        }.forEach { (role, texts) ->
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onSelect(role) }.padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,

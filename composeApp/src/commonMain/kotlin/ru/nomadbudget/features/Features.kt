@@ -11,7 +11,7 @@ enum class AppModule(val key: String, val title: String, val description: String
     INBOX("inbox", "Входящие", "быстрые заметки о тратах, которые разбираешь позже"),
 }
 
-enum class Feature(val key: String, val module: AppModule?, val title: String) {
+enum class Feature(val key: String, val module: AppModule?, val title: String, val defaultStage: Stage = Stage.ALL) {
     DEBTS_SCREEN("debts.screen", AppModule.DEBTS, "Экран «Кредиты»"),
     DEBTS_MONTH_TILE("debts.month_tile", AppModule.DEBTS, "Плитка «Осталось по кредитам» в месяце"),
     DEBTS_PLAN("debts.plan", AppModule.DEBTS, "Кредиты в плане"),
@@ -53,10 +53,10 @@ data class FeatureState(
 ) {
     val enabledModules: Set<AppModule> = enabledModules(modulesOff)
 
-    fun stageAllows(feature: Feature): Boolean = when (stages[feature.key]) {
+    fun stageAllows(feature: Feature): Boolean = when (stages[feature.key] ?: feature.defaultStage) {
         Stage.ALL -> true
         Stage.OWNER -> isAdmin
-        Stage.OFF, null -> false
+        Stage.OFF -> false
     }
 
     fun isOn(feature: Feature): Boolean =
