@@ -1,5 +1,7 @@
 package ru.nomadbudget
 
+import ru.nomadbudget.domain.repository.AuthState
+
 sealed interface LaunchLink {
     data class Invite(val code: String) : LaunchLink
     data class Reset(val tokenHash: String) : LaunchLink
@@ -16,5 +18,8 @@ fun parseLaunchFragment(fragment: String): LaunchLink? {
     params["reset"]?.takeIf(CODE::matches)?.let { return LaunchLink.Reset(it) }
     return null
 }
+
+fun LaunchLink?.keptAfter(state: AuthState): LaunchLink? =
+    if (state is AuthState.SignedIn && this is LaunchLink.Invite) null else this
 
 expect fun consumeLaunchLink(): LaunchLink?

@@ -61,7 +61,7 @@ private fun Root() {
     val current = state
     val pending = link
     LaunchedEffect(current, pending) {
-        if (current is AuthState.SignedIn && pending is LaunchLink.Invite) link = null
+        link = pending.keptAfter(current)
     }
     when {
         pending is LaunchLink.Reset && current !is AuthState.Loading ->

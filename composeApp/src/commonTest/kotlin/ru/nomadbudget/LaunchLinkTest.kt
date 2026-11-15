@@ -1,5 +1,6 @@
 package ru.nomadbudget
 
+import ru.nomadbudget.domain.repository.AuthState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -21,5 +22,16 @@ class LaunchLinkTest {
         assertNull(parseLaunchFragment("#invite=short"))
         assertNull(parseLaunchFragment("#invite=<script>alert(1)</script>xxxxxxxx"))
         assertNull(parseLaunchFragment("#other=$code"))
+    }
+
+    @Test
+    fun usedInviteIsForgottenOnceSignedInSoSignOutShowsLogin() {
+        val invite = LaunchLink.Invite(code)
+        val reset = LaunchLink.Reset("pkce_0123456789abcdef0123")
+        assertNull(invite.keptAfter(AuthState.SignedIn("u")))
+        assertEquals(invite, invite.keptAfter(AuthState.SignedOut()))
+        assertEquals(invite, invite.keptAfter(AuthState.Loading))
+        assertEquals(reset, reset.keptAfter(AuthState.SignedIn("u")))
+        assertNull(null.keptAfter(AuthState.SignedIn("u")))
     }
 }
