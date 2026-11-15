@@ -14,6 +14,7 @@ val nomadEnv = providers.gradleProperty("nomad.env").orElse(providers.environmen
 val nomadSupabaseUrl = providers.environmentVariable("NOMAD_SUPABASE_URL").orElse(prodSupabaseUrl)
 val nomadSupabaseKey = providers.environmentVariable("NOMAD_SUPABASE_KEY").orElse(prodSupabaseKey)
 val nomadOwnerContact = providers.environmentVariable("NOMAD_OWNER_CONTACT").orElse("")
+val nomadVersion = providers.gradleProperty("nomad.version").orElse(providers.environmentVariable("NOMAD_VERSION")).orElse("0.0.0")
 
 fun storagePrefix(environment: String): String = if (environment == "prod") "nomad_budget:" else "nomad_budget_$environment:"
 
@@ -24,17 +25,21 @@ val generateAppConfig by tasks.registering {
     val url = nomadSupabaseUrl
     val key = nomadSupabaseKey
     val contact = nomadOwnerContact
+    val version = nomadVersion
     val output = layout.buildDirectory.dir("generated/appConfig/kotlin")
     inputs.property("env", env)
     inputs.property("url", url)
     inputs.property("key", key)
     inputs.property("contact", contact)
+    inputs.property("version", version)
     outputs.dir(output)
     doLast {
         val environment = env.get()
         val supabaseUrl = url.get().trimEnd('/')
         val supabaseKey = key.get()
         val ownerContact = contact.get().trim()
+        val versionName = version.get().removePrefix("v")
+        require(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$").matches(versionName)) { "nomad.version: ожидалась версия вида 0.33.0" }
         require(Regex("^[A-Za-z0-9@._:/+ -]{0,80}$").matches(ownerContact)) { "NOMAD_OWNER_CONTACT: только латиница, цифры и @._:/+-" }
         require(environment in setOf("prod", "staging", "local")) { "nomad.env: prod, staging или local, а не $environment" }
         require(Regex("^https?://[A-Za-z0-9.:-]+$").matches(supabaseUrl)) { "NOMAD_SUPABASE_URL: неверный адрес" }
@@ -59,6 +64,7 @@ val generateAppConfig by tasks.registering {
             |    const val SUPABASE_KEY: String = "$supabaseKey"
             |    const val STORAGE_PREFIX: String = "$prefix"
             |    const val OWNER_CONTACT: String = "$ownerContact"
+            |    const val VERSION_NAME: String = "$versionName"
             |}
             |""".trimMargin(),
         )

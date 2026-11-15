@@ -32,6 +32,9 @@ import ru.nomadbudget.domain.repository.AccessRepository
 import ru.nomadbudget.domain.repository.AccountRow
 import ru.nomadbudget.domain.repository.InviteRow
 import ru.nomadbudget.domain.repository.OwnerAction
+import ru.nomadbudget.domain.repository.Ticket
+import ru.nomadbudget.domain.repository.TicketKind
+import ru.nomadbudget.domain.repository.TicketStatus
 import kotlin.time.Instant
 
 class AccessRepositoryImpl(private val client: SupabaseClient) : AccessRepository {
@@ -87,6 +90,32 @@ class AccessRepositoryImpl(private val client: SupabaseClient) : AccessRepositor
         admin(if (blocked) "block" else "unblock") { put("user_id", userId) }
     }
 
+    override suspend fun tickets(): List<Ticket> =
+        json.decodeFromJsonElement<List<AdminTicketDto>>(admin("tickets_list") {}).map {
+            Ticket(
+                id = it.id,
+                number = it.number,
+                createdAt = Instant.parse(it.createdAt),
+                kind = TicketKind.of(it.kind),
+                body = it.body,
+                screen = it.screen,
+                status = TicketStatus.of(it.status),
+                statusAt = Instant.parse(it.statusAt),
+                email = it.email,
+                tech = it.tech,
+                markX = it.markX,
+                markY = it.markY,
+                screenshotUrl = it.screenshotUrl,
+            )
+        }
+
+    override suspend fun setTicketStatus(id: String, status: TicketStatus) {
+        admin("ticket_status") {
+            put("id", id)
+            put("status", status.id)
+        }
+    }
+
     private suspend fun admin(action: String, fill: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit): JsonElement {
         val token = client.auth.currentAccessTokenOrNull() ?: throw AccessException("Войди снова")
         val body = buildJsonObject {
@@ -113,6 +142,23 @@ class AccessRepositoryImpl(private val client: SupabaseClient) : AccessRepositor
     }
 
     private fun isHumanText(text: String): Boolean = text.any { it in 'а'..'я' || it in 'А'..'Я' }
+
+    @Serializable
+    private data class AdminTicketDto(
+        val id: String,
+        val number: Long,
+        @SerialName("created_at") val createdAt: String,
+        val kind: String,
+        val body: String,
+        val screen: String? = null,
+        @SerialName("mark_x") val markX: Float? = null,
+        @SerialName("mark_y") val markY: Float? = null,
+        val tech: Map<String, String> = emptyMap(),
+        val status: String,
+        @SerialName("status_at") val statusAt: String,
+        val email: String? = null,
+        @SerialName("screenshot_url") val screenshotUrl: String? = null,
+    )
 
     @Serializable
     private data class OwnerActionDto(val action: String, @SerialName("created_at") val createdAt: String)

@@ -45,6 +45,10 @@ import ru.nomadbudget.domain.repository.AccountRow
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.InviteRow
 import ru.nomadbudget.domain.repository.OwnerAction
+import ru.nomadbudget.domain.repository.Ticket
+import ru.nomadbudget.domain.repository.TicketDraft
+import ru.nomadbudget.domain.repository.TicketRepository
+import ru.nomadbudget.domain.repository.TicketStatus
 import ru.nomadbudget.domain.repository.AuthState
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
 import ru.nomadbudget.domain.repository.BankRateWatchRepository
@@ -81,6 +85,7 @@ val demoModule = module {
     }
     single<AuthRepository> { DemoAuthRepository() }
     single<AccessRepository> { DemoAccessRepository }
+    single<TicketRepository> { DemoTicketRepository }
     single<CurrencyRepository> { DemoCurrencyRepository(get()) }
     single<AccountRepository> { DemoAccountRepository(get()) }
     single<CategoryRepository> { DemoCategoryRepository(get()) }
@@ -412,4 +417,11 @@ object DemoAccessRepository : AccessRepository {
     override suspend fun accounts(): List<AccountRow> = emptyList()
     override suspend fun resetLink(userId: String): String = unavailable()
     override suspend fun setBlocked(userId: String, blocked: Boolean) = unavailable()
+    override suspend fun tickets(): List<Ticket> = emptyList()
+    override suspend fun setTicketStatus(id: String, status: TicketStatus) = unavailable()
+}
+
+object DemoTicketRepository : TicketRepository {
+    override suspend fun create(draft: TicketDraft): Long = throw AccessException("В демо обращения не отправляются")
+    override suspend fun mine(): List<Ticket> = emptyList()
 }

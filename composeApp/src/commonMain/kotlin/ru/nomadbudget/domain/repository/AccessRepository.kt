@@ -34,4 +34,6 @@ interface AccessRepository {
     suspend fun accounts(): List<AccountRow>
     suspend fun resetLink(userId: String): String
     suspend fun setBlocked(userId: String, blocked: Boolean)
+    suspend fun tickets(): List<Ticket>
+    suspend fun setTicketStatus(id: String, status: TicketStatus)
 }

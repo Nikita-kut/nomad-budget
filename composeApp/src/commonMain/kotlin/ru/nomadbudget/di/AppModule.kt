@@ -12,6 +12,7 @@ import ru.nomadbudget.data.local.OfflineCache
 import ru.nomadbudget.data.local.PendingQueue
 import ru.nomadbudget.data.local.UserScopedStore
 import ru.nomadbudget.data.repository.AccessRepositoryImpl
+import ru.nomadbudget.data.repository.TicketRepositoryImpl
 import ru.nomadbudget.data.repository.AccountRepositoryImpl
 import ru.nomadbudget.data.repository.AuthRepositoryImpl
 import ru.nomadbudget.data.repository.BalanceCheckRepositoryImpl
@@ -27,6 +28,7 @@ import ru.nomadbudget.data.repository.TransactionRepositoryImpl
 import ru.nomadbudget.data.repository.UserSettingsRepositoryImpl
 import ru.nomadbudget.data.supabase.SupabaseClientFactory
 import ru.nomadbudget.domain.repository.AccessRepository
+import ru.nomadbudget.domain.repository.TicketRepository
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
@@ -54,6 +56,7 @@ val appModule = module {
     single<KeyValueStore>(DEVICE_STORE) { LocalStore() }
     single<AuthRepository> { AuthRepositoryImpl(get()) }
     single<AccessRepository> { AccessRepositoryImpl(get()) }
+    single<TicketRepository> { TicketRepositoryImpl(get()) }
     single<KeyValueStore> {
         val auth = get<AuthRepository>()
         UserScopedStore(get(DEVICE_STORE)) { auth.currentUserId }
