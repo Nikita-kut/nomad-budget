@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -54,6 +53,7 @@ import ru.nomadbudget.domain.repository.TicketRepository
 import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.format.AmountMask
+import ru.nomadbudget.presentation.theme.AppTheme
 
 const val TICKET_BUTTON_KEY = "ticket_button_hidden"
 const val MAX_TICKET_BODY = 2000
@@ -150,14 +150,14 @@ fun TicketHost(
                 onClick = { step = Step.Marking },
                 modifier = Modifier.align(Alignment.BottomEnd).padding(buttonPadding).testTag(TicketTags.BUTTON),
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            ) { Text("?", fontWeight = FontWeight.Bold) }
+            ) { Text("?", fontWeight = FontWeight.SemiBold) }
         }
 
         if (step == Step.Marking) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.18f))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.18f))
                     .testTag(TicketTags.MARK_LAYER)
                     .pointerInput(Unit) {
                         detectTapGestures { tap ->
@@ -212,7 +212,8 @@ fun TicketDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var sent by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
-    val preview = remember(source, blur, mark) { source?.let { composeScreenshot(it, mark, blur) } }
+    val markColor = AppTheme.colors.bad
+    val preview = remember(source, blur, mark, markColor) { source?.let { composeScreenshot(it, mark, blur, markColor) } }
 
     if (sent != null) {
         AlertDialog(

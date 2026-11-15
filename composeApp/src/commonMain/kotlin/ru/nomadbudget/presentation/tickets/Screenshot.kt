@@ -28,7 +28,7 @@ fun keptArea(mark: Offset, width: Int, height: Int): Rect {
     return Rect(left, top, left + w, top + h)
 }
 
-fun composeScreenshot(source: ImageBitmap, mark: Offset?, blurRest: Boolean): ImageBitmap {
+fun composeScreenshot(source: ImageBitmap, mark: Offset?, blurRest: Boolean, markColor: Color): ImageBitmap {
     val width = source.width
     val height = source.height
     val out = ImageBitmap(width, height)
@@ -51,7 +51,7 @@ fun composeScreenshot(source: ImageBitmap, mark: Offset?, blurRest: Boolean): Im
     mark?.let {
         val center = Offset(it.x * width, it.y * height)
         val radius = max(width, height) * 0.02f
-        canvas.drawCircle(center, radius, Paint().apply { color = Color(0xFFE53935); style = PaintingStyle.Stroke; strokeWidth = radius * 0.35f })
+        canvas.drawCircle(center, radius, Paint().apply { color = markColor; style = PaintingStyle.Stroke; strokeWidth = radius * 0.35f })
     }
     return out
 }
