@@ -946,10 +946,15 @@ def notify_tickets(db: Supabase, tg: Telegram, owner_chat: int | None) -> int:
     if owner_chat is None:
         return 0
     rows = db.select("tickets", "select=id,number,kind,screen&notified_at=is.null&order=created_at&limit=20")
+    sent = 0
     for row in rows:
-        tg.send(owner_chat, ticket_text(row))
-        db.patch("tickets", f"id=eq.{row['id']}", {"notified_at": dt.datetime.now(dt.timezone.utc).isoformat()})
-    return len(rows)
+        try:
+            tg.send(owner_chat, ticket_text(row))
+            db.patch("tickets", f"id=eq.{row['id']}", {"notified_at": dt.datetime.now(dt.timezone.utc).isoformat()})
+            sent += 1
+        except (urllib.error.URLError, RuntimeError, OSError, ValueError, KeyError) as e:
+            print(f"ticket notification failed: {type(e).__name__}", file=sys.stderr)
+    return sent
 
 
 def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, str] | None = None, owner_chat: int | None = None) -> None:

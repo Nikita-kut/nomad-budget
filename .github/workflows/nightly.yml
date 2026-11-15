@@ -19,6 +19,17 @@ jobs:
           PROBE_STRICT: ${{ vars.PROD_PROBE_STRICT }}
         run: python3 tools/quality/prod_probe.py
 
+  prod-cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Screenshots without a ticket (deleted accounts, abandoned uploads)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python3 tools/quality/cleanup_screenshots.py
+
   staging:
     runs-on: ubuntu-latest
     timeout-minutes: 10

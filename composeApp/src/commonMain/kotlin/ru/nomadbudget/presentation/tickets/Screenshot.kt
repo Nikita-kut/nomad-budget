@@ -15,6 +15,8 @@ import kotlin.math.roundToInt
 
 expect fun encodePng(bitmap: ImageBitmap): ByteArray
 
+expect fun softwareCopy(bitmap: ImageBitmap): ImageBitmap
+
 const val MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024
 private const val PIXEL = 14
 private const val KEEP_WIDTH = 0.36f

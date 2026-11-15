@@ -7,3 +7,5 @@ import org.jetbrains.skia.Image
 
 actual fun encodePng(bitmap: ImageBitmap): ByteArray =
     Image.makeFromBitmap(bitmap.asSkiaBitmap()).encodeToData(EncodedImageFormat.PNG)?.bytes ?: ByteArray(0)
+
+actual fun softwareCopy(bitmap: ImageBitmap): ImageBitmap = bitmap

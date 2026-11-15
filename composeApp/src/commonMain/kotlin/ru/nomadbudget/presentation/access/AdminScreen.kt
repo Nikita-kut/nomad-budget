@@ -110,9 +110,18 @@ fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit
 
     LaunchedEffect(reload) {
         try {
+            tickets = access.tickets()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = "Обращения не загрузились: ${e.message ?: "ошибка"}"
+        }
+    }
+
+    LaunchedEffect(reload) {
+        try {
             invites = access.invites()
             accounts = access.accounts()
-            tickets = access.tickets()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

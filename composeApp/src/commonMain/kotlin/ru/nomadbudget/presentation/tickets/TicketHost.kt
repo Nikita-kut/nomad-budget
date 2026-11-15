@@ -23,6 +23,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import ru.nomadbudget.core.config.AppConfig
 import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.domain.repository.TicketDraft
@@ -53,6 +56,7 @@ import ru.nomadbudget.domain.repository.TicketRepository
 import ru.nomadbudget.platformName
 import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.format.AmountMask
+import ru.nomadbudget.presentation.format.CaptureMask
 import ru.nomadbudget.presentation.theme.AppTheme
 
 const val TICKET_BUTTON_KEY = "ticket_button_hidden"
@@ -106,21 +110,24 @@ fun TicketHost(
     var step by remember { mutableStateOf<Step>(Step.Idle) }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val scope = rememberCoroutineScope()
+    val captureLock = remember { Mutex() }
     val buttonHidden = store.get(TICKET_BUTTON_KEY) == "1"
 
-    suspend fun capture(showAmounts: Boolean): ImageBitmap? {
-        val before = AmountMask.hidden
-        return try {
+    suspend fun capture(showAmounts: Boolean): ImageBitmap? = captureLock.withLock {
+        val amountsBefore = AmountMask.hidden
+        try {
             AmountMask.hidden = !showAmounts
+            CaptureMask.active = !showAmounts
             withFrameNanos { }
             withFrameNanos { }
-            layer.toImageBitmap()
+            softwareCopy(layer.toImageBitmap())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             null
         } finally {
-            AmountMask.hidden = before
+            CaptureMask.active = false
+            AmountMask.hidden = amountsBefore
         }
     }
 
@@ -132,9 +139,11 @@ fun TicketHost(
         }
     }
 
-    if (launcher.requested && step == Step.Idle) {
-        launcher.requested = false
-        if (enabled) step = Step.Marking
+    LaunchedEffect(launcher.requested) {
+        if (launcher.requested) {
+            launcher.requested = false
+            if (enabled && step == Step.Idle) step = Step.Marking
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().onSizeChanged { size = it }) {
@@ -161,7 +170,7 @@ fun TicketHost(
                     .testTag(TicketTags.MARK_LAYER)
                     .pointerInput(Unit) {
                         detectTapGestures { tap ->
-                            if (size.width > 0 && size.height > 0) {
+                            if (step == Step.Marking && size.width > 0 && size.height > 0) {
                                 captureAt(Offset(tap.x / size.width, tap.y / size.height))
                             }
                         }
@@ -206,14 +215,14 @@ fun TicketDialog(
     var body by remember { mutableStateOf("") }
     var attach by remember { mutableStateOf(raw != null) }
     var showAmounts by remember { mutableStateOf(false) }
-    var blur by remember { mutableStateOf(false) }
+    var blur by remember { mutableStateOf(mark != null) }
     var source by remember { mutableStateOf(raw) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var sent by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
     val markColor = AppTheme.colors.bad
-    val preview = remember(source, blur, mark, markColor) { source?.let { composeScreenshot(it, mark, blur, markColor) } }
+    val preview = remember(source, blur, mark, markColor) { source?.let { runCatching { composeScreenshot(it, mark, blur, markColor) }.getOrNull() } }
 
     if (sent != null) {
         AlertDialog(
@@ -250,7 +259,10 @@ fun TicketDialog(
                         }
                         CheckRow("Показать суммы на скриншоте", showAmounts, TicketTags.SHOW_AMOUNTS) { value ->
                             showAmounts = value
-                            scope.launch { recapture(value)?.let { source = it } }
+                            scope.launch {
+                                val shot = recapture(value)
+                                if (showAmounts == value && shot != null) source = shot
+                            }
                         }
                         CheckRow(if (mark != null) "Размыть всё, кроме отмеченного места" else "Размыть весь скриншот", blur, TicketTags.BLUR) { blur = it }
                     }
@@ -270,7 +282,12 @@ fun TicketDialog(
                         busy = true
                         error = null
                         try {
-                            val png = if (attach) preview?.let(::pngWithinLimit) else null
+                            val png = if (attach) {
+                                preview?.let(::pngWithinLimit)?.takeIf { it.isNotEmpty() }
+                                    ?: throw IllegalStateException("Скриншот не получился — сними галочку «Приложить скриншот» и отправь без него")
+                            } else {
+                                null
+                            }
                             sent = onSend(TicketDraft(kind, body, null, mark?.x, mark?.y, tech, png))
                         } catch (e: CancellationException) {
                             throw e

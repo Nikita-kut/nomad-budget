@@ -29,4 +29,12 @@ class TicketLogicTest {
         assertEquals(setOf("platform", "version", "env", "screen", "window"), tech.keys)
         assertEquals("1280x800", tech["window"])
     }
+
+    @Test
+    fun maskedInputHidesDigitsWithValidOffsets() {
+        val t = ru.nomadbudget.presentation.format.MaskedInput.filter(androidx.compose.ui.text.AnnotatedString("123456,78"))
+        assertEquals("•••", t.text.text)
+        (0..9).forEach { o -> assertTrue(t.offsetMapping.originalToTransformed(o) in 0..3) }
+        (0..3).forEach { o -> assertTrue(t.offsetMapping.transformedToOriginal(o) in 0..9) }
+    }
 }

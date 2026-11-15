@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.onboarding
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -289,7 +290,7 @@ private fun CategoriesStep(form: OnboardingState) {
 
 @Composable
 private fun BalancesStep(form: OnboardingState) {
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val named = form.accounts.filter { it.name.isNotBlank() }
     if (named.isEmpty()) {
         Text("Счетов нет, остатки вводить некуда. Вернись на шаг «Счета» или пропусти.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -49,7 +50,7 @@ fun EditTransactionDialog(
     onDelete: (() -> Unit)? = null,
     onRepeat: (() -> Unit)? = null,
 ) {
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     var date by remember { mutableStateOf(tx.date) }
     var note by remember { mutableStateOf(tx.note) }
     var debtEarly by remember { mutableStateOf((tx as? Transaction.Expense)?.debtEarly == true) }

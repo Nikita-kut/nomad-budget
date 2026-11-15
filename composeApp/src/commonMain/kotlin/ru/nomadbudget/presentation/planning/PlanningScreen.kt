@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -487,7 +488,7 @@ private const val PERCENT = 100L
 private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () -> Unit, onConfirm: (Money?) -> Unit) {
     val base = LocalBaseCurrency.current
     var text by remember { mutableStateOf(current?.let(MoneyFormat::editText).orEmpty()) }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, base)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -525,7 +526,7 @@ private fun EarlyPlanDialog(obligation: DebtObligation, initial: EarlyPlan?, onD
     var amount by remember { mutableStateOf(initial?.amount?.takeUnless { it.isZero }?.let(MoneyFormat::editText).orEmpty()) }
     var fromCushion by remember { mutableStateOf(initial?.fromCushion ?: true) }
     val money = if (amount.isBlank()) Money.zero(currency) else MoneyFormat.parse(amount, currency)
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Досрочно в этом месяце: ${debt.name}") },

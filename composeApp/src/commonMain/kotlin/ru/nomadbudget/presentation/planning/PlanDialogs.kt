@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -68,7 +69,7 @@ fun PlanEditorDialog(
     var rows by remember(categoryId) { mutableStateOf(initialRows) }
     var nextKey by remember(categoryId) { mutableIntStateOf(initialRows.size) }
     var freeText by remember(categoryId) { mutableStateOf(initialFree) }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
 
     val parsedRows = rows.map { row -> row to MoneyFormat.parse(row.amount, state.base) }
     val itemsTotal = parsedRows.mapNotNull { it.second }.sumIn(state.base)
@@ -184,7 +185,7 @@ fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Mone
     var monthly by remember { mutableStateOf(account.fundMonthly?.let(MoneyFormat::editText).orEmpty()) }
     var goal by remember { mutableStateOf(account.fundGoal?.let(MoneyFormat::editText).orEmpty()) }
     var day by remember { mutableStateOf(account.fundDay?.toString().orEmpty()) }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val monthlyMoney = if (monthly.isBlank()) null else MoneyFormat.parse(monthly, currency)
     val goalMoney = if (goal.isBlank()) null else MoneyFormat.parse(goal, currency)
     val dayValue = day.toIntOrNull()

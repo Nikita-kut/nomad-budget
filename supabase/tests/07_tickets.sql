@@ -26,6 +26,27 @@ begin
     end;
 
     begin
+        insert into public.tickets (kind, body, user_id) values ('bug', 'x', v_b);
+        v_fails := v_fails || 'пользователь создал обращение от имени другого'::text;
+    exception when insufficient_privilege then
+        null;
+    end;
+
+    begin
+        insert into public.tickets (kind, body, notified_at) values ('bug', 'x', now());
+        v_fails := v_fails || 'пользователь отметил обращение как уже отправленное владельцу'::text;
+    exception when insufficient_privilege then
+        null;
+    end;
+
+    begin
+        insert into public.tickets (kind, body, tech) values ('bug', 'x', '{"a": {"b": 1}}');
+        v_fails := v_fails || 'вложенная техинформация принята'::text;
+    exception when check_violation then
+        null;
+    end;
+
+    begin
         insert into public.tickets (kind, body, screenshot_path) values ('bug', 'x', v_b::text || '/' || gen_random_uuid()::text || '.png');
         v_fails := v_fails || 'обращение ссылается на скриншот в чужой папке'::text;
     exception when check_violation then

@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +60,7 @@ fun BalanceCheckScreen(
     val actualText = form.actualText
     val note = form.note
     val date = form.date
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
 
     val computed = account?.let { acc -> BalanceCalculator.balanceBefore(acc, state.transactions, date.plus(1, DateTimeUnit.DAY)) }
     val lastCheck = account?.let { acc -> state.balanceChecks.filter { it.accountId == acc.id && it.date < date }.maxByOrNull { it.date } }

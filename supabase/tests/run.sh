@@ -3,7 +3,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/../.."
 
-eval "$(supabase status -o env | grep -E '^(DB_URL|API_URL|ANON_KEY)=')"
+eval "$(supabase status -o env | grep -E '^(DB_URL|API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
 : "${DB_URL:?supabase status не вернул DB_URL}"
 : "${API_URL:?supabase status не вернул API_URL}"
 : "${ANON_KEY:?supabase status не вернул ANON_KEY}"
@@ -46,7 +46,7 @@ if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMI
     failed=1
 fi
 
-if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMIN_PASSWORD="$admin_password" python3 tools/quality/tickets_e2e.py; then
+if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMIN_PASSWORD="$admin_password" SERVICE_KEY="${SERVICE_ROLE_KEY:-}" python3 tools/quality/tickets_e2e.py; then
     failed=1
 fi
 

@@ -10,7 +10,11 @@ create table public.tickets (
     screen          text check (screen is null or (char_length(screen) <= 64 and screen ~ '^[A-Za-z0-9_.:-]+$')),
     mark_x          real check (mark_x is null or mark_x between 0 and 1),
     mark_y          real check (mark_y is null or mark_y between 0 and 1),
-    tech            jsonb not null default '{}'::jsonb check (pg_column_size(tech) <= 2048),
+    tech            jsonb not null default '{}'::jsonb check (
+                        pg_column_size(tech) <= 2048
+                        and jsonb_typeof(tech) = 'object'
+                        and not jsonb_path_exists(tech, '$.* ? (@.type() != "string")')
+                    ),
     screenshot_path text,
     status          text not null default 'new' check (status in ('new', 'in_progress', 'done', 'rejected')),
     status_at       timestamptz not null default now(),
@@ -40,6 +44,7 @@ security definer
 set search_path = public
 as $$
 begin
+    perform pg_advisory_xact_lock(hashtext('tickets:' || new.user_id::text));
     if (select count(*) from public.tickets where user_id = new.user_id and created_at > now() - interval '1 day') >= 20 then
         raise exception 'too many tickets today' using errcode = 'P0001', hint = 'Не больше 20 обращений в сутки';
     end if;
@@ -57,7 +62,14 @@ on conflict (id) do update set public = false, file_size_limit = excluded.file_s
 
 create policy "tickets bucket: own upload" on storage.objects
     for insert to authenticated
-    with check (bucket_id = 'tickets' and (storage.foldername(name))[1] = auth.uid()::text and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}\.png$');
+    with check (
+        bucket_id = 'tickets'
+        and (storage.foldername(name))[1] = auth.uid()::text
+        and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}\.png$'
+        and (select count(*) from storage.objects o
+             where o.bucket_id = 'tickets' and (storage.foldername(o.name))[1] = auth.uid()::text
+               and o.created_at > now() - interval '1 day') < 20
+    );
 
 create policy "tickets bucket: own read" on storage.objects
     for select to authenticated

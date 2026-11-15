@@ -142,6 +142,29 @@ def main() -> int:
     status, _ = api.admin(admin_token, action="ticket_status", id=ticket_id, status="hacked")
     check(status == 400, f"принят неизвестный статус ({status})")
 
+    service_key = os.environ.get("SERVICE_KEY")
+    if service_key:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import cleanup_screenshots as cleanup
+        orphan = f"{a_id}/{uuid.uuid4()}.png"
+        api.raw(f"/storage/v1/object/tickets/{orphan}", "POST", png(), a, "image/png")
+        storage = cleanup.Storage(api.base, service_key)
+        files = [(f"{a_id}/{i['name']}", i["created_at"]) for i in storage.list(f"{a_id}/") if i.get("id")]
+        import datetime as dt
+        stale = cleanup.orphans(files, storage.referenced(), dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=2))
+        check(orphan in stale and a_path not in stale, f"A14 чистка: сирота {'не найдена' if orphan not in stale else 'найдена'}, скриншот обращения {'помечен' if a_path in stale else 'сохранён'}")
+        storage.delete(stale)
+        status, _ = api.raw(f"/storage/v1/object/authenticated/tickets/{a_path}", token=a)
+        check(status == 200, f"A14 чистка удалила скриншот обращения ({status})")
+
+        status, _ = api.call("/rest/v1/tickets", "POST", {"kind": "bug", "body": "x", "tech": {"a": 1}}, a)
+        check(status >= 400, f"в техинформацию принято число ({status})")
+        status, _ = api.call(f"/storage/v1/object/sign/tickets/{a_path}", "POST", {"expiresIn": 60}, b)
+        check(status >= 400, f"B подписал ссылку на скриншот A ({status})")
+        status, _ = api.raw(f"/storage/v1/object/tickets/{a_path}", "DELETE", None, b)
+        status, _ = api.raw(f"/storage/v1/object/authenticated/tickets/{a_path}", token=a)
+        check(status == 200, "B удалил скриншот A")
+
     for fail in fails:
         print(f"FAIL {fail}")
     print("tickets e2e: " + ("ok" if not fails else f"нарушений {len(fails)}"))

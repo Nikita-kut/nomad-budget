@@ -19,6 +19,7 @@ import ru.nomadbudget.domain.repository.Ticket
 import ru.nomadbudget.domain.repository.TicketDraft
 import ru.nomadbudget.domain.repository.TicketRepository
 import ru.nomadbudget.presentation.format.AmountMask
+import ru.nomadbudget.presentation.format.CaptureMask
 import ru.nomadbudget.presentation.theme.AppTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -49,6 +50,13 @@ class TicketHostUiTest {
     }
 
     private val seenMask = mutableListOf<Boolean>()
+    private val seenCapture = mutableListOf<Boolean>()
+
+    @kotlin.test.BeforeTest
+    fun resetMasks() {
+        AmountMask.hidden = false
+        CaptureMask.active = false
+    }
 
     private fun host(tickets: FakeTickets, enabled: Boolean = true): @androidx.compose.runtime.Composable () -> Unit = {
         AppTheme {
@@ -62,6 +70,7 @@ class TicketHostUiTest {
             ) {
                 Box(Modifier.fillMaxSize()) {
                     seenMask += AmountMask.hidden
+                    seenCapture += CaptureMask.active
                     Text(if (AmountMask.hidden) "•••" else "12 345")
                 }
             }
@@ -76,10 +85,13 @@ class TicketHostUiTest {
         onNodeWithTag(TicketTags.BUTTON).performClick()
         waitForIdle()
         seenMask.clear()
+        seenCapture.clear()
         onNodeWithTag(TicketTags.MARK_LAYER).performTouchInput { click(Offset(width * 0.25f, height * 0.5f)) }
         waitForIdle()
         assertTrue(seenMask.contains(true), "суммы не скрывались на время снимка")
         assertFalse(AmountMask.hidden, "скрытие сумм осталось после снимка")
+        assertTrue(seenCapture.contains(true), "поля сумм не маскировались на время снимка")
+        assertFalse(CaptureMask.active, "маска полей осталась после снимка")
         onNodeWithTag(TicketTags.SEND).assertIsNotEnabled()
         onNodeWithTag(TicketTags.BODY).performTextInput("Не сходится остаток")
         onNodeWithTag(TicketTags.SEND).performClick()

@@ -675,6 +675,22 @@ class TicketNotifyTest(unittest.TestCase):
         self.assertEqual([("tickets", "id=eq.t1", {"notified_at"})], db.patched)
         self.assertNotIn("секрет", tg.sent[0][1])
 
+    def test_one_failed_send_does_not_block_the_rest(self):
+        db = self.Db([{"id": "t1", "number": 1, "kind": "bug", "screen": None}, {"id": "t2", "number": 2, "kind": "idea", "screen": None}])
+
+        class FlakyTg:
+            def __init__(self):
+                self.sent = []
+
+            def send(self, chat_id, text):
+                if "№1" in text:
+                    raise RuntimeError("blocked")
+                self.sent.append(text)
+
+        tg = FlakyTg()
+        self.assertEqual(1, bw.notify_tickets(db, tg, 42))
+        self.assertEqual([("tickets", "id=eq.t2", {"notified_at"})], db.patched)
+
     def test_screen_is_escaped_for_html(self):
         self.assertIn("&lt;b&gt;", bw.ticket_text({"number": 1, "kind": "idea", "screen": "<b>"}))
 

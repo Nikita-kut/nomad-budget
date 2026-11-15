@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -440,7 +441,7 @@ private fun DebtDialog(initial: Debt?, currencies: List<Currency>, onDismiss: ()
     var extra by remember { mutableStateOf(initial?.extraPayment?.takeUnless { it.isZero }?.let(MoneyFormat::editText).orEmpty()) }
     var rate by remember { mutableStateOf(initial?.ratePercent?.toString().orEmpty()) }
     var payDay by remember { mutableStateOf(initial?.payDay?.toString().orEmpty()) }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
 
     val remainingMoney = MoneyFormat.parse(remaining, currency) ?: if (remaining.trim() == "0") Money.zero(currency) else null
     val paymentMoney = MoneyFormat.parse(payment, currency)

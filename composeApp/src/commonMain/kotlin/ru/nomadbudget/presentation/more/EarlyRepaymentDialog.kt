@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -66,7 +67,7 @@ fun EarlyRepaymentDialog(
     var effectiveFrom by remember { mutableStateOf<LocalDate?>(null) }
     val from = effectiveFrom ?: nextDueDate(debt, date)
     val left = amount?.let { debt.principalRemaining - it }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val valid = amount != null && amount.minor > 0L && account != null &&
         (mode != EarlyRepaymentMode.REDUCE_PAYMENT || newPayment != null && newPayment.minor > 0L)
 
