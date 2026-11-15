@@ -57,6 +57,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -70,6 +71,9 @@ import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.presentation.access.AdminScreen
+import ru.nomadbudget.presentation.tickets.MyTicketsScreen
+import ru.nomadbudget.presentation.tickets.TicketHost
+import ru.nomadbudget.presentation.tickets.TicketLauncher
 import org.koin.compose.viewmodel.koinViewModel
 import ru.nomadbudget.demo.DemoMode
 import ru.nomadbudget.di.DEVICE_STORE
@@ -140,6 +144,12 @@ object MoreRoute
 
 @Serializable
 object AdminRoute
+
+@Serializable
+object TicketsRoute
+
+fun ticketScreenName(route: String?): String? =
+    route?.substringAfterLast('.')?.substringBefore('/')?.substringBefore('?')?.removeSuffix("Route")?.takeIf { it.matches(Regex("^[A-Za-z0-9_]{1,64}$")) }
 
 @Serializable
 object CategoriesRoute
@@ -241,6 +251,16 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
     val rootFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { rootFocus.requestFocus() } }
 
+    val ticketLauncher = remember { TicketLauncher() }
+    val ticketRoute by navController.currentBackStackEntryAsState()
+    TicketHost(
+        screen = ticketScreenName(ticketRoute?.destination?.route),
+        repository = koinInject(),
+        store = uiStore,
+        launcher = ticketLauncher,
+        enabled = !DemoMode.enabled,
+        buttonPadding = PaddingValues(end = 20.dp, bottom = if (isWide) 20.dp else 168.dp),
+    ) {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -472,6 +492,8 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                         )
                                     },
                                     onSettings = { navController.navigate(SettingsRoute) },
+                                    onTickets = { navController.navigate(TicketsRoute) },
+                                    onReport = ticketLauncher::open,
                                 )
                             }
                             composable<SettingsRoute> {
@@ -490,6 +512,9 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onDeleteAccount = viewModel::deleteAccount,
                                     onOpenAdmin = { navController.navigate(AdminRoute) },
                                 )
+                            }
+                            composable<TicketsRoute> {
+                                MyTicketsScreen(repository = koinInject(), onNew = ticketLauncher::open, onBack = back)
                             }
                             composable<AdminRoute> {
                                 AdminScreen(access = koinInject(), myUserId = koinInject<AuthRepository>().currentUserId, onBack = back)
@@ -564,6 +589,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                 }
             }
         }
+    }
     }
 }
 

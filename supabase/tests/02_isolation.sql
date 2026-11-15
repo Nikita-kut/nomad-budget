@@ -14,6 +14,7 @@ declare
     v_fails text[] := '{}';
     v_checked int := 0;
     v_col text;
+    v_cols text;
     v_col_type text;
     v_value text;
     v_detail text;
@@ -42,6 +43,7 @@ begin
             v_row := jsonb_set(v_row, array[r.pk], to_jsonb(gen_random_uuid()));
         end if;
 
+        v_cols := tests.insertable_columns(r.name);
         perform tests.become(v_b);
 
         execute format('select count(*) from public.%I where %I::text = any($1)', r.name, r.pk) into v_n using v_b_ids;
@@ -120,7 +122,7 @@ begin
         end if;
 
         begin
-            execute format('insert into public.%I select * from jsonb_populate_record(null::public.%I, $1)', r.name, r.name) using v_row;
+            execute format('insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I, $1)', r.name, v_cols, v_cols, r.name) using v_row;
             v_fails := v_fails || format('%s: B вставил строку от имени A', r.name);
         exception when others then
             if sqlstate <> '42501' then

@@ -34,6 +34,7 @@ jobs:
       - name: Build Wasm distribution
         env:
           NOMAD_OWNER_CONTACT: ${{ vars.NOMAD_OWNER_CONTACT }}
+          NOMAD_VERSION: ${{ github.ref_name }}
         run: ./gradlew :composeApp:wasmJsBrowserDistribution
       - uses: actions/upload-pages-artifact@v5
         with:

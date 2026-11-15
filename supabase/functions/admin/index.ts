@@ -17,6 +17,11 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SITE_URL = Deno.env.get("SITE_URL") ?? "http://127.0.0.1:3000/";
 
+const SCREENSHOT_TTL_SECONDS = 300;
+const TICKET_STATUSES = ["new", "in_progress", "done", "rejected"];
+
+type Ticket = { user_id: string; screenshot_path: string | null; [key: string]: unknown };
+
 class HttpError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
@@ -112,6 +117,35 @@ async function handle(action: string, body: Record<string, unknown>, adminId: st
         await service(`/rest/v1/account_blocks?user_id=eq.${id}`, { method: "DELETE" });
       }
       await audit(id, blocking ? "blocked" : "unblocked");
+      return { ok: true };
+    }
+    case "tickets_list": {
+      const tickets = await service(
+        "/rest/v1/tickets?select=id,number,user_id,created_at,kind,body,screen,mark_x,mark_y,tech,screenshot_path,status,status_at&order=created_at.desc&limit=200",
+        { method: "GET" },
+      ) as Ticket[];
+      const page = await service("/auth/v1/admin/users?page=1&per_page=200", { method: "GET" }) as { users: AuthUser[] };
+      const emails = new Map(page.users.map((u) => [u.id, u.email ?? null]));
+      const rows = [];
+      for (const ticket of tickets) {
+        let screenshot: string | null = null;
+        if (ticket.screenshot_path) {
+          const signed = await service(`/storage/v1/object/sign/tickets/${ticket.screenshot_path}`, {
+            method: "POST",
+            body: JSON.stringify({ expiresIn: SCREENSHOT_TTL_SECONDS }),
+          }).catch(() => null) as { signedURL?: string } | null;
+          screenshot = signed?.signedURL ? `${SUPABASE_URL}/storage/v1${signed.signedURL}` : null;
+        }
+        const { screenshot_path: _path, user_id, ...rest } = ticket;
+        rows.push({ ...rest, email: emails.get(user_id) ?? null, screenshot_url: screenshot });
+      }
+      return rows;
+    }
+    case "ticket_status": {
+      const id = validUserId(body.id);
+      const status = typeof body.status === "string" && TICKET_STATUSES.includes(body.status) ? body.status : null;
+      if (!id || !status) throw new HttpError(400, "status");
+      await service(`/rest/v1/tickets?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ status, status_at: new Date().toISOString() }) });
       return { ok: true };
     }
     default:

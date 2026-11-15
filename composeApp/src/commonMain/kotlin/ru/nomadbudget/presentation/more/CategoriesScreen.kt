@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -303,7 +304,7 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
     val base = LocalBaseCurrency.current
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val planned = MoneyFormat.parse(amount, base)
     AlertDialog(
         onDismissRequest = onDismiss,

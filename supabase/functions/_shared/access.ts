@@ -80,5 +80,5 @@ export function userRow(user: AuthUser, now: Date): Record<string, unknown> {
   };
 }
 
-export const ADMIN_TABLES = ["invites", "owner_actions", "account_blocks", "app_admins"] as const;
+export const ADMIN_TABLES = ["invites", "owner_actions", "account_blocks", "app_admins", "tickets"] as const;
 export const ADMIN_RPCS = ["is_admin"] as const;

@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.capital
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -448,7 +449,7 @@ private fun GoalDialog(initial: CapitalGoal?, today: LocalDate, onDismiss: () ->
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var amount by remember { mutableStateOf(initial?.amount?.let(MoneyFormat::editText).orEmpty()) }
     var date by remember { mutableStateOf(initial?.targetDate ?: today.plus(CapitalModel.YEAR_MONTHS, DateTimeUnit.MONTH)) }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val money = MoneyFormat.parse(amount, base)
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -3,7 +3,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/../.."
 
-eval "$(supabase status -o env | grep -E '^(DB_URL|API_URL|ANON_KEY)=')"
+eval "$(supabase status -o env | grep -E '^(DB_URL|API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
 : "${DB_URL:?supabase status не вернул DB_URL}"
 : "${API_URL:?supabase status не вернул API_URL}"
 : "${ANON_KEY:?supabase status не вернул ANON_KEY}"
@@ -43,6 +43,10 @@ psql "$DB_URL" -q -v ON_ERROR_STOP=1 -c "select tests.create_user('owner@example
     -c "update auth.users set encrypted_password = crypt('$admin_password', gen_salt('bf')) where email = 'owner@example.test'" \
     -c "insert into public.app_admins (user_id) select id from auth.users where email = 'owner@example.test'" >/dev/null || failed=1
 if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMIN_PASSWORD="$admin_password" python3 tools/quality/access_e2e.py; then
+    failed=1
+fi
+
+if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMIN_PASSWORD="$admin_password" SERVICE_KEY="${SERVICE_ROLE_KEY:-}" python3 tools/quality/tickets_e2e.py; then
     failed=1
 fi
 

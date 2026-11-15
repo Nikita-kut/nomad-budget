@@ -648,6 +648,60 @@ class RetryTest(unittest.TestCase):
         self.assertEqual(1, len(calls))
 
 
+class TicketNotifyTest(unittest.TestCase):
+    class Db:
+        def __init__(self, rows):
+            self.rows = rows
+            self.patched = []
+
+        def select(self, table, query=""):
+            return self.rows if table == "tickets" and "notified_at=is.null" in query else []
+
+        def patch(self, table, query, body):
+            self.patched.append((table, query, set(body)))
+
+    class Tg:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, chat_id, text):
+            self.sent.append((chat_id, text))
+
+    def test_owner_gets_number_kind_and_screen_without_text(self):
+        db = self.Db([{"id": "t1", "number": 7, "kind": "bug", "screen": "month", "body": "секрет 12 345"}])
+        tg = self.Tg()
+        self.assertEqual(1, bw.notify_tickets(db, tg, 42))
+        self.assertEqual([(42, "Новое обращение №7: ошибка, экран month. Текст — в админке.")], tg.sent)
+        self.assertEqual([("tickets", "id=eq.t1", {"notified_at"})], db.patched)
+        self.assertNotIn("секрет", tg.sent[0][1])
+
+    def test_one_failed_send_does_not_block_the_rest(self):
+        db = self.Db([{"id": "t1", "number": 1, "kind": "bug", "screen": None}, {"id": "t2", "number": 2, "kind": "idea", "screen": None}])
+
+        class FlakyTg:
+            def __init__(self):
+                self.sent = []
+
+            def send(self, chat_id, text):
+                if "№1" in text:
+                    raise RuntimeError("blocked")
+                self.sent.append(text)
+
+        tg = FlakyTg()
+        self.assertEqual(1, bw.notify_tickets(db, tg, 42))
+        self.assertEqual([("tickets", "id=eq.t2", {"notified_at"})], db.patched)
+
+    def test_screen_is_escaped_for_html(self):
+        self.assertIn("&lt;b&gt;", bw.ticket_text({"number": 1, "kind": "idea", "screen": "<b>"}))
+
+    def test_without_owner_chat_nothing_is_sent_or_marked(self):
+        db = self.Db([{"id": "t1", "number": 1, "kind": "bug", "screen": None}])
+        tg = self.Tg()
+        self.assertEqual(0, bw.notify_tickets(db, tg, None))
+        self.assertEqual([], tg.sent)
+        self.assertEqual([], db.patched)
+
+
 class BlockedUsersTest(unittest.TestCase):
     def test_watches_of_blocked_users_are_dropped(self):
         watches = [{"id": "w1", "user_id": "u1"}, {"id": "w2", "user_id": "u2"}]

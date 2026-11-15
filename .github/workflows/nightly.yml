@@ -19,6 +19,17 @@ jobs:
           PROBE_STRICT: ${{ vars.PROD_PROBE_STRICT }}
         run: python3 tools/quality/prod_probe.py
 
+  prod-cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Screenshots without a ticket (deleted accounts, abandoned uploads)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python3 tools/quality/cleanup_screenshots.py
+
   staging:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -38,5 +49,6 @@ jobs:
           python3 tools/staging/reset.py
           python3 tools/staging/smoke.py
           API_URL="$STAGING_SUPABASE_URL" ANON_KEY="$STAGING_SUPABASE_KEY" ADMIN_EMAIL=admin@example.test ADMIN_PASSWORD="$STAGING_TEST_PASSWORD" python3 tools/quality/access_e2e.py
+          API_URL="$STAGING_SUPABASE_URL" ANON_KEY="$STAGING_SUPABASE_KEY" ADMIN_EMAIL=admin@example.test ADMIN_PASSWORD="$STAGING_TEST_PASSWORD" python3 tools/quality/tickets_e2e.py
           python3 tools/staging/reset.py
           PROBE_URL="$STAGING_SUPABASE_URL" PROBE_KEY="$STAGING_SUPABASE_KEY" PROBE_STRICT=1 python3 tools/quality/prod_probe.py

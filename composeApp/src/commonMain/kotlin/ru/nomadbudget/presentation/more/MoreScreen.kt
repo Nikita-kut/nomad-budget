@@ -39,6 +39,8 @@ fun MoreScreen(
     showSecondary: Boolean,
     onExport: () -> Unit,
     onSettings: () -> Unit,
+    onTickets: () -> Unit = {},
+    onReport: () -> Unit = {},
 ) {
     CenteredLazyColumn {
         if (showSecondary) {
@@ -83,6 +85,14 @@ fun MoreScreen(
                 MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
                 HorizontalDivider()
                 MenuRow("Настройки", "начало месяца, валюты, тема, пароль, выход", onSettings)
+            }
+        }
+        item { SectionTitle("Обращения") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                MenuRow("Сообщить о проблеме", "отметь место на экране, приложи скриншот", onReport)
+                HorizontalDivider()
+                MenuRow("Мои обращения", "статусы ошибок, идей и вопросов", onTickets)
             }
         }
         item { SectionTitle("Горячие клавиши", hint = "в вебе") }

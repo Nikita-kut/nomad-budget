@@ -36,6 +36,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.nomadbudget.presentation.format.AmountMask
 import ru.nomadbudget.presentation.format.MoneyFormat
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -249,7 +250,7 @@ private fun buildLayout(
 ): PlotLayout {
     val decimals = scale.step.takeIf { it < 1.0 }?.let { ceil(-log10(it) - STEP_EPSILON).toInt().coerceIn(0, MAX_AXIS_DECIMALS) }
     val tickValues = generateSequence(scale.min) { it + scale.step }.takeWhile { it <= scale.max + scale.step * STEP_EPSILON }.toList()
-    val tickTexts = tickValues.map { v -> measurer.measure(if (decimals != null && decimals > 0) MoneyFormat.formatNumber(v, decimals) else formatY(v), style) }
+    val tickTexts = tickValues.map { v -> measurer.measure(if (decimals != null && decimals > 0) (if (AmountMask.hidden) "•••" else MoneyFormat.formatNumber(v, decimals)) else formatY(v), style) }
     val left = (tickTexts.maxOfOrNull { it.size.width } ?: 0) + 12f
     val labelHeight = measurer.measure("0", style).size.height
     val top = TOP_PADDING + labelHeight / 2f + TOOLTIP_SPACE

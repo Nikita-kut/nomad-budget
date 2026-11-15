@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -326,7 +327,7 @@ private fun EntryForm(
     onOpenExchange: () -> Unit,
     onSubmit: () -> Unit,
 ) {
-    val amountTransformation = remember { ThousandsVisualTransformation() }
+    val amountTransformation = rememberAmountTransformation()
     val focus = remember { FocusRequester() }
     val categoryFocus = remember { FocusRequester() }
     LaunchedEffect(form.submitCount) { runCatching { focus.requestFocus() } }

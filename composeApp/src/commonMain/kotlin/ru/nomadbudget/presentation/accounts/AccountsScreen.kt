@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -323,7 +324,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
     var monthly by remember { mutableStateOf("") }
     var goal by remember { mutableStateOf("") }
     var day by remember { mutableStateOf("") }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
     val openingMoney = opening.takeIf { it.isNotBlank() }?.let { MoneyFormat.parse(it, currency) }
     val monthlyMoney = monthly.takeIf { it.isNotBlank() }?.let { MoneyFormat.parse(it, currency) }
     val goalMoney = goal.takeIf { it.isNotBlank() }?.let { MoneyFormat.parse(it, currency) }

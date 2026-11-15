@@ -15,6 +15,7 @@ declare
     v_n bigint;
     v_fails text[] := '{}';
     v_checked int := 0;
+    v_cols text;
 begin
     perform tests.seed_finance(v_a, 'A');
     perform tests.seed_finance(v_b, 'B');
@@ -56,10 +57,11 @@ begin
             continue;
         end if;
 
+        v_cols := tests.insertable_columns(r.child);
         perform tests.become(v_b);
 
         begin
-            execute format('insert into public.%I select * from jsonb_populate_record(null::public.%I, $1)', r.child, r.child)
+            execute format('insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I, $1)', r.child, v_cols, v_cols, r.child)
                 using jsonb_set(jsonb_set(v_row, array[v_child_pk], to_jsonb(gen_random_uuid())), array[r.col], to_jsonb(v_foreign));
             v_fails := v_fails || format('%s.%s: B создал строку со ссылкой на объект A (%s)', r.child, r.col, r.parent);
         exception when foreign_key_violation or insufficient_privilege then

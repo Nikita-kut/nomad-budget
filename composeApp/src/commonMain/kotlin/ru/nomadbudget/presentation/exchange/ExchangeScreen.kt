@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.exchange
 
+import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -89,7 +90,7 @@ private fun ExchangeForm(state: HomeState, onSubmit: (ExchangeDraft) -> Unit) {
     var receivedText by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(state.today) }
     var note by remember { mutableStateOf("") }
-    val transformation = remember { ThousandsVisualTransformation() }
+    val transformation = rememberAmountTransformation()
 
     val given = from?.let { MoneyFormat.parse(givenText, it.currency) }
     val received = to?.let { MoneyFormat.parse(receivedText, it.currency) }

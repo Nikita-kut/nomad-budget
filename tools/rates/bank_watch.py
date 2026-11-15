@@ -928,7 +928,36 @@ def sync_bot(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[st
     db.upsert("bot_info", row)
 
 
-def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, str] | None = None) -> None:
+TICKET_KINDS = {"bug": "ошибка", "idea": "идея", "question": "вопрос"}
+
+
+def ticket_text(ticket: dict) -> str:
+    kind = TICKET_KINDS.get(str(ticket.get("kind")), "обращение")
+    screen = ticket.get("screen")
+    where = f", экран {html_escape(str(screen))}" if screen else ""
+    return f"Новое обращение №{int(ticket['number'])}: {kind}{where}. Текст — в админке."
+
+
+def html_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def notify_tickets(db: Supabase, tg: Telegram, owner_chat: int | None) -> int:
+    if owner_chat is None:
+        return 0
+    rows = db.select("tickets", "select=id,number,kind,screen&notified_at=is.null&order=created_at&limit=20")
+    sent = 0
+    for row in rows:
+        try:
+            tg.send(owner_chat, ticket_text(row))
+            db.patch("tickets", f"id=eq.{row['id']}", {"notified_at": dt.datetime.now(dt.timezone.utc).isoformat()})
+            sent += 1
+        except (urllib.error.URLError, RuntimeError, OSError, ValueError, KeyError) as e:
+            print(f"ticket notification failed: {type(e).__name__}", file=sys.stderr)
+    return sent
+
+
+def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, str] | None = None, owner_chat: int | None = None) -> None:
     try:
         sync_bot(db, tg, now_utc, webhook)
     except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
@@ -961,6 +990,13 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
             process_watch(db, tg, watch, rates, chats_by_watch.get(watch["id"], []), now_utc, holidays)
         except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
             print(f"watch failed: {type(e).__name__}", file=sys.stderr)
+
+    try:
+        sent = notify_tickets(db, tg, owner_chat)
+        if sent:
+            print(f"{sent} ticket notification(s)")
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError, KeyError) as e:
+        print(f"ticket notifications skipped: {type(e).__name__}", file=sys.stderr)
 
     cutoff = (now_utc - dt.timedelta(days=RETENTION_DAYS)).isoformat()
     db.delete("bank_rate_snapshots", "taken_at=lt." + urllib.parse.quote(cutoff))
@@ -1132,7 +1168,9 @@ def main() -> int:
         return 1
     secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET")
     webhook = (url.rstrip("/") + WEBHOOK_PATH, secret) if secret else None
-    run(Supabase(url, key), Telegram(token), dt.datetime.now(dt.timezone.utc).replace(microsecond=0), webhook)
+    owner = os.environ.get("OWNER_TELEGRAM_CHAT_ID", "").strip()
+    owner_chat = int(owner) if owner.lstrip("-").isdigit() else None
+    run(Supabase(url, key), Telegram(token), dt.datetime.now(dt.timezone.utc).replace(microsecond=0), webhook, owner_chat)
     return 0
 
 

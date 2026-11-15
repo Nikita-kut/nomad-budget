@@ -66,6 +66,7 @@ begin
     insert into public.telegram_subscribers (watch_id, chat_id, title) values (v_watch, abs(hashtext(p_tag)), p_tag);
     insert into public.rate_watches (user_id, from_currency, to_currency) values (p_user, 'USD', 'RUB');
     insert into public.owner_actions (user_id, action) values (p_user, 'reset_link_created');
+    insert into public.tickets (user_id, kind, body, screen) values (p_user, 'bug', p_tag || ' button does nothing', 'month');
 end $$;
 
 insert into public.exchange_rates (rate_date, base, quote, rate, source)
@@ -161,6 +162,18 @@ as $$
       and not exists (select 1 from pg_index i where i.indrelid = a.attrelid and a.attnum = any(i.indkey::int2[]))
     order by a.attnum
     limit 1
+$$;
+
+create or replace function tests.insertable_columns(p_table text)
+returns text
+language sql
+stable
+as $$
+    select string_agg(quote_ident(a.attname), ', ' order by a.attnum)
+    from pg_attribute a
+    where a.attrelid = format('public.%I', p_table)::regclass
+      and a.attnum > 0 and not a.attisdropped
+      and a.attidentity = '' and a.attgenerated = ''
 $$;
 
 create or replace function tests.fingerprint(p_user uuid)

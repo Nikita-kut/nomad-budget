@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +37,10 @@ import kotlinx.datetime.toLocalDateTime
 import ru.nomadbudget.domain.repository.AccessRepository
 import ru.nomadbudget.domain.repository.AccountRow
 import ru.nomadbudget.domain.repository.InviteRow
+import ru.nomadbudget.domain.repository.Ticket
+import ru.nomadbudget.domain.repository.TicketStatus
+import ru.nomadbudget.presentation.tickets.statusColor
+import ru.nomadbudget.presentation.tickets.ticketLine
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
 import ru.nomadbudget.presentation.components.ConfirmDialog
 import ru.nomadbudget.presentation.components.PrimaryButton
@@ -63,6 +68,7 @@ object AdminTags {
     const val INVITE_EMAIL = "admin.invite.email"
     const val INVITE_CREATE = "admin.invite.create"
     const val LINK = "admin.link"
+    const val TICKET = "admin.ticket"
 }
 
 private sealed interface AdminConfirm {
@@ -74,6 +80,8 @@ private sealed interface AdminConfirm {
 fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit)?) {
     var invites by remember { mutableStateOf<List<InviteRow>>(emptyList()) }
     var accounts by remember { mutableStateOf<List<AccountRow>>(emptyList()) }
+    var tickets by remember { mutableStateOf<List<Ticket>>(emptyList()) }
+    val uriHandler = LocalUriHandler.current
     var email by remember { mutableStateOf("") }
     var link by remember { mutableStateOf<Pair<String, String>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -97,6 +105,16 @@ fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit
             } finally {
                 busy = false
             }
+        }
+    }
+
+    LaunchedEffect(reload) {
+        try {
+            tickets = access.tickets()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = "Обращения не загрузились: ${e.message ?: "ошибка"}"
         }
     }
 
@@ -210,6 +228,34 @@ fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit
                                 }
                             } else {
                                 Text("это ты", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item { SectionTitle("Обращения", hint = "новых ${tickets.count { it.status == TicketStatus.NEW }}") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    if (tickets.isEmpty()) Text("Обращений пока нет", modifier = Modifier.padding(16.dp))
+                    tickets.forEachIndexed { index, ticket ->
+                        if (index > 0) HorizontalDivider()
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag(AdminTags.TICKET), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("${ticket.status.title} · ${ticket.email ?: "без почты"}", color = statusColor(ticket.status), fontWeight = FontWeight.Medium)
+                            Text(ticketLine(ticket), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(ticket.body)
+                            val where = listOfNotNull(
+                                ticket.markX?.let { x -> ticket.markY?.let { y -> "отметка ${(x * 100).toInt()}% × ${(y * 100).toInt()}%" } },
+                                ticket.tech.values.joinToString(" · ").takeIf { it.isNotBlank() },
+                            ).joinToString(" · ")
+                            if (where.isNotBlank()) Text(where, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row {
+                                ticket.screenshotUrl?.let { url -> TextButton(onClick = { uriHandler.openUri(url) }) { Text("Скриншот") } }
+                                TicketStatus.entries.filter { it != ticket.status && it != TicketStatus.NEW }.forEach { status ->
+                                    TextButton(onClick = { run { access.setTicketStatus(ticket.id, status) } }, enabled = !busy) { Text(status.title) }
+                                }
                             }
                         }
                     }

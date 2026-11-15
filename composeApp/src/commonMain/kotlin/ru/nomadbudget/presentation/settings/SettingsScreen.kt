@@ -43,8 +43,12 @@ import ru.nomadbudget.presentation.components.IncomeDaysEditor
 import ru.nomadbudget.presentation.components.PrimaryButton
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.access.DataAndAccessCard
+import ru.nomadbudget.presentation.tickets.TICKET_BUTTON_KEY
+import ru.nomadbudget.di.DEVICE_STORE
+import ru.nomadbudget.domain.repository.KeyValueStore
 import ru.nomadbudget.presentation.access.MIN_PASSWORD
 import ru.nomadbudget.domain.repository.AccessRepository
+import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import ru.nomadbudget.presentation.components.StartDayPicker
 import ru.nomadbudget.presentation.components.TrashIconButton
@@ -81,6 +85,9 @@ fun SettingsScreen(
     onOpenAdmin: () -> Unit = {},
 ) {
     val access = koinInject<AccessRepository>()
+    val koin = getKoin()
+    val deviceStore = remember { koin.getOrNull<KeyValueStore>(DEVICE_STORE) ?: koin.get<KeyValueStore>() }
+    var ticketButton by remember { mutableStateOf(deviceStore.get(TICKET_BUTTON_KEY) != "1") }
     val settings = state.settings
     var pendingStartDay by remember { mutableStateOf<Int?>(null) }
     var incomeDays by remember(settings.incomeDays) { mutableStateOf(settings.incomeDays.toSet()) }
@@ -210,6 +217,22 @@ fun SettingsScreen(
                             "база сменена ${DateFormat.dayMonthTime(change.changedAt)} с ${change.from} на ${change.to}; вернуть можно, пока нет новых операций",
                         ) { confirmRevert = true }
                     }
+                }
+            }
+        }
+
+        item { SectionTitle("Обращения") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Кнопка «?» на экране")
+                        Text("сообщить о проблеме с любого экрана; без кнопки — «Ещё» → «Сообщить о проблеме»", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = ticketButton, onCheckedChange = { on ->
+                        ticketButton = on
+                        if (on) deviceStore.remove(TICKET_BUTTON_KEY) else deviceStore.put(TICKET_BUTTON_KEY, "1")
+                    })
                 }
             }
         }
