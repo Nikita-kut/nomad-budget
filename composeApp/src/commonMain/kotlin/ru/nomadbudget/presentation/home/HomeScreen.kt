@@ -77,6 +77,15 @@ import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.presentation.access.AdminScreen
 import ru.nomadbudget.presentation.tickets.MyTicketsScreen
 import ru.nomadbudget.presentation.settings.ModulesScreen
+import ru.nomadbudget.presentation.onboarding.IntroScreen
+import ru.nomadbudget.presentation.update.AppVersionRepository
+import ru.nomadbudget.presentation.update.UpdateBanner
+import ru.nomadbudget.presentation.update.UpdateNotice
+import ru.nomadbudget.presentation.update.UpdateRequiredScreen
+import ru.nomadbudget.presentation.update.UpdateState
+import ru.nomadbudget.presentation.update.Version
+import ru.nomadbudget.presentation.update.updateState
+import ru.nomadbudget.core.config.AppConfig
 import ru.nomadbudget.presentation.tickets.TicketHost
 import ru.nomadbudget.presentation.tickets.TicketLauncher
 import org.koin.compose.viewmodel.koinViewModel
@@ -156,6 +165,11 @@ object TicketsRoute
 @Serializable
 object ModulesRoute
 
+@Serializable
+object IntroRoute
+
+const val INTRO_SEEN_KEY = "intro_seen"
+
 fun ticketScreenName(route: String?): String? =
     route?.substringAfterLast('.')?.substringBefore('/')?.substringBefore('?')?.removeSuffix("Route")?.takeIf { it.matches(Regex("^[A-Za-z0-9_]{1,64}$")) }
 
@@ -203,8 +217,48 @@ fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
 
 @Composable
 private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
+    val featureRepository = koinInject<FeatureRepository>()
+    var featureAccess by remember { mutableStateOf(featureRepository.cached()) }
+    var featureReload by remember { mutableStateOf(0) }
+    LifecycleResumeEffect(featureRepository) {
+        featureReload++
+        onPauseOrDispose {}
+    }
+    LaunchedEffect(featureReload) { runCatching { featureAccess = featureRepository.load() } }
+    val features = FeatureState(
+        stages = featureAccess?.stages ?: emptyMap(),
+        isAdmin = featureAccess?.isAdmin ?: false,
+        modulesOff = state.settings.modulesOff,
+        blocksOff = state.settings.blocksOff,
+    )
+    SideEffect { FeatureGate.state = features }
+    val versionRepository = koinInject<AppVersionRepository>()
+    LaunchedEffect(featureReload) {
+        val info = versionRepository.load()
+        UpdateNotice.apkUrl = info?.apkUrl
+        UpdateNotice.state = updateState(Version.parse(AppConfig.VERSION_NAME), info)
+    }
+    (UpdateNotice.state as? UpdateState.Required)?.let {
+        UpdateRequiredScreen(it.min)
+        return
+    }
+    val introStore = koinInject<KeyValueStore>()
+    var introSeen by remember { mutableStateOf(introStore.get(INTRO_SEEN_KEY) != null) }
     if (state.needsOnboarding && !DemoMode.enabled) {
-        OnboardingScreen(state = state, messages = viewModel.messages, onFinish = viewModel::completeOnboarding)
+        if (!introSeen) {
+            IntroScreen(
+                state = state,
+                features = features,
+                firstTime = true,
+                onSetModules = viewModel::setModules,
+                onDone = {
+                    introStore.put(INTRO_SEEN_KEY, "1")
+                    introSeen = true
+                },
+            )
+        } else {
+            OnboardingScreen(state = state, messages = viewModel.messages, onFinish = viewModel::completeOnboarding)
+        }
         return
     }
     val snackbar = remember { SnackbarHostState() }
@@ -238,20 +292,6 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
         onPauseOrDispose {}
     }
 
-    val featureRepository = koinInject<FeatureRepository>()
-    var featureAccess by remember { mutableStateOf(featureRepository.cached()) }
-    var featureReload by remember { mutableStateOf(0) }
-    LifecycleResumeEffect(featureRepository) {
-        featureReload++
-        onPauseOrDispose {}
-    }
-    LaunchedEffect(featureReload) { runCatching { featureAccess = featureRepository.load() } }
-    val features = FeatureState(
-        stages = featureAccess?.stages ?: emptyMap(),
-        isAdmin = featureAccess?.isAdmin ?: false,
-        modulesOff = state.settings.modulesOff,
-        blocksOff = state.settings.blocksOff,
-    )
     val allTabs = remember {
         listOf(
             Tab(MonthRoute, "Месяц", AppIcons.Calendar, primary = true, group = "Бюджет") { it.isOn<MonthRoute>() },
@@ -277,7 +317,6 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
 
     val ticketLauncher = remember { TicketLauncher() }
     val ticketRoute by navController.currentBackStackEntryAsState()
-    SideEffect { FeatureGate.state = features }
     val currentRoute by navController.currentBackStackEntryAsState()
     LaunchedEffect(features, currentRoute?.destination?.route) {
         val hidden = allTabs.firstOrNull { tab -> tab.feature != null && !features.isOn(tab.feature) && tab.isSelected(navController) }
@@ -526,6 +565,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onSettings = { navController.navigate(SettingsRoute) },
                                     onTickets = { navController.navigate(TicketsRoute) },
                                     onModules = { navController.navigate(ModulesRoute) },
+                                    onIntro = { navController.navigate(IntroRoute) },
                                     onReport = ticketLauncher::open,
                                 )
                             }
@@ -545,6 +585,9 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onDeleteAccount = viewModel::deleteAccount,
                                     onOpenAdmin = { navController.navigate(AdminRoute) },
                                 )
+                            }
+                            composable<IntroRoute> {
+                                IntroScreen(state = state, features = features, firstTime = false, onSetModules = viewModel::setModules, onDone = back)
                             }
                             composable<ModulesRoute> {
                                 ModulesScreen(state = state, features = features, onSave = viewModel::setModules, onBack = back)
@@ -703,6 +746,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
 
 @Composable
 private fun RatesWarning(state: HomeState) {
+    UpdateBanner()
     if (state.offline || state.pendingCount > 0) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             Text(

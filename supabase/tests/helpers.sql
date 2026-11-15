@@ -102,7 +102,8 @@ insert into tests.shared_tables values
     ('bank_rate_snapshots', 'снимки курса банка, общие'),
     ('bot_info', 'состояние бота, пишет воркер'),
     ('telegram_chat_prefs', 'пауза чата бота, без политик, пишут только воркер и вебхук'),
-    ('feature_stages', 'стадии фич, читают все вошедшие, пишет только админ-функция');
+    ('feature_stages', 'стадии фич, читают все вошедшие, пишет только админ-функция'),
+    ('app_config', 'минимальная и последняя версия клиента, пишет только релиз');
 
 create table if not exists tests.server_tables (name text primary key, why text not null);
 truncate tests.server_tables;

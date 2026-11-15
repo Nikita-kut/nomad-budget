@@ -39,6 +39,15 @@ begin
     exception when insufficient_privilege then
         null;
     end;
+    begin
+        update public.app_config set min_version = '99.0.0';
+        v_fails := v_fails || 'пользователь меняет минимальную версию клиента'::text;
+    exception when insufficient_privilege then
+        null;
+    end;
+    if (select count(*) from public.app_config) <> 1 then
+        v_fails := v_fails || 'пользователь не видит версию клиента'::text;
+    end if;
     execute 'reset role';
 
     if cardinality(v_fails) > 0 then

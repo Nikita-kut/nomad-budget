@@ -87,6 +87,7 @@ val demoModule = module {
     single<AccessRepository> { DemoAccessRepository }
     single<TicketRepository> { DemoTicketRepository }
     single<ru.nomadbudget.features.FeatureRepository> { ru.nomadbudget.features.DemoFeatureRepository }
+    single<ru.nomadbudget.presentation.update.AppVersionRepository> { ru.nomadbudget.presentation.update.DemoAppVersionRepository }
     single<CurrencyRepository> { DemoCurrencyRepository(get()) }
     single<AccountRepository> { DemoAccountRepository(get()) }
     single<CategoryRepository> { DemoCategoryRepository(get()) }
