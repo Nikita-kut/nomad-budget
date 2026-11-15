@@ -70,6 +70,9 @@
             target.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, keyCode: e.keyCode, which: e.which, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true, cancelable: true, composed: true }));
             e.preventDefault();
         }, true);
+        window.addEventListener('hashchange', function () {
+            if (/^#(invite|reset)=/.test(window.location.hash)) window.location.reload();
+        });
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('sw.js').catch(function () {});

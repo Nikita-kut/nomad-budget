@@ -6,6 +6,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,9 @@ private fun Root() {
     var link by remember { mutableStateOf(if (DemoMode.enabled) null else consumeLaunchLink()) }
     val current = state
     val pending = link
+    LaunchedEffect(current, pending) {
+        if (current is AuthState.SignedIn && pending is LaunchLink.Invite) link = null
+    }
     when {
         pending is LaunchLink.Reset && current !is AuthState.Loading ->
             ResetPasswordScreen(pending.tokenHash, access, auth, onDone = { link = null })
