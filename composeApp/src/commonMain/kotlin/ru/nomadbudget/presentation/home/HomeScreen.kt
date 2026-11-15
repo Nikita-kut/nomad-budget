@@ -69,9 +69,14 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
+import ru.nomadbudget.features.Feature
+import ru.nomadbudget.features.FeatureRepository
+import ru.nomadbudget.features.FeatureState
+import ru.nomadbudget.features.FeatureGate
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.presentation.access.AdminScreen
 import ru.nomadbudget.presentation.tickets.MyTicketsScreen
+import ru.nomadbudget.presentation.settings.ModulesScreen
 import ru.nomadbudget.presentation.tickets.TicketHost
 import ru.nomadbudget.presentation.tickets.TicketLauncher
 import org.koin.compose.viewmodel.koinViewModel
@@ -148,6 +153,9 @@ object AdminRoute
 @Serializable
 object TicketsRoute
 
+@Serializable
+object ModulesRoute
+
 fun ticketScreenName(route: String?): String? =
     route?.substringAfterLast('.')?.substringBefore('/')?.substringBefore('?')?.removeSuffix("Route")?.takeIf { it.matches(Regex("^[A-Za-z0-9_]{1,64}$")) }
 
@@ -175,6 +183,7 @@ private data class Tab(
     val icon: ImageVector,
     val primary: Boolean,
     val group: String? = null,
+    val feature: Feature? = null,
     val isSelected: (NavHostController) -> Boolean,
 )
 
@@ -229,17 +238,31 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
         onPauseOrDispose {}
     }
 
-    val tabs = remember {
+    val featureRepository = koinInject<FeatureRepository>()
+    var featureAccess by remember { mutableStateOf(featureRepository.cached()) }
+    var featureReload by remember { mutableStateOf(0) }
+    LifecycleResumeEffect(featureRepository) {
+        featureReload++
+        onPauseOrDispose {}
+    }
+    LaunchedEffect(featureReload) { runCatching { featureAccess = featureRepository.load() } }
+    val features = FeatureState(
+        stages = featureAccess?.stages ?: emptyMap(),
+        isAdmin = featureAccess?.isAdmin ?: false,
+        modulesOff = state.settings.modulesOff,
+        blocksOff = state.settings.blocksOff,
+    )
+    val allTabs = remember {
         listOf(
             Tab(MonthRoute, "Месяц", AppIcons.Calendar, primary = true, group = "Бюджет") { it.isOn<MonthRoute>() },
             Tab(PlanningRoute, "План", AppIcons.Plan, primary = true, group = "Бюджет") { it.isOn<PlanningRoute>() },
             Tab(JournalRoute, "Журнал", AppIcons.Receipt, primary = true, group = "Бюджет") { it.isOn<JournalRoute>() },
             Tab(AccountsRoute, "Счета", AppIcons.Wallet, primary = true, group = "Деньги") { it.isOn<AccountsRoute>() },
-            Tab(DebtsRoute, "Кредиты", AppIcons.CreditCard, primary = false, group = "Деньги") { it.isOn<DebtsRoute>() },
-            Tab(ExchangeRoute, "Обмен", AppIcons.Swap, primary = false, group = "Деньги") { it.isOn<ExchangeRoute>() },
-            Tab(CapitalRoute, "Капитал", AppIcons.PiggyBank, primary = false, group = "Анализ") { it.isOn<CapitalRoute>() },
-            Tab(ChartsRoute, "Графики", AppIcons.ChartColumn, primary = false, group = "Анализ") { it.isOn<ChartsRoute>() },
-            Tab(RatesRoute, "Курсы", AppIcons.ChartLine, primary = false, group = "Анализ") { it.isOn<RatesRoute>() },
+            Tab(DebtsRoute, "Кредиты", AppIcons.CreditCard, primary = false, group = "Деньги", feature = Feature.DEBTS_SCREEN) { it.isOn<DebtsRoute>() },
+            Tab(ExchangeRoute, "Обмен", AppIcons.Swap, primary = false, group = "Деньги", feature = Feature.CURRENCIES_EXCHANGE) { it.isOn<ExchangeRoute>() },
+            Tab(CapitalRoute, "Капитал", AppIcons.PiggyBank, primary = false, group = "Анализ", feature = Feature.CAPITAL_SCREEN) { it.isOn<CapitalRoute>() },
+            Tab(ChartsRoute, "Графики", AppIcons.ChartColumn, primary = false, group = "Анализ", feature = Feature.CHARTS_SCREEN) { it.isOn<ChartsRoute>() },
+            Tab(RatesRoute, "Курсы", AppIcons.ChartLine, primary = false, group = "Анализ", feature = Feature.CURRENCIES_RATES) { it.isOn<RatesRoute>() },
             Tab(MoreRoute, "Ещё", AppIcons.More, primary = true) {
                 it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() || it.isOn<SettingsRoute>() ||
                     it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<CapitalRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
@@ -247,18 +270,26 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
             Tab(SettingsRoute, "Настройки", AppIcons.Settings, primary = false) { it.isOn<SettingsRoute>() },
         )
     }
+    val tabs = allTabs.filter { tab -> tab.feature == null || features.isOn(tab.feature) }
 
     val rootFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { rootFocus.requestFocus() } }
 
     val ticketLauncher = remember { TicketLauncher() }
     val ticketRoute by navController.currentBackStackEntryAsState()
+    SideEffect { FeatureGate.state = features }
+    val currentRoute by navController.currentBackStackEntryAsState()
+    LaunchedEffect(features, currentRoute?.destination?.route) {
+        val hidden = allTabs.firstOrNull { tab -> tab.feature != null && !features.isOn(tab.feature) && tab.isSelected(navController) }
+        if (hidden != null) navController.switchTo(MonthRoute)
+    }
+    run {
     TicketHost(
         screen = ticketScreenName(ticketRoute?.destination?.route),
         repository = koinInject(),
         store = uiStore,
         launcher = ticketLauncher,
-        enabled = !DemoMode.enabled,
+        enabled = !DemoMode.enabled && features.isOn(Feature.TICKETS_BUTTON),
         buttonPadding = PaddingValues(end = 20.dp, bottom = if (isWide) 20.dp else 168.dp),
     ) {
     BoxWithConstraints(
@@ -276,8 +307,8 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                         Key.P -> navController.switchTo(PlanningRoute)
                         Key.M -> navController.switchTo(MonthRoute)
                         Key.A -> navController.switchTo(AccountsRoute)
-                        Key.D -> navController.switchTo(DebtsRoute)
-                        Key.K -> navController.switchTo(CapitalRoute)
+                        Key.D -> if (features.isOn(Feature.DEBTS_SCREEN)) navController.switchTo(DebtsRoute) else return@onKeyEvent false
+                        Key.K -> if (features.isOn(Feature.CAPITAL_SCREEN)) navController.switchTo(CapitalRoute) else return@onKeyEvent false
                         Key.Escape -> if (entryPanel) entryPanel = false else navController.popBackStack()
                         else -> return@onKeyEvent false
                     }
@@ -408,6 +439,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onOpenAccounts = { navController.switchTo(AccountsRoute) },
                                     twoColumns = twoColumns,
                                     onOpenCapital = { navController.switchTo(CapitalRoute) },
+                                    onOpenModules = { navController.navigate(ModulesRoute) },
                                 )
                             }
                             composable<EntryRoute> {
@@ -493,6 +525,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     },
                                     onSettings = { navController.navigate(SettingsRoute) },
                                     onTickets = { navController.navigate(TicketsRoute) },
+                                    onModules = { navController.navigate(ModulesRoute) },
                                     onReport = ticketLauncher::open,
                                 )
                             }
@@ -512,6 +545,9 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onDeleteAccount = viewModel::deleteAccount,
                                     onOpenAdmin = { navController.navigate(AdminRoute) },
                                 )
+                            }
+                            composable<ModulesRoute> {
+                                ModulesScreen(state = state, features = features, onSave = viewModel::setModules, onBack = back)
                             }
                             composable<TicketsRoute> {
                                 MyTicketsScreen(repository = koinInject(), onNew = ticketLauncher::open, onBack = back)
@@ -591,6 +627,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
         }
     }
     }
+    }
 }
 
 private inline fun <reified T : Any> NavHostController.isOn(): Boolean =
@@ -621,8 +658,8 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
                             HeaderAmount("Всего", state.totalBase, emphasize = true)
                             HeaderAmount("На жизнь", state.operationalBase)
-                            if (state.fundAccounts.isNotEmpty()) HeaderAmount("Копилки", state.fundsBalance)
-                            HeaderAmount("Подушка", state.savingsBalance)
+                            if (state.fundAccounts.isNotEmpty() && (FeatureGate.isOn(Feature.FUNDS_HEADER) || !state.fundsBalance.isZero)) HeaderAmount("Копилки", state.fundsBalance)
+                            if (FeatureGate.isOn(Feature.CUSHION_HEADER) || !state.savingsBalance.isZero) HeaderAmount("Подушка", state.savingsBalance)
                         }
                     }
                     PeriodSwitcher(state, viewModel)

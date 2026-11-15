@@ -1,5 +1,8 @@
 package ru.nomadbudget.presentation.home
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.number
@@ -104,6 +107,19 @@ internal class SettingsActions(
         store.message("Месяц бюджета теперь начинается $day числа" + if (moved) ", план текущего месяца перенесён$where" else "")
     }
 
+    fun setModules(modulesOff: Set<String>, blocksOff: Set<String>) = runner.run("Не удалось сохранить модули") {
+        val before = store.value.settings
+        store.update { it.copy(settings = it.settings.copy(modulesOff = modulesOff, blocksOff = blocksOff)) }
+        try {
+            saveSettings { it.copy(modulesOff = modulesOff, blocksOff = blocksOff) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            store.update { it.copy(settings = it.settings.copy(modulesOff = before.modulesOff, blocksOff = before.blocksOff)) }
+            throw e
+        }
+    }
+
     fun setIncomeDays(days: List<Int>) = runner.run("Не удалось сохранить дни дохода") {
         val cleaned = cleanIncomeDays(days)
         saveSettings(store.value.settings.copy(incomeDays = cleaned))
@@ -204,8 +220,14 @@ internal class SettingsActions(
         loader.load()
     }
 
-    private suspend fun saveSettings(settings: UserSettings) {
-        val saved = userSettingsRepository.save(settings)
+    private val saveLock = Mutex()
+
+    private suspend fun saveSettings(settings: UserSettings) = saveSettings { latest ->
+        settings.copy(modulesOff = latest.modulesOff, blocksOff = latest.blocksOff)
+    }
+
+    private suspend fun saveSettings(change: (UserSettings) -> UserSettings) = saveLock.withLock {
+        val saved = userSettingsRepository.save(change(store.value.settings))
         store.update { it.copy(settings = saved) }
     }
 

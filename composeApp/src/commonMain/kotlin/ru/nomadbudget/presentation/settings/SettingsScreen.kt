@@ -1,5 +1,8 @@
 package ru.nomadbudget.presentation.settings
 
+import ru.nomadbudget.features.AppModule
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -131,6 +134,7 @@ fun SettingsScreen(
             }
         }
 
+        if (FeatureGate.isOn(AppModule.CUSHION)) {
         item { SectionTitle("Подушка и капитал", hint = "${settings.cushionMonths} мес. · ${formatReturn(settings.annualReturn)}", info = Hints.CAPITAL_GOALS) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -142,6 +146,7 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
         }
 
         item { SectionTitle("Тема", hint = themeLabel(theme.mode)) }
@@ -173,6 +178,7 @@ fun SettingsScreen(
             }
         }
 
+        if (FeatureGate.isOn(Feature.CURRENCIES_SETTINGS)) {
         item { SectionTitle("Валюты", hint = "итоги считаются ${CurrencyWords.inCurrency(state.base)}") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -219,6 +225,7 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
         }
 
         item { SectionTitle("Обращения") }

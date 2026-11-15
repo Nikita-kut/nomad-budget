@@ -23,6 +23,20 @@ http_code() {
     curl -s -o /dev/null -w '%{http_code}' "$@"
 }
 
+echo "== Реестр фич: Features.kt = feature_stages"
+code_keys=$(grep -oE '^    [A-Z_]+\("[a-z_]+\.[a-z_]+"' composeApp/src/commonMain/kotlin/ru/nomadbudget/features/Features.kt | grep -oE '"[a-z_.]+"' | tr -d '"' | sort)
+db_keys=$(psql "$DB_URL" -At -c "select key from public.feature_stages order by key" | sort)
+if [[ "$code_keys" != "$db_keys" ]]; then
+    echo "E5 реестр фич в коде и feature_stages расходятся:"
+    diff <(echo "$code_keys") <(echo "$db_keys") | grep '^[<>]'
+    failed=1
+elif [[ -z "$code_keys" ]]; then
+    echo "E5 не удалось прочитать ключи фич из Features.kt"
+    failed=1
+else
+    echo "E5 реестр фич: ok, ключей $(echo "$code_keys" | wc -l | tr -d ' ')"
+fi
+
 echo "== HTTP"
 code=$(http_code -X POST "$API_URL/auth/v1/signup" -H "apikey: $ANON_KEY" -H 'Content-Type: application/json' \
     -d '{"email":"stranger@example.test","password":"stranger-password-1"}')

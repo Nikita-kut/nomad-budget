@@ -29,6 +29,8 @@ import ru.nomadbudget.data.repository.UserSettingsRepositoryImpl
 import ru.nomadbudget.data.supabase.SupabaseClientFactory
 import ru.nomadbudget.domain.repository.AccessRepository
 import ru.nomadbudget.domain.repository.TicketRepository
+import ru.nomadbudget.features.FeatureRepository
+import ru.nomadbudget.features.FeatureRepositoryImpl
 import ru.nomadbudget.domain.repository.AccountRepository
 import ru.nomadbudget.domain.repository.AuthRepository
 import ru.nomadbudget.domain.repository.BalanceCheckRepository
@@ -57,6 +59,7 @@ val appModule = module {
     single<AuthRepository> { AuthRepositoryImpl(get()) }
     single<AccessRepository> { AccessRepositoryImpl(get()) }
     single<TicketRepository> { TicketRepositoryImpl(get()) }
+    single<FeatureRepository> { FeatureRepositoryImpl(get(), get()) }
     single<KeyValueStore> {
         val auth = get<AuthRepository>()
         UserScopedStore(get(DEVICE_STORE)) { auth.currentUserId }

@@ -19,6 +19,7 @@ const SITE_URL = Deno.env.get("SITE_URL") ?? "http://127.0.0.1:3000/";
 
 const SCREENSHOT_TTL_SECONDS = 300;
 const TICKET_STATUSES = ["new", "in_progress", "done", "rejected"];
+const FEATURE_STAGES = ["owner", "all", "off"];
 
 type Ticket = { user_id: string; screenshot_path: string | null; [key: string]: unknown };
 
@@ -146,6 +147,20 @@ async function handle(action: string, body: Record<string, unknown>, adminId: st
       const status = typeof body.status === "string" && TICKET_STATUSES.includes(body.status) ? body.status : null;
       if (!id || !status) throw new HttpError(400, "status");
       await service(`/rest/v1/tickets?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ status, status_at: new Date().toISOString() }) });
+      return { ok: true };
+    }
+    case "stages_list":
+      return await service("/rest/v1/feature_stages?select=key,stage,updated_at&order=key", { method: "GET" });
+    case "stage_set": {
+      const key = typeof body.key === "string" && /^[a-z_]+\.[a-z_]+$/.test(body.key) ? body.key : null;
+      const stage = typeof body.stage === "string" && FEATURE_STAGES.includes(body.stage) ? body.stage : null;
+      if (!key || !stage) throw new HttpError(400, "stage");
+      const updated = await service(`/rest/v1/feature_stages?key=eq.${key}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ stage, updated_at: new Date().toISOString() }),
+      }) as unknown[];
+      if (!Array.isArray(updated) || updated.length !== 1) throw new HttpError(400, "unknown key");
       return { ok: true };
     }
     default:

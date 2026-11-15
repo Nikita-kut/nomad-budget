@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -247,7 +249,7 @@ fun EntryScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(AppIcons.ArrowLeft, contentDescription = "Назад") }
                     Text("Новая запись", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onOpenExchange) { Text("Обмен валюты") }
+                    if (FeatureGate.isOn(Feature.CURRENCIES_EXCHANGE)) TextButton(onClick = onOpenExchange) { Text("Обмен валюты") }
                     if (form.isDirty) TextButton(onClick = form::clear) { Text("Очистить") }
                 }
             }
@@ -266,8 +268,10 @@ fun EntryScreen(
                     onSubmit = ::trySubmit,
                 )
             }
-            item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else plural(state.drafts.size, "заметка", "заметки", "заметок"), info = Hints.INBOX) }
-            item { InboxCard(state.drafts, onAddDraft, onUseDraft, onRemoveDraft) }
+            if (FeatureGate.isOn(Feature.INBOX_ENTRY) || state.drafts.isNotEmpty()) {
+                item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else plural(state.drafts.size, "заметка", "заметки", "заметок"), info = Hints.INBOX) }
+                item { InboxCard(state.drafts, onAddDraft, onUseDraft, onRemoveDraft) }
+            }
         }
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),

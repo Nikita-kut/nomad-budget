@@ -964,6 +964,7 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
         print(f"bot updates skipped: {type(e).__name__}", file=sys.stderr)
 
     watches = without_blocked(db.select("rate_watches", "select=*&enabled=is.true"), blocked_users(db))
+    watches = only_allowed(watches, allowed_watch_users(db, watches))
     subscribers = db.select("telegram_subscribers", "select=watch_id,chat_id")
     holidays = load_holidays(db)
     paused = paused_chats(db, now_utc)
@@ -1008,6 +1009,38 @@ def blocked_users(db: Supabase) -> set[str]:
     except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
         print(f"account blocks unavailable: {type(e).__name__}", file=sys.stderr)
         return set()
+
+
+BANK_WATCH_STAGE_KEYS = ("bank_watch.rates", "currencies.rates")
+BANK_WATCH_MODULES = {"bank_watch", "currencies"}
+
+
+def allowed_watch_users(db: Supabase, watches: list[dict]) -> set[str] | None:
+    try:
+        keys = ",".join(BANK_WATCH_STAGE_KEYS)
+        stages = {row["key"]: row["stage"] for row in db.select("feature_stages", f"select=key,stage&key=in.({keys})")}
+        effective = [stages.get(key, "all") for key in BANK_WATCH_STAGE_KEYS]
+        users = {str(w.get("user_id")) for w in watches}
+        if "off" in effective:
+            return set()
+        if "owner" in effective:
+            admins = {str(r["user_id"]) for r in db.select("app_admins", "select=user_id")}
+            users &= admins
+        ids = sorted(users)
+        for start in range(0, len(ids), 100):
+            batch = ",".join(ids[start:start + 100])
+            for row in db.select("user_settings", f"select=user_id,modules_off,blocks_off&user_id=in.({batch})"):
+                hidden = BANK_WATCH_MODULES & set(row.get("modules_off") or []) or set(BANK_WATCH_STAGE_KEYS) & set(row.get("blocks_off") or [])
+                if hidden:
+                    users.discard(str(row["user_id"]))
+        return users
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError, KeyError) as e:
+        print(f"feature stages unavailable: {type(e).__name__}", file=sys.stderr)
+        return None
+
+
+def only_allowed(watches: list[dict], allowed: set[str] | None) -> list[dict]:
+    return watches if allowed is None else [w for w in watches if str(w.get("user_id")) in allowed]
 
 
 def without_blocked(watches: list[dict], blocked: set[str]) -> list[dict]:

@@ -51,9 +51,29 @@ class MigrationGuardTest(unittest.TestCase):
         sql = "-- drop table x\n/* truncate y */\nalter table public.x drop constraint x_fkey;\nrevoke insert, update, delete, truncate on public.x from anon;\ndelete from public.x where id = (select 1);"
         self.assertEqual([], run([("A", path)], {path: sql}))
 
+    def test_modules_migration_is_flagged_without_label(self):
+        path = Path(__file__).resolve().parents[2] / "supabase/migrations/0027_modules.sql"
+        self.assertTrue(c.opens_features(path.read_text(encoding="utf-8")))
+
     def test_owner_bound_references_migration_is_not_destructive(self):
         path = Path(__file__).resolve().parents[2] / "supabase/migrations/0023_owner_bound_references.sql"
         self.assertEqual([], c.destructive(path.read_text(encoding="utf-8")))
+
+    def test_new_feature_must_start_owner_only(self):
+        path = "supabase/migrations/0023_c.sql"
+        self.assertEqual([], run([("A", path)], {path: "insert into public.feature_stages (key) values ('x.y');"}))
+        self.assertEqual([], run([("A", path)], {path: "insert into public.feature_stages (key, stage) values ('x.y', 'owner');"}))
+        self.assertEqual(1, len(run([("A", path)], {path: "insert into public.feature_stages (key, stage) values ('x.y', 'all');"})))
+        self.assertEqual(1, len(run([("A", path)], {path: "update public.feature_stages set stage = 'off' where key = 'x.y';"})))
+        self.assertEqual([], run([("A", path)], {path: "insert into public.feature_stages (key, stage) values ('x.y', 'all');"}, labels=["feature-stage-ok"]))
+        for sql in [
+            "insert into feature_stages (key, stage) values ('x.y', 'all');",
+            'insert into "public"."feature_stages" (key, stage) values (\'x.y\', \'off\');',
+            "insert into public.feature_stages (key) values ('x.y') on conflict (key) do update set stage = 'all';",
+            "alter table public.feature_stages alter column stage set default 'all';",
+        ]:
+            with self.subTest(sql=sql):
+                self.assertEqual(1, len(run([("A", path)], {path: sql})))
 
     def test_files_outside_migrations_are_ignored(self):
         self.assertEqual([], run([("M", "supabase/tests/02_isolation.sql")], {}))

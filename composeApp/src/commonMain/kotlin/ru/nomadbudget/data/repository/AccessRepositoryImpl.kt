@@ -116,6 +116,16 @@ class AccessRepositoryImpl(private val client: SupabaseClient) : AccessRepositor
         }
     }
 
+    override suspend fun stages(): Map<String, String> =
+        json.decodeFromJsonElement<List<StageDto>>(admin("stages_list") {}).associate { it.key to it.stage }
+
+    override suspend fun setStage(key: String, stage: String) {
+        admin("stage_set") {
+            put("key", key)
+            put("stage", stage)
+        }
+    }
+
     private suspend fun admin(action: String, fill: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit): JsonElement {
         val token = client.auth.currentAccessTokenOrNull() ?: throw AccessException("Войди снова")
         val body = buildJsonObject {
@@ -142,6 +152,9 @@ class AccessRepositoryImpl(private val client: SupabaseClient) : AccessRepositor
     }
 
     private fun isHumanText(text: String): Boolean = text.any { it in 'а'..'я' || it in 'А'..'Я' }
+
+    @Serializable
+    private data class StageDto(val key: String, val stage: String)
 
     @Serializable
     private data class AdminTicketDto(

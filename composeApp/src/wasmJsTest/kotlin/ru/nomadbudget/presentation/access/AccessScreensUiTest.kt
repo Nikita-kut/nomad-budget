@@ -66,6 +66,8 @@ class AccessScreensUiTest {
         override suspend fun setBlocked(userId: String, blocked: Boolean) { calls += "block:$userId:$blocked" }
         override suspend fun tickets() = emptyList<ru.nomadbudget.domain.repository.Ticket>()
         override suspend fun setTicketStatus(id: String, status: ru.nomadbudget.domain.repository.TicketStatus) { calls += "status:$id:${status.id}" }
+        override suspend fun stages() = emptyMap<String, String>()
+        override suspend fun setStage(key: String, stage: String) { calls += "stage:$key:$stage" }
     }
 
     @Test
