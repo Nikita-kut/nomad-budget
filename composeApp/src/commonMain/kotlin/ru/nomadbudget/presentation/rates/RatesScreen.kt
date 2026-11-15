@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.rates
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,7 +58,7 @@ fun RatesScreen(state: HomeState, wide: Boolean = false, bankWatch: BankWatchCal
     }
     var editingWatch by remember { mutableStateOf(false) }
     CenteredLazyColumn(bottom = 24.dp) {
-        bankRateWatchItems(state, wide, bankWatch, onEdit = { editingWatch = true })
+        if (FeatureGate.isOn(Feature.BANK_WATCH_RATES)) bankRateWatchItems(state, wide, bankWatch, onEdit = { editingWatch = true })
         item(key = "rates-title") { SectionTitle("Курсы по дням", hint = "обновляются раз в сутки") }
         item { SourceLine(state) }
         if (pairs.isEmpty()) item { EmptyHint("Кроме ${state.base.code} валют нет") }

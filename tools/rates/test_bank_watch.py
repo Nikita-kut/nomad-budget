@@ -702,6 +702,45 @@ class TicketNotifyTest(unittest.TestCase):
         self.assertEqual([], db.patched)
 
 
+class FeatureStageTest(unittest.TestCase):
+    class Db:
+        def __init__(self, stage, admins=(), modules_off=None):
+            self.stage = stage
+            self.admins = admins
+            self.modules_off = modules_off or {}
+
+        def select(self, table, query=""):
+            if table == "feature_stages":
+                return [{"stage": self.stage}] if self.stage else []
+            if table == "app_admins":
+                return [{"user_id": a} for a in self.admins]
+            if table == "user_settings":
+                return [{"user_id": u, "modules_off": m} for u, m in self.modules_off.items()]
+            return []
+
+    watches = [{"id": "w1", "user_id": "owner"}, {"id": "w2", "user_id": "friend"}]
+
+    def test_all_stage_keeps_everyone(self):
+        self.assertEqual({"owner", "friend"}, bw.allowed_watch_users(self.Db("all"), self.watches))
+
+    def test_off_stage_stops_the_bot_for_everyone(self):
+        self.assertEqual([], bw.only_allowed(self.watches, bw.allowed_watch_users(self.Db("off"), self.watches)))
+
+    def test_owner_stage_keeps_only_admins(self):
+        self.assertEqual({"owner"}, bw.allowed_watch_users(self.Db("owner", admins=["owner"]), self.watches))
+
+    def test_user_who_turned_the_module_off_gets_nothing(self):
+        db = self.Db("all", modules_off={"friend": ["currencies"], "owner": []})
+        self.assertEqual({"owner"}, bw.allowed_watch_users(db, self.watches))
+
+    def test_missing_table_keeps_old_behaviour(self):
+        class Broken:
+            def select(self, table, query=""):
+                raise RuntimeError("404")
+        self.assertIsNone(bw.allowed_watch_users(Broken(), self.watches))
+        self.assertEqual(self.watches, bw.only_allowed(self.watches, None))
+
+
 class BlockedUsersTest(unittest.TestCase):
     def test_watches_of_blocked_users_are_dropped(self):
         watches = [{"id": "w1", "user_id": "u1"}, {"id": "w2", "user_id": "u2"}]

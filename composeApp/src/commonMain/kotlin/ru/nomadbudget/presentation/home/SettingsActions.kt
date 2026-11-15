@@ -104,6 +104,12 @@ internal class SettingsActions(
         store.message("Месяц бюджета теперь начинается $day числа" + if (moved) ", план текущего месяца перенесён$where" else "")
     }
 
+    fun setModules(modulesOff: Set<String>, blocksOff: Set<String>) = runner.run("Не удалось сохранить модули") {
+        val current = store.value.settings
+        store.update { it.copy(settings = current.copy(modulesOff = modulesOff, blocksOff = blocksOff)) }
+        saveSettings(current.copy(modulesOff = modulesOff, blocksOff = blocksOff))
+    }
+
     fun setIncomeDays(days: List<Int>) = runner.run("Не удалось сохранить дни дохода") {
         val cleaned = cleanIncomeDays(days)
         saveSettings(store.value.settings.copy(incomeDays = cleaned))

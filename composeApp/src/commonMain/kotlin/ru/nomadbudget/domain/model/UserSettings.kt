@@ -11,6 +11,8 @@ data class UserSettings(
     val annualReturn: Double = 0.0,
     val onboardedAt: Instant? = null,
     val currencyCodes: List<String> = emptyList(),
+    val modulesOff: Set<String> = emptySet(),
+    val blocksOff: Set<String> = emptySet(),
 ) {
     init {
         require(periodStartDay in SalaryCycle.startDays) { "Начало месяца: день от 1 до 28" }

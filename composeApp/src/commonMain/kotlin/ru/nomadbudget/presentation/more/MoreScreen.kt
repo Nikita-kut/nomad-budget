@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.more
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,34 +42,55 @@ fun MoreScreen(
     onExport: () -> Unit,
     onSettings: () -> Unit,
     onTickets: () -> Unit = {},
+    onModules: () -> Unit = {},
     onReport: () -> Unit = {},
 ) {
     CenteredLazyColumn {
         if (showSecondary) {
-            item { SectionTitle("Деньги") }
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    MenuRow("Обмен валюты", state.exchanges.firstOrNull()?.let { "последний ${DateFormat.dayMonth(it.date)}" } ?: "обменов ещё не было", onExchange)
-                    HorizontalDivider()
-                    MenuRow(
-                        "Кредиты",
-                        if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · остаток ${MoneyFormat.format(state.capital.debt, false)}",
-                        onDebts,
-                    )
+            val money = listOfNotNull(
+                Feature.CURRENCIES_EXCHANGE.takeIf(FeatureGate::isOn),
+                Feature.DEBTS_SCREEN.takeIf(FeatureGate::isOn),
+            )
+            if (money.isNotEmpty()) {
+                item { SectionTitle("Деньги") }
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        money.forEachIndexed { index, feature ->
+                            if (index > 0) HorizontalDivider()
+                            when (feature) {
+                                Feature.CURRENCIES_EXCHANGE -> MenuRow("Обмен валюты", state.exchanges.firstOrNull()?.let { "последний ${DateFormat.dayMonth(it.date)}" } ?: "обменов ещё не было", onExchange)
+                                else -> MenuRow(
+                                    "Кредиты",
+                                    if (state.openDebts.isEmpty()) "открытых нет" else "открыто ${state.openDebts.size} · остаток ${MoneyFormat.format(state.capital.debt, false)}",
+                                    onDebts,
+                                )
+                            }
+                        }
+                    }
                 }
             }
-            item { SectionTitle("Аналитика") }
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    MenuRow("Капитал", "счета минус долги, прогноз, цели", onCapital)
-                    HorizontalDivider()
-                    MenuRow("Графики", "доходы, расходы, подушка по месяцам", onCharts)
-                    HorizontalDivider()
-                    MenuRow(
-                        "Курсы валют",
-                        state.rates.all.firstOrNull()?.let { "обновлены ${DateFormat.dayMonth(it.date)}, раз в сутки" } ?: "текущие и история по дням",
-                        onRates,
-                    )
+            val analytics = listOfNotNull(
+                Feature.CAPITAL_SCREEN.takeIf(FeatureGate::isOn),
+                Feature.CHARTS_SCREEN.takeIf(FeatureGate::isOn),
+                Feature.CURRENCIES_RATES.takeIf(FeatureGate::isOn),
+            )
+            if (analytics.isNotEmpty()) {
+                item { SectionTitle("Аналитика") }
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        analytics.forEachIndexed { index, feature ->
+                            if (index > 0) HorizontalDivider()
+                            when (feature) {
+                                Feature.CAPITAL_SCREEN -> MenuRow("Капитал", "счета минус долги, прогноз, цели", onCapital)
+                                Feature.CHARTS_SCREEN -> MenuRow("Графики", "доходы, расходы, подушка по месяцам", onCharts)
+                                else -> MenuRow(
+                                    "Курсы валют",
+                                    state.rates.all.firstOrNull()?.let { "обновлены ${DateFormat.dayMonth(it.date)}, раз в сутки" } ?: "текущие и история по дням",
+                                    onRates,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -83,6 +106,8 @@ fun MoreScreen(
                 )
                 HorizontalDivider()
                 MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
+                HorizontalDivider()
+                MenuRow("Модули", "что показывать в приложении: кредиты, копилки, валюты…", onModules)
                 HorizontalDivider()
                 MenuRow("Настройки", "начало месяца, валюты, тема, пароль, выход", onSettings)
             }

@@ -29,6 +29,7 @@ rule "Text built from currency symbol next to a number: use MoneyFormat" '\$\{[^
 rule "Raw Material buttons: use PrimaryButton, SecondaryButton, AddTile or TextButton" '(^|[^A-Za-z.])(Button|OutlinedButton|FilledTonalButton|ElevatedButton)\(' '/components/Buttons\.kt'
 rule "Add actions as plain buttons: use AddTile" '(PrimaryButton|SecondaryButton)\([^)]*\)[^{]*\{ *Text\("Добавить [а-яё]' ''
 rule "Domain imports other layers" '^import ru\.nomadbudget\.(presentation|data|di|demo)\.' '^[^:]*/(presentation|data|di|demo)/|/App\.kt'
+rule "Calculations know nothing about modules: features only gate the UI" '^import ru\.nomadbudget\.features\.' '^[^:]*/(presentation|features|di|demo)/|/App\.kt'
 rule "Presentation imports data" '^import ru\.nomadbudget\.data\.' '^[^:]*/(data|di|demo)/|/App\.kt'
 rule "Data imports presentation" '^import ru\.nomadbudget\.presentation\.' '^[^:]*/(presentation|di|demo)/|/App\.kt'
 rule "Named colors outside the theme" 'Color\.(White|Black|Gray|Red|Green|Blue|Yellow|LightGray|DarkGray)' '/presentation/theme/|/components/AppIcons\.kt'

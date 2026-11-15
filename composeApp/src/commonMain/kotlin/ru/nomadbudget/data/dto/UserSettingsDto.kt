@@ -12,6 +12,8 @@ data class UserSettingsDto(
     @SerialName("annual_return") val annualReturn: Double,
     @SerialName("onboarded_at") val onboardedAt: String?,
     val currencies: List<String> = emptyList(),
+    @SerialName("modules_off") val modulesOff: List<String> = emptyList(),
+    @SerialName("blocks_off") val blocksOff: List<String> = emptyList(),
 )
 
 @Serializable

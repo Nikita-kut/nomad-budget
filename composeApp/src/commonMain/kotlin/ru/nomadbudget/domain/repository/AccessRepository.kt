@@ -36,4 +36,6 @@ interface AccessRepository {
     suspend fun setBlocked(userId: String, blocked: Boolean)
     suspend fun tickets(): List<Ticket>
     suspend fun setTicketStatus(id: String, status: TicketStatus)
+    suspend fun stages(): Map<String, String>
+    suspend fun setStage(key: String, stage: String)
 }

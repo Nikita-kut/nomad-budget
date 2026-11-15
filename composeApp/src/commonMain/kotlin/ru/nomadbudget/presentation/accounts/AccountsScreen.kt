@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.clickable
@@ -95,11 +97,17 @@ fun AccountsScreen(
 
     CenteredLazyColumn {
         item { TotalsCard(state, twoColumns) }
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SecondaryButton(onClick = onOpenExchange, modifier = Modifier.weight(1f)) { Text("Обменять валюту") }
-                SecondaryButton(onClick = onOpenDebts, modifier = Modifier.weight(1f)) {
-                    Text(if (state.openDebts.isEmpty()) "Кредиты" else "Кредиты: ${state.openDebts.size}")
+        val showExchange = FeatureGate.isOn(Feature.CURRENCIES_ACCOUNTS) && FeatureGate.isOn(Feature.CURRENCIES_EXCHANGE)
+        val showDebts = FeatureGate.isOn(Feature.DEBTS_SCREEN)
+        if (showExchange || showDebts) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (showExchange) SecondaryButton(onClick = onOpenExchange, modifier = Modifier.weight(1f)) { Text("Обменять валюту") }
+                    if (showDebts) {
+                        SecondaryButton(onClick = onOpenDebts, modifier = Modifier.weight(1f)) {
+                            Text(if (state.openDebts.isEmpty()) "Кредиты" else "Кредиты: ${state.openDebts.size}")
+                        }
+                    }
                 }
             }
         }
@@ -121,10 +129,14 @@ fun AccountsScreen(
         item { lifeTitle() }
         run {
             item { lifeCard() }
-            item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
-            item { fundsCard() }
-            item { SectionTitle("Подушка", hint = "запас на чёрный день") }
-            item { cushionCard() }
+            if (FeatureGate.isOn(Feature.FUNDS_ACCOUNTS) || funds.isNotEmpty()) {
+                item { SectionTitle("Копилки", hint = "под крупные регулярные траты", info = Hints.FUNDS) }
+                item { fundsCard() }
+            }
+            if (FeatureGate.isOn(Feature.CUSHION_ACCOUNTS) || savings.isNotEmpty()) {
+                item { SectionTitle("Подушка", hint = "запас на чёрный день") }
+                item { cushionCard() }
+            }
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Ui.Gap), verticalAlignment = Alignment.CenterVertically) {
@@ -137,8 +149,10 @@ fun AccountsScreen(
             item { SectionTitle("Архив", hint = "не входят в итоги, история сохранена") }
             item { ArchiveCard(archived.map { ArchivedItem(it.id, it.name, it.currency.code) }, onRestore = onRestore) }
         }
-        item { SectionTitle("Курсы", hint = rateHint(state), info = Hints.RATES) }
-        item { RatesCard(state) }
+        if (FeatureGate.isOn(Feature.CURRENCIES_ACCOUNTS)) {
+            item { SectionTitle("Курсы", hint = rateHint(state), info = Hints.RATES) }
+            item { RatesCard(state) }
+        }
     }
 
     if (adding) {
@@ -455,15 +469,17 @@ private fun RatesCard(state: HomeState) {
 @Composable
 private fun TotalsCard(state: HomeState, wide: Boolean) {
     val others = state.foreignCurrencies.filter(state.rates::hasRate).map { MoneyFormat.format(state.rates.fromBase(state.totalBase, it), false) }
-    TileRow(
-        wide,
-        listOf(
-            { m -> StatTile("Всего", MoneyFormat.format(state.totalBase, false), if (others.isEmpty()) "все счета по текущему курсу" else "≈ " + others.joinToString(" · "), modifier = m, accent = true) },
-            { m -> StatTile("На жизнь", MoneyFormat.format(state.operationalBase, false), "карты и наличные для обычных трат", modifier = m) },
-            { m -> StatTile("Копилки", MoneyFormat.format(state.fundsBalance, false), "на крупные регулярные траты", modifier = m) },
-            { m -> StatTile("Подушка", MoneyFormat.format(state.savingsBalance, false), "запас на чёрный день", modifier = m) },
-        ),
+    val tiles = mutableListOf<@Composable (Modifier) -> Unit>(
+        { m -> StatTile("Всего", MoneyFormat.format(state.totalBase, false), if (others.isEmpty() || !FeatureGate.isOn(Feature.CURRENCIES_ACCOUNTS)) "все счета по текущему курсу" else "≈ " + others.joinToString(" · "), modifier = m, accent = true) },
+        { m -> StatTile("На жизнь", MoneyFormat.format(state.operationalBase, false), "карты и наличные для обычных трат", modifier = m) },
     )
+    if (FeatureGate.isOn(Feature.FUNDS_ACCOUNTS) || !state.fundsBalance.isZero) {
+        tiles += { m -> StatTile("Копилки", MoneyFormat.format(state.fundsBalance, false), "на крупные регулярные траты", modifier = m) }
+    }
+    if (FeatureGate.isOn(Feature.CUSHION_ACCOUNTS) || !state.savingsBalance.isZero) {
+        tiles += { m -> StatTile("Подушка", MoneyFormat.format(state.savingsBalance, false), "запас на чёрный день", modifier = m) }
+    }
+    TileRow(wide, tiles)
 }
 
 @Composable

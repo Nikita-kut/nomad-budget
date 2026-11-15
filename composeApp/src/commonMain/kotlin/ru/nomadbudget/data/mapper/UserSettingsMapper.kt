@@ -14,6 +14,8 @@ object UserSettingsMapper {
         annualReturn = dto.annualReturn,
         onboardedAt = dto.onboardedAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
         currencyCodes = dto.currencies.distinct().sorted(),
+        modulesOff = dto.modulesOff.toSet(),
+        blocksOff = dto.blocksOff.toSet(),
     )
 
     fun toDto(settings: UserSettings): UserSettingsDto = UserSettingsDto(
@@ -24,5 +26,7 @@ object UserSettingsMapper {
         annualReturn = settings.annualReturn,
         onboardedAt = settings.onboardedAt?.toString(),
         currencies = settings.currencyCodes.distinct().sorted(),
+        modulesOff = settings.modulesOff.sorted(),
+        blocksOff = settings.blocksOff.sorted(),
     )
 }

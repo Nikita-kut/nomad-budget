@@ -964,6 +964,7 @@ def run(db: Supabase, tg: Telegram, now_utc: dt.datetime, webhook: tuple[str, st
         print(f"bot updates skipped: {type(e).__name__}", file=sys.stderr)
 
     watches = without_blocked(db.select("rate_watches", "select=*&enabled=is.true"), blocked_users(db))
+    watches = only_allowed(watches, allowed_watch_users(db, watches))
     subscribers = db.select("telegram_subscribers", "select=watch_id,chat_id")
     holidays = load_holidays(db)
     paused = paused_chats(db, now_utc)
@@ -1008,6 +1009,35 @@ def blocked_users(db: Supabase) -> set[str]:
     except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
         print(f"account blocks unavailable: {type(e).__name__}", file=sys.stderr)
         return set()
+
+
+BANK_WATCH_STAGE_KEY = "bank_watch.rates"
+BANK_WATCH_MODULES = {"bank_watch", "currencies"}
+
+
+def allowed_watch_users(db: Supabase, watches: list[dict]) -> set[str] | None:
+    try:
+        stage_rows = db.select("feature_stages", f"select=stage&key=eq.{BANK_WATCH_STAGE_KEY}")
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
+        print(f"feature stages unavailable: {type(e).__name__}", file=sys.stderr)
+        return None
+    stage = stage_rows[0]["stage"] if stage_rows else "all"
+    users = {str(w.get("user_id")) for w in watches}
+    if stage == "off":
+        return set()
+    if stage == "owner":
+        admins = {str(r["user_id"]) for r in db.select("app_admins", "select=user_id")}
+        users &= admins
+    if users:
+        ids = ",".join(sorted(users))
+        rows = db.select("user_settings", f"select=user_id,modules_off&user_id=in.({ids})")
+        off = {str(r["user_id"]) for r in rows if BANK_WATCH_MODULES & set(r.get("modules_off") or [])}
+        users -= off
+    return users
+
+
+def only_allowed(watches: list[dict], allowed: set[str] | None) -> list[dict]:
+    return watches if allowed is None else [w for w in watches if str(w.get("user_id")) in allowed]
 
 
 def without_blocked(watches: list[dict], blocked: set[str]) -> list[dict]:

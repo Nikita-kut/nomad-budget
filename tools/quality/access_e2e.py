@@ -157,6 +157,26 @@ def main() -> int:
         status, _ = api.admin(admin_token, action="reset_link", user_id=admin_id)
         check(status == 400, f"админ получил ссылку входа в учётку админа ({status})")
 
+    status, stages = api.admin(admin_token, action="stages_list")
+    keys = {row["key"]: row["stage"] for row in stages} if isinstance(stages, list) else {}
+    check("charts.screen" in keys, f"E6 список стадий пуст ({status})")
+    status, _ = api.admin(admin_token, action="stage_set", key="nothing.here", stage="all")
+    check(status == 400, f"E6 принят неизвестный ключ фичи ({status})")
+    status, _ = api.admin(admin_token, action="stage_set", key="charts.screen", stage="everyone")
+    check(status == 400, f"E6 принята неизвестная стадия ({status})")
+    if user_token:
+        status, _ = api.admin(user_token, action="stage_set", key="charts.screen", stage="off")
+        check(status == 403, f"E6 пользователь поменял стадию через функцию ({status})")
+        api.call("/rest/v1/feature_stages?key=eq.charts.screen", "PATCH", {"stage": "off"}, user_token)
+        _, after = api.call("/rest/v1/feature_stages?key=eq.charts.screen&select=stage", token=user_token)
+        check(isinstance(after, list) and after and after[0]["stage"] == keys.get("charts.screen"), "E6 пользователь поменял стадию напрямую")
+    if "charts.screen" in keys:
+        original = keys["charts.screen"]
+        status, _ = api.admin(admin_token, action="stage_set", key="charts.screen", stage="owner")
+        _, now = api.call("/rest/v1/feature_stages?key=eq.charts.screen&select=stage", token=admin_token)
+        check(status == 200 and isinstance(now, list) and now and now[0]["stage"] == "owner", f"E6 админ не сменил стадию ({status})")
+        api.admin(admin_token, action="stage_set", key="charts.screen", stage=original)
+
     status, _ = api.call("/auth/v1/signup", "POST", {"email": f"stranger-{run}@{DOMAIN}", "password": password})
     check(status >= 400, f"A6 регистрация без приглашения открыта ({status})")
 

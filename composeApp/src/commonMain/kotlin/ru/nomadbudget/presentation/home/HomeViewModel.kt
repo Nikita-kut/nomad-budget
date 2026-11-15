@@ -342,6 +342,10 @@ class HomeViewModel(
         settings.setIncomeDays(days)
     }
 
+    fun setModules(modulesOff: Set<String>, blocksOff: Set<String>) {
+        settings.setModules(modulesOff, blocksOff)
+    }
+
     fun addCurrency(code: String) {
         settings.addCurrency(code)
     }

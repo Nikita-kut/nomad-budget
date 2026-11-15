@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import ru.nomadbudget.presentation.format.LocalBaseCurrency
 import androidx.compose.foundation.background
@@ -140,13 +142,19 @@ fun PlanningScreen(
             }
         }
 
-        item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
-        item { SavingsCard(month, state.capital, onClick = { editingSavings = true }, onOpenCapital = onOpenCapital) }
+        if (FeatureGate.isOn(Feature.CUSHION_PLAN)) {
+            item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
+            item { SavingsCard(month, state.capital.takeIf { FeatureGate.isOn(Feature.CAPITAL_PLAN_FORECAST) }, onClick = { editingSavings = true }, onOpenCapital = onOpenCapital) }
+        }
 
-        item { SectionTitle("Кредиты", hint = "платежи подставляются сами", info = Hints.OBLIGATIONS) }
-        item { DebtsPlanCard(state, onOpenDebts, onPlanEarly = { planningEarly = it }) }
-        item { SectionTitle("Копилки", hint = "взносы и траты из копилок", info = Hints.FUNDS) }
-        item { FundsPlanCard(state, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
+        if (FeatureGate.isOn(Feature.DEBTS_PLAN)) {
+            item { SectionTitle("Кредиты", hint = "платежи подставляются сами", info = Hints.OBLIGATIONS) }
+            item { DebtsPlanCard(state, onOpenDebts, onPlanEarly = { planningEarly = it }) }
+        }
+        if (FeatureGate.isOn(Feature.FUNDS_PLAN)) {
+            item { SectionTitle("Копилки", hint = "взносы и траты из копилок", info = Hints.FUNDS) }
+            item { FundsPlanCard(state, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
+        }
 
         item { SectionTitle("Конверты", hint = "план и среднее за 3 месяца", info = Hints.PLAN_CATEGORY) }
         items(month.envelopes.filterNot { it.category.isArchived || state.isDebtOnlyEnvelope(it) }, key = { it.category.id }) { budget ->
@@ -256,16 +264,32 @@ private fun PlanSummaryTiles(month: MonthModel, period: Period, wide: Boolean, p
     )
 }
 
+fun hiddenAllocation(month: MonthModel, zero: Money): Pair<String, Money>? =
+    hiddenAllocation(month.debtsPlanned, month.fundsPlanned, month.savingsTarget ?: zero, zero)
+
+fun hiddenAllocation(debts: Money, funds: Money, savings: Money, zero: Money): Pair<String, Money>? {
+    val hidden = listOfNotNull(
+        ("кредиты" to debts).takeUnless { FeatureGate.isOn(Feature.DEBTS_PLAN) },
+        ("копилки" to funds).takeUnless { FeatureGate.isOn(Feature.FUNDS_PLAN) },
+        ("«Себе»" to savings).takeUnless { FeatureGate.isOn(Feature.CUSHION_PLAN) },
+    ).filter { it.second.minor > 0L }
+    if (hidden.isEmpty()) return null
+    return hidden.joinToString(", ") { it.first } to hidden.fold(zero) { sum, part -> sum + part.second }
+}
+
 @Composable
 private fun AllocationCard(month: MonthModel) {
     val base = LocalBaseCurrency.current
     val colors = AppTheme.colors
     val negative = month.unallocated.isNegative
-    val parts = listOf(
-        Triple(if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки", month.debtsPlanned, MaterialTheme.colorScheme.outline),
-        Triple("Взносы в копилки", month.fundsPlanned, colors.warning),
+    val hidden = hiddenAllocation(month, Money.zero(base))
+    val parts = listOfNotNull(
+        Triple(if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки", month.debtsPlanned, MaterialTheme.colorScheme.outline)
+            .takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
+        Triple("Взносы в копилки", month.fundsPlanned, colors.warning).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
         Triple("Конверты", month.flexiblePlanned, MaterialTheme.colorScheme.primary),
-        Triple("Себе", month.savingsTarget ?: Money.zero(base), colors.save),
+        Triple("Себе", month.savingsTarget ?: Money.zero(base), colors.save).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
+        hidden?.let { Triple("Скрытые модули: ${it.first}", it.second, MaterialTheme.colorScheme.outlineVariant) },
         Triple(if (negative) "Не хватает" else "Не распределено", if (negative) -month.unallocated else month.unallocated, if (negative) colors.bad else colors.good),
     ).filter { it.second.minor > 0L }
     Card(modifier = Modifier.fillMaxWidth()) {

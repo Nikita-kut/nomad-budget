@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.entry
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -266,8 +268,10 @@ fun EntryScreen(
                     onSubmit = ::trySubmit,
                 )
             }
-            item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else plural(state.drafts.size, "заметка", "заметки", "заметок"), info = Hints.INBOX) }
-            item { InboxCard(state.drafts, onAddDraft, onUseDraft, onRemoveDraft) }
+            if (FeatureGate.isOn(Feature.INBOX_ENTRY) || state.drafts.isNotEmpty()) {
+                item { SectionTitle("Входящие", hint = if (state.drafts.isEmpty()) "заметок нет" else plural(state.drafts.size, "заметка", "заметки", "заметок"), info = Hints.INBOX) }
+                item { InboxCard(state.drafts, onAddDraft, onUseDraft, onRemoveDraft) }
+            }
         }
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),

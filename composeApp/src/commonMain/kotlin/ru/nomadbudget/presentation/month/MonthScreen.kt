@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.month
 
+import ru.nomadbudget.features.FeatureGate
+import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.components.SecondaryButton
 import ru.nomadbudget.presentation.components.PrimaryButton
 import androidx.compose.foundation.clickable
@@ -120,7 +122,7 @@ fun MonthScreen(
         if (idle.isNotEmpty()) {
             item { IdleLine(idle.map { it.category.name }, onOpenPlanning) }
         }
-        if (month.funds.isNotEmpty()) {
+        if (month.funds.isNotEmpty() && FeatureGate.isOn(Feature.FUNDS_MONTH)) {
             item { SectionTitle("Копилки", hint = "откладываешь на крупное", info = Hints.FUNDS) }
             item { FundsCard(month.funds, onOpenPlanning) }
         }
@@ -419,7 +421,7 @@ private fun WideMonth(
                         SectionTitle("Доходы", hint = "получено и план", info = Hints.INCOME)
                         IncomeCard(month, Modifier.weight(1f))
                     },
-                    if (month.funds.isNotEmpty()) {
+                    if (month.funds.isNotEmpty() && FeatureGate.isOn(Feature.FUNDS_MONTH)) {
                         {
                             SectionTitle("Копилки", hint = "откладываешь на крупное", info = Hints.FUNDS)
                             FundsCard(month.funds, onOpenPlanning, Modifier.weight(1f))
@@ -559,7 +561,7 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
         }
     }
     val target = month.savingsTarget
-    tiles += { m ->
+    if (FeatureGate.isOn(Feature.CUSHION_MONTH_TILE)) tiles += { m ->
         StatTile(
             label = "Подушка за месяц",
             value = MoneyFormat.formatSigned(month.cushionNet, false),
@@ -579,7 +581,7 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
             subColor = if (month.savingsProgress == SavingsProgress.MISSED) colors.bad else null,
         )
     }
-    if (month.debts.isNotEmpty()) {
+    if (month.debts.isNotEmpty() && FeatureGate.isOn(Feature.DEBTS_MONTH_TILE)) {
         val next = month.nextObligation
         val overdue = month.debtsOverdue
         tiles += { m ->

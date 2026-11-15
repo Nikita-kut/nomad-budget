@@ -39,6 +39,8 @@ import ru.nomadbudget.domain.repository.AccountRow
 import ru.nomadbudget.domain.repository.InviteRow
 import ru.nomadbudget.domain.repository.Ticket
 import ru.nomadbudget.domain.repository.TicketStatus
+import ru.nomadbudget.features.Feature
+import ru.nomadbudget.features.Stage
 import ru.nomadbudget.presentation.tickets.statusColor
 import ru.nomadbudget.presentation.tickets.ticketLine
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
@@ -81,6 +83,7 @@ fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit
     var invites by remember { mutableStateOf<List<InviteRow>>(emptyList()) }
     var accounts by remember { mutableStateOf<List<AccountRow>>(emptyList()) }
     var tickets by remember { mutableStateOf<List<Ticket>>(emptyList()) }
+    var stages by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val uriHandler = LocalUriHandler.current
     var email by remember { mutableStateOf("") }
     var link by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -111,6 +114,7 @@ fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit
     LaunchedEffect(reload) {
         try {
             tickets = access.tickets()
+            stages = access.stages()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -255,6 +259,29 @@ fun AdminScreen(access: AccessRepository, myUserId: String?, onBack: (() -> Unit
                                 ticket.screenshotUrl?.let { url -> TextButton(onClick = { uriHandler.openUri(url) }) { Text("Скриншот") } }
                                 TicketStatus.entries.filter { it != ticket.status && it != TicketStatus.NEW }.forEach { status ->
                                     TextButton(onClick = { run { access.setTicketStatus(ticket.id, status) } }, enabled = !busy) { Text(status.title) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item { SectionTitle("Стадии фич", hint = "кто видит каждый блок") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Feature.entries.forEachIndexed { index, feature ->
+                        if (index > 0) HorizontalDivider()
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            Text(feature.title)
+                            Text(feature.key + (feature.module?.let { " · модуль «${it.title}»" } ?: ""), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row {
+                                Stage.entries.forEach { stage ->
+                                    val current = stages[feature.key] == stage.key
+                                    TextButton(onClick = { run { access.setStage(feature.key, stage.key) } }, enabled = !busy && !current) {
+                                        Text(if (current) "• ${stage.title}" else stage.title)
+                                    }
                                 }
                             }
                         }

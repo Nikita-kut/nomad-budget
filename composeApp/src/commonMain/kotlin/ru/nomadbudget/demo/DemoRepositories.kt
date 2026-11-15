@@ -86,6 +86,7 @@ val demoModule = module {
     single<AuthRepository> { DemoAuthRepository() }
     single<AccessRepository> { DemoAccessRepository }
     single<TicketRepository> { DemoTicketRepository }
+    single<ru.nomadbudget.features.FeatureRepository> { ru.nomadbudget.features.DemoFeatureRepository }
     single<CurrencyRepository> { DemoCurrencyRepository(get()) }
     single<AccountRepository> { DemoAccountRepository(get()) }
     single<CategoryRepository> { DemoCategoryRepository(get()) }
@@ -419,6 +420,8 @@ object DemoAccessRepository : AccessRepository {
     override suspend fun setBlocked(userId: String, blocked: Boolean) = unavailable()
     override suspend fun tickets(): List<Ticket> = emptyList()
     override suspend fun setTicketStatus(id: String, status: TicketStatus) = unavailable()
+    override suspend fun stages(): Map<String, String> = emptyMap()
+    override suspend fun setStage(key: String, stage: String) = unavailable()
 }
 
 object DemoTicketRepository : TicketRepository {

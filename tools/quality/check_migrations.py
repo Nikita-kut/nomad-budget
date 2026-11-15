@@ -8,6 +8,10 @@ from pathlib import Path
 
 MIGRATION = re.compile(r"^supabase/migrations/(\d{4})_[a-z0-9_]+\.sql$")
 LABEL = "destructive-ok"
+STAGE_LABEL = "feature-stage-ok"
+STAGE_INSERT = re.compile(r"\binsert\s+into\s+public\.feature_stages\b", re.I)
+STAGE_UPDATE = re.compile(r"\bupdate\s+public\.feature_stages\b", re.I)
+OPEN_STAGE = re.compile(r"'(all|off)'", re.I)
 DESTRUCTIVE = [
     (re.compile(r"\bdrop\s+table\b", re.I), "drop table"),
     (re.compile(r"\bdrop\s+column\b", re.I), "drop column"),
@@ -46,6 +50,10 @@ def destructive(sql: str) -> list[str]:
     return sorted(set(found))
 
 
+def opens_features(sql: str) -> bool:
+    return any((STAGE_INSERT.search(stmt) or STAGE_UPDATE.search(stmt)) and OPEN_STAGE.search(stmt) for stmt in statements(sql))
+
+
 def check(changes: list[tuple[str, str]], existing: list[str], read, labels: set[str]) -> list[str]:
     problems = []
     numbers = sorted(int(m.group(1)) for m in (MIGRATION.match(p) for p in existing) if m)
@@ -69,6 +77,8 @@ def check(changes: list[tuple[str, str]], existing: list[str], read, labels: set
         found = destructive(read(path))
         if found and LABEL not in labels:
             problems.append(f"{path}: разрушительные операции ({', '.join(found)}) — нужен свежий дамп и метка {LABEL}")
+        if opens_features(read(path)) and STAGE_LABEL not in labels:
+            problems.append(f"{path}: новая фича добавляется со стадией all/off — новые ключи только 'owner', открывать всем — через админку (или метка {STAGE_LABEL})")
     return problems
 
 
