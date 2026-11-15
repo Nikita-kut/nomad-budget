@@ -43,6 +43,7 @@ fun MoreScreen(
     onSettings: () -> Unit,
     onTickets: () -> Unit = {},
     onModules: () -> Unit = {},
+    onIntro: () -> Unit = {},
     onReport: () -> Unit = {},
 ) {
     CenteredLazyColumn {
@@ -106,6 +107,8 @@ fun MoreScreen(
                 )
                 HorizontalDivider()
                 MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
+                HorizontalDivider()
+                MenuRow("Как это работает", "знакомство с приложением: конверты, «Себе», модули", onIntro)
                 HorizontalDivider()
                 MenuRow("Модули", "что показывать в приложении: кредиты, копилки, валюты…", onModules)
                 HorizontalDivider()

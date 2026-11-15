@@ -21,6 +21,9 @@ jobs:
       - name: Tests
         run: ./gradlew :composeApp:testAndroidHostTest :composeApp:wasmJsBrowserTest
       - name: Build APK and web bundle
+        env:
+          NOMAD_VERSION: ${{ github.ref_name }}
+          NOMAD_OWNER_CONTACT: ${{ vars.NOMAD_OWNER_CONTACT }}
         run: ./gradlew :androidApp:assembleDebug :composeApp:wasmJsBrowserDistribution
       - name: Package artifacts
         run: |
@@ -31,3 +34,15 @@ jobs:
         with:
           generate_release_notes: true
           files: out/*
+      - name: Tell clients about the new version
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          apk="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/nomad-budget-${GITHUB_REF_NAME}.apk"
+          curl -sf -o /dev/null -X PATCH "$SUPABASE_URL/rest/v1/app_config?id=eq.1" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" -H "Content-Type: application/json" \
+            -d "{\"latest_version\": \"$version\", \"apk_url\": \"$apk\", \"updated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+          echo "latest_version = $version"

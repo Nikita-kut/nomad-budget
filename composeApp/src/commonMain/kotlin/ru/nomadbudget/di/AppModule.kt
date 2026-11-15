@@ -60,6 +60,7 @@ val appModule = module {
     single<AccessRepository> { AccessRepositoryImpl(get()) }
     single<TicketRepository> { TicketRepositoryImpl(get()) }
     single<FeatureRepository> { FeatureRepositoryImpl(get(), get()) }
+    single<ru.nomadbudget.presentation.update.AppVersionRepository> { ru.nomadbudget.presentation.update.AppVersionRepositoryImpl(get()) }
     single<KeyValueStore> {
         val auth = get<AuthRepository>()
         UserScopedStore(get(DEVICE_STORE)) { auth.currentUserId }

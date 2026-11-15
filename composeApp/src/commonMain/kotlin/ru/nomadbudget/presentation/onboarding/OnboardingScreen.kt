@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.onboarding
 
+import ru.nomadbudget.features.AppModule
+import ru.nomadbudget.features.FeatureGate
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,10 +62,10 @@ import ru.nomadbudget.presentation.home.HomeState
 
 private enum class Step(val title: String, val subtitle: String) {
     PERIOD("Когда начинается твой месяц бюджета", "От этого дня считаются план, конверты и итоги. Если доход приходит в разные дни или нерегулярно, оставь 1 число."),
-    CURRENCIES("Валюты", "Базовая валюта — в ней считаются итоги, план и капитал. Другие валюты можно добавить по коду ISO, курс подтянется в течение суток."),
-    ACCOUNTS("Счета", "Где лежат деньги. Названия и роли можно поменять позже на экране «Счета»."),
-    CATEGORIES("Категории", "Снимай лишнее и добавляй своё. Подкатегории появятся у стандартных категорий."),
-    BALANCES("Начальные остатки", "Сколько сейчас на каждом счёте. Можно пропустить и свериться позже кнопкой «Сверить остаток»."),
+    CURRENCIES("Основная валюта", "В ней считаются итоги, план и «Можно ещё потратить». Другие валюты можно добавить по коду ISO, курс подтянется в течение суток."),
+    ACCOUNTS("Где лежат деньги", "Роль счёта решает, куда он попадает: «На жизнь» — обычные траты, «Копилка» — деньги на крупное, «Подушка» — запас. Названия и роли можно поменять позже на экране «Счета»."),
+    CATEGORIES("На что уходят деньги", "Это конверты месяца. Сними лишнее и добавь своё. Подкатегории появятся у стандартных категорий."),
+    BALANCES("Сколько сейчас на счетах", "Можно пропустить и свериться позже кнопкой «Сверить остаток». Дальше — план на месяц и первая запись."),
 }
 
 class OnboardingState {
@@ -156,7 +158,7 @@ fun OnboardingScreen(state: HomeState, messages: Flow<String>, onFinish: (Onboar
         CenteredLazyColumn(maxContentWidth = Ui.FormMaxWidth, top = 24.dp, bottom = 32.dp) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(padding)) {
-                    Text("Nomad Budget · настройка", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Nomad Budget · настройка, один раз", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Шаг ${form.step + 1} из ${Step.entries.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LinearProgressIndicator(progress = { (form.step + 1f) / Step.entries.size }, modifier = Modifier.fillMaxWidth())
                     Text(step.title, style = MaterialTheme.typography.headlineSmall)
@@ -223,6 +225,10 @@ private fun CurrenciesStep(form: OnboardingState) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+    if (!FeatureGate.isOn(AppModule.CURRENCIES)) {
+        Text("Модуль «Мультивалютность» выключен — все счета в одной валюте. Включить можно позже: «Ещё» → «Модули».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
     form.currencyCodes.forEach { code ->
         HorizontalDivider()
         CurrencyRow(code = code, name = IsoCurrencies.nameOf(code), trailing = {
@@ -233,8 +239,23 @@ private fun CurrenciesStep(form: OnboardingState) {
     CurrencySearchField(exclude = form.availableCurrencies().toSet(), onPick = { form.currencyCodes += it.code })
 }
 
+fun onboardingRoles(): List<AccountRole> = AccountRole.entries.filter { role ->
+    when (role) {
+        AccountRole.FUND -> FeatureGate.isOn(AppModule.FUNDS)
+        AccountRole.CUSHION -> FeatureGate.isOn(AppModule.CUSHION)
+        else -> true
+    }
+}
+
 @Composable
 private fun AccountsStep(form: OnboardingState) {
+    val roles = onboardingRoles()
+    val multiCurrency = FeatureGate.isOn(AppModule.CURRENCIES)
+    LaunchedEffect(roles, multiCurrency) {
+        form.accounts.filter { it.role !in roles || (!multiCurrency && it.currencyCode != form.base.code) }.forEach {
+            form.update(it.copy(role = if (it.role in roles) it.role else AccountRole.LIFE, currencyCode = if (multiCurrency) it.currencyCode else form.base.code))
+        }
+    }
     form.accounts.forEachIndexed { index, account ->
         if (index > 0) HorizontalDivider()
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
@@ -249,8 +270,10 @@ private fun AccountsStep(form: OnboardingState) {
                 IconButton(onClick = { form.remove(account.key) }) { Icon(AppIcons.Trash, contentDescription = "Убрать счёт") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Dropdown("Валюта", form.availableCurrencies(), account.currencyCode, { it }, { form.update(account.copy(currencyCode = it)) }, modifier = Modifier.width(CURRENCY_WIDTH))
-                Dropdown("Роль", AccountRole.entries, account.role, ::roleLabel, { form.update(account.copy(role = it)) }, modifier = Modifier.weight(1f))
+                if (multiCurrency) {
+                    Dropdown("Валюта", form.availableCurrencies(), account.currencyCode, { it }, { form.update(account.copy(currencyCode = it)) }, modifier = Modifier.width(CURRENCY_WIDTH))
+                }
+                if (roles.size > 1) Dropdown("Роль", roles, account.role, ::roleLabel, { form.update(account.copy(role = it)) }, modifier = Modifier.weight(1f))
             }
         }
     }
