@@ -46,6 +46,10 @@ if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMI
     failed=1
 fi
 
+if ! API_URL="$API_URL" ANON_KEY="$ANON_KEY" ADMIN_EMAIL=owner@example.test ADMIN_PASSWORD="$admin_password" python3 tools/quality/tickets_e2e.py; then
+    failed=1
+fi
+
 if [[ $failed -ne 0 ]]; then
     echo "Проверки базы: есть нарушения"
     exit 1
