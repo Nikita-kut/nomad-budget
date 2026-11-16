@@ -70,6 +70,16 @@ VERDICT_NORMAL = "normal"
 VERDICT_WARMUP = "warmup"
 VERDICT_NIGHT = "night"
 VERDICT_WEEKEND = "weekend"
+VERDICT_ICONS = {
+    KIND_GOOD: "🟢",
+    KIND_BAD: "🔴",
+    VERDICT_NORMAL: "⚪️",
+    VERDICT_WARMUP: "⏳",
+    VERDICT_NIGHT: "🌙",
+    VERDICT_WEEKEND: "💤",
+}
+REFRESH_TEXT = "🔄 Обновить"
+REFRESH_KEYBOARD = {"keyboard": [[{"text": REFRESH_TEXT}]], "resize_keyboard": True, "is_persistent": True}
 VERDICT_TEXTS = {
     KIND_GOOD: "выгодно",
     KIND_BAD: "не меняй",
@@ -177,7 +187,7 @@ class Telegram:
         return payload["result"]
 
     def send(self, chat_id: int, text: str) -> None:
-        self.call("sendMessage", chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True)
+        self.call("sendMessage", chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=REFRESH_KEYBOARD)
 
 
 # ---------- Парсинг курсов (чистые функции) ----------
@@ -557,10 +567,18 @@ def pair_title(watch: dict) -> str:
     return f"{watch['from_currency']} → {watch['to_currency']}"
 
 
+def big_rate(from_code: str, to_code: str, rate: float, unit: int) -> str:
+    return f"<b>{format_quote(rate * unit)}{NBSP}{to_code}</b> за {unit_label(unit, from_code)}"
+
+
 def cbr_line(from_code: str, to_code: str, bank: float, cbr: float | None, unit: int) -> str:
     if cbr is None:
         return "ЦБ: курса нет"
-    return f"ЦБ: {rate_text(from_code, to_code, cbr, unit)} · разница {format_percent(spread(bank, cbr) or 0.0)}"
+    return f"ЦБ {format_quote(cbr * unit)} · разница {format_percent(spread(bank, cbr) or 0.0)}"
+
+
+def stamp(local: dt.datetime) -> str:
+    return f"<i>курс на {clock(local)}</i>"
 
 
 
@@ -583,7 +601,7 @@ def message_signal(watch: dict, rate: float, cbr: float | None, event: dict) -> 
         headline = "сейчас не меняй" if previous is None else f"стало ещё хуже, было {format_quote(previous * unit)}"
     lines = [
         f"{icon} <b>{pair_title(watch)}</b>: {headline}",
-        f"{rate_text(f, t, rate, unit)} · {position_text(kind, event['assessment'])}",
+        f"{big_rate(f, t, rate, unit)} · {position_text(kind, event['assessment'])}",
         cbr_line(f, t, rate, cbr, unit),
     ]
     return "\n".join(line for line in lines if line)
@@ -596,7 +614,7 @@ def message_target(watch: dict, rate: float, target: float, previous: float | No
     tail = f", было {was}" if was is not None and was != now else ""
     return (
         f"🎯 <b>{pair_title(watch)}</b>: курс выше цели {format_quote(target * unit)}{tail}\n"
-        f"Обмен: {rate_text(watch['from_currency'], watch['to_currency'], rate, unit)}"
+        f"{big_rate(watch['from_currency'], watch['to_currency'], rate, unit)}"
     )
 
 
@@ -607,11 +625,11 @@ def verdict_text(code: str) -> str:
 def rate_summary(watch: dict, rate: float, cbr: float | None, code: str, assessment: dict | None, target: float | None) -> list[str]:
     f, t = watch["from_currency"], watch["to_currency"]
     unit = quote_unit(rate)
-    lines = [f"Обмен: {rate_text(f, t, rate, unit)} · {verdict_text(code)}", cbr_line(f, t, rate, cbr, unit)]
+    lines = [f"{big_rate(f, t, rate, unit)} · {VERDICT_ICONS[code]} {verdict_text(code)}", cbr_line(f, t, rate, cbr, unit)]
     if assessment is not None and not assessment["warmup"]:
-        lines.append(f"Лучше {format_share(assessment['below'])} замеров недели")
+        lines.append(f"📊 лучше {format_share(assessment['below'])} замеров недели")
     if target is not None and rate >= target:
-        lines.append(f"Выше цели {format_quote(target * unit)}")
+        lines.append(f"🎯 выше цели {format_quote(target * unit)}")
     return lines
 
 
@@ -623,27 +641,29 @@ def notes_line(notes: dict, unit: int) -> str | None:
         parts.append(f"было невыгодно, до {format_quote(notes['worst'] * unit)}" if notes.get("worst") else "было невыгодно")
     if notes.get("target_max"):
         parts.append(f"выше цели было: макс {format_quote(notes['target_max'] * unit)}")
-    return f"Вне окна отправки: {'; '.join(parts)}" if parts else None
+    return f"🌙 вне окна отправки: {'; '.join(parts)}" if parts else None
 
 
 def message_digest(watch: dict, rate: float, cbr: float | None, event: dict, local: dt.datetime) -> str:
     code = event["verdict"]
-    title = "утренняя сводка" if code in (VERDICT_NIGHT, VERDICT_WEEKEND) else "курс на начало торгов"
-    lines = [f"☀️ <b>{pair_title(watch)}</b> · {title}, {clock(local)}"]
+    title = "утренняя сводка" if code in (VERDICT_NIGHT, VERDICT_WEEKEND) else "начало торгов"
+    lines = [f"☀️ <b>{pair_title(watch)}</b> · {title}"]
     lines += rate_summary(watch, rate, cbr, code, event.get("assessment"), event.get("target"))
     lines.append(notes_line(event.get("notes") or {}, quote_unit(rate)))
+    lines.append(stamp(local))
     return "\n".join(line for line in lines if line)
 
 
 def message_now(watch: dict, rate: float, cbr: float | None, code: str, assessment: dict | None, local: dt.datetime) -> str:
-    lines = [f"💱 <b>{pair_title(watch)}</b> · курс на {clock(local)}"]
+    lines = [f"💱 <b>{pair_title(watch)}</b>"]
     lines += rate_summary(watch, rate, cbr, code, assessment, _float_or_none(watch.get("target")))
+    lines.append(stamp(local))
     return "\n".join(lines)
 
 
 def subscribe_text(watch: dict) -> str:
     return (f"Подписка на курс включена: <b>{pair_title(watch)}</b>, обмен в приложении.\n"
-            f"Курс сейчас — /rate, отписаться — /stop")
+            f"Курс сейчас — кнопка «{REFRESH_TEXT}» внизу или /rate, отписаться — /stop")
 
 
 HELP_TEXT = ("Бот присылает курс банка и сигналы, когда менять выгодно.\n"
