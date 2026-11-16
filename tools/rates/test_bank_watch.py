@@ -1,3 +1,5 @@
+import urllib.error
+import io
 import datetime as dt
 import sys
 import unittest
@@ -517,9 +519,12 @@ class MessageTest(unittest.TestCase):
         self.assertIn("ЦБ: курса нет", text)
 
     def test_target_message(self):
-        self.assertEqual("🎯 Курс выше цели 305: 306,10 (было 305,40)", bw.message_target(306.1, 305.0, 305.4))
-        self.assertEqual("🎯 Курс выше цели 1,14: 1,15 (было 1,16)", bw.message_target(0.0115, 0.0114, 0.0116))
-        self.assertEqual("🎯 Курс выше цели 92: 92,46", bw.message_target(92.456, 92.0, None))
+        watch = {"from_currency": "RUB", "to_currency": "VND"}
+        error = urllib.error.HTTPError("u", 400, "Bad Request", {}, io.BytesIO(b'{"ok":false,"description":"Bad Request: widget is too big"}'))
+        self.assertEqual("HTTP 400 Bad Request: widget is too big", bw.telegram_error(error))
+        self.assertEqual("🎯 <b>RUB → VND</b>: курс выше цели 305, было 305\nОбмен: 1\u00a0RUB = 306\u00a0VND", bw.message_target(watch, 306.1, 305.0, 304.6))
+        self.assertEqual("🎯 <b>RUB → VND</b>: курс выше цели 300\nОбмен: 1\u00a0RUB = 300\u00a0VND", bw.message_target(watch, 300.0, 300.0, 299.91))
+        self.assertNotIn(",", bw.message_target(watch, 300.0, 300.0, 299.91).split("\n")[0].split("цели")[1])
 
     def test_bad_message(self):
         assessment = bw.assess(watch(), 0.0101, None, SMALL_WEEK)
