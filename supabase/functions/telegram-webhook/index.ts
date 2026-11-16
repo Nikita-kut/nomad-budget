@@ -1,4 +1,5 @@
 import { MAX_PAUSE_HOURS, parsePause, pauseText } from "./pause.ts";
+import { composeNow, fetchExchangeRate, type RefreshContext } from "./refresh.ts";
 
 const SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -15,7 +16,7 @@ const NOT_PAUSED_TEXT = "Паузы нет, сигналы и сводки пр�
 const HOUR_MS = 3_600_000;
 
 type Chat = { id: number; first_name?: string; username?: string; title?: string };
-type WatchState = { now_text?: string; now_widget?: string; now_caption?: string; widgets_ok?: boolean };
+type WatchState = { now_text?: string; now_widget?: string; now_caption?: string; widgets_ok?: boolean; refresh?: RefreshContext };
 type Watch = { id: string; user_id?: string; from_currency: string; to_currency: string; state?: WatchState };
 type Answer = { text: string; widget?: { html: string; caption: string }; subscribed?: boolean };
 
@@ -57,13 +58,25 @@ async function nowAnswer(chatId: number): Promise<Answer> {
   }
   if (rows.length === 0) return { text: NOT_SUBSCRIBED_TEXT, subscribed: false };
   const states = rows.map((row) => row.rate_watches?.state).filter((state): state is WatchState => !!state);
-  const texts = states.map((state) => state.now_text).filter((text): text is string => !!text);
+  const texts = (await Promise.all(states.map(liveText))).filter((text): text is string => !!text);
   const text = texts.length > 0 ? texts.join("\n\n") : NOT_CHECKED_TEXT;
   const only = states.length === 1 ? states[0] : undefined;
   if (only?.widgets_ok === true && only.now_widget && only.now_caption) {
     return { text, widget: { html: only.now_widget, caption: only.now_caption }, subscribed: true };
   }
   return { text, subscribed: true };
+}
+
+async function liveText(state: WatchState): Promise<string | undefined> {
+  if (state.refresh) {
+    try {
+      const rate = await fetchExchangeRate(state.refresh);
+      if (rate !== null) return composeNow(state.refresh, rate, new Date());
+    } catch (error) {
+      console.error(`live rate failed: ${error instanceof Error ? error.name : "unknown"}`);
+    }
+  }
+  return state.now_text;
 }
 
 async function subscribe(chat: Chat, code: string): Promise<string> {

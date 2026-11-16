@@ -89,6 +89,7 @@ VERDICT_TEXTS = {
     VERDICT_WEEKEND: "биржа закрыта, курс выходного дня",
 }
 MAX_QUOTE_UNIT = 1_000_000
+REFRESH_HOLIDAYS = 30
 NBSP = " "
 MINUS = "−"
 TIMEOUT = 30
@@ -670,6 +671,50 @@ def message_now(watch: dict, rate: float, cbr: float | None, code: str, assessme
     return "\n".join(lines)
 
 
+def refresh_context(watch: dict, cbr: float | None, history: list[dict], holidays: set[str], now_utc: dt.datetime) -> dict:
+    trade_open, trade_close = trade_hours(watch)
+    values = sorted(row["buy"] for row in history)
+    today = exchange_now(now_utc).date().isoformat()
+    return {
+        "provider": watch.get("provider"),
+        "from": watch["from_currency"],
+        "to": watch["to_currency"],
+        "target": _float_or_none(watch.get("target")),
+        "threshold": float(watch.get("good_percentile") or DEFAULT_GOOD_PERCENTILE) / 100.0,
+        "values": values,
+        "median_spread": median_spread(history),
+        "warmup": len(values) < warmup_samples(trade_open, trade_close),
+        "cbr": cbr,
+        "trade_open": trade_open,
+        "trade_close": trade_close,
+        "timezone": watch.get("timezone") or DEFAULT_TIMEZONE,
+        "holidays": sorted(day for day in holidays if day >= today)[:REFRESH_HOLIDAYS],
+    }
+
+
+def assess_context(context: dict, rate: float) -> dict:
+    values = context["values"]
+    below = share_below(values, rate)
+    above = share_above(values, rate)
+    now_spread = spread(rate, context["cbr"])
+    week_spread = context["median_spread"]
+    spread_ok = week_spread is None or now_spread is None or now_spread > week_spread
+    warmup = context["warmup"]
+    threshold = context["threshold"]
+    good = not warmup and below >= threshold - SHARE_EPSILON and spread_ok
+    bad = not warmup and above >= threshold - SHARE_EPSILON
+    return {"warmup": warmup, "below": below, "above": above, "kind": KIND_GOOD if good else KIND_BAD if bad else None}
+
+
+def compose_now(context: dict, rate: float, now_utc: dt.datetime) -> str:
+    holidays = set(context["holidays"])
+    trading = in_trading_hours(now_utc, context["trade_open"], context["trade_close"], holidays)
+    assessment = assess_context(context, rate) if trading else None
+    code = verdict(assessment, exchange_now(now_utc).date(), holidays)
+    watch = {"from_currency": context["from"], "to_currency": context["to"], "target": context["target"]}
+    return message_now(watch, rate, context["cbr"], code, assessment, local_now(now_utc, context["timezone"]))
+
+
 def subscribe_text(watch: dict) -> str:
     return (f"Подписка на курс включена: <b>{pair_title(watch)}</b>, обмен в приложении.\n"
             f"Курс сейчас — кнопка «{REFRESH_TEXT}» внизу или /rate, отписаться — /stop")
@@ -1198,7 +1243,9 @@ def process_watch(db: Supabase, tg: Telegram, watch: dict, pair: dict, chats: li
             send_event(tg, chat_id, text, widget, new_state)
     assessment = assess(watch, rate, cbr, history) if in_trading_hours(now_utc, trade_open, trade_close, holidays) else None
     code = verdict(assessment, exchange_now(now_utc).date(), holidays)
-    new_state["now_text"] = message_now(watch, rate, cbr, code, assessment, local)
+    context = refresh_context(watch, cbr, history, holidays, now_utc)
+    new_state["refresh"] = context
+    new_state["now_text"] = compose_now(context, rate, now_utc)
     now_widget = widget_now(watch, rate, cbr, code, assessment, local, charts)
     if now_widget is not None:
         new_state["now_widget"], new_state["now_caption"] = now_widget
