@@ -77,7 +77,7 @@ class IntroScreenUiTest {
         val stages = Feature.entries.associate { it.key to Stage.ALL } + Feature.entries.filter { it.module == AppModule.DEBTS }.associate { it.key to Stage.OWNER }
         setContent { AppTheme { IntroScreen(state(), FeatureState(stages = stages), firstTime = true, onSetModules = { _, _ -> }, onDone = {}) } }
         next(4)
-        onNodeWithText("Кредиты без сюрпризов").assertExists()
+        onNodeWithText("Кредиты в плане").assertExists()
         onNodeWithTag(IntroTags.module(AppModule.DEBTS)).assertDoesNotExist()
     }
 

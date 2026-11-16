@@ -144,7 +144,7 @@ fun PlanningScreen(
         }
 
         if (FeatureGate.isOn(Feature.CUSHION_PLAN)) {
-            item { SectionTitle("Себе", hint = "сначала заплати себе", info = Hints.PLAN_SAVINGS) }
+            item { SectionTitle("Отложить", hint = "сначала откладываешь, потом тратишь", info = Hints.PLAN_SAVINGS) }
             item { SavingsCard(month, state.capital.takeIf { FeatureGate.isOn(Feature.CAPITAL_PLAN_FORECAST) }, onClick = { editingSavings = true }, onOpenCapital = onOpenCapital) }
         }
 
@@ -274,14 +274,14 @@ fun allocationParts(debts: Money, funds: Money, envelopes: Money, savings: Money
     val hidden = listOfNotNull(
         ("кредиты" to debts).takeUnless { FeatureGate.isOn(Feature.DEBTS_PLAN) },
         ("копилки" to funds).takeUnless { FeatureGate.isOn(Feature.FUNDS_PLAN) },
-        ("«Себе»" to savings).takeUnless { FeatureGate.isOn(Feature.CUSHION_PLAN) },
+        ("«Отложить»" to savings).takeUnless { FeatureGate.isOn(Feature.CUSHION_PLAN) },
     ).filter { it.second.minor > 0L }
     val negative = unallocated.isNegative
     return listOfNotNull(
         AllocationPart(AllocationKind.DEBTS, "Кредиты", debts).takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
         AllocationPart(AllocationKind.FUNDS, "Взносы в копилки", funds).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
         AllocationPart(AllocationKind.ENVELOPES, "Конверты", envelopes),
-        AllocationPart(AllocationKind.SAVINGS, "Себе", savings).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
+        AllocationPart(AllocationKind.SAVINGS, "Отложить", savings).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
         hidden.takeIf { it.isNotEmpty() }?.let { list ->
             AllocationPart(AllocationKind.HIDDEN, "Скрытые модули: ${list.joinToString(", ") { it.first }}", list.fold(zero) { sum, part -> sum + part.second })
         },
@@ -338,7 +338,7 @@ private fun AllocationCard(month: MonthModel, onOpenModules: () -> Unit) {
             }
             if (!month.debtsFromCushion.isZero && FeatureGate.isOn(Feature.DEBTS_PLAN)) {
                 Text(
-                    "Ещё ${MoneyFormat.format(month.debtsFromCushion, false)} досрочки по кредитам — из подушки, в эту сумму не входит",
+                    "Ещё ${MoneyFormat.format(month.debtsFromCushion, false)} досрочки по кредитам — из резерва, в эту сумму не входит",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -390,7 +390,7 @@ private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        if (target == null) "Задать «Себе»" else "${MoneyFormat.format(target, false)} в месяц",
+                        if (target == null) "Задать сумму" else "${MoneyFormat.format(target, false)} в месяц",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (target == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -408,7 +408,7 @@ private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -
                 HorizontalDivider()
                 val byPlan = c.cushionPath(Scenario.PLAN, CapitalModel.YEAR_MONTHS).last()
                 val byFact = c.cushionPath(Scenario.FACT, CapitalModel.YEAR_MONTHS).last()
-                PlanLine("В подушке сейчас", MoneyFormat.format(c.cushion, false))
+                PlanLine("В резерве сейчас", MoneyFormat.format(c.cushion, false))
                 HorizontalDivider()
                 PlanLine("Через 12 мес., если откладывать по плану", MoneyFormat.format(byPlan, false), bold = true)
                 HorizontalDivider()
@@ -442,7 +442,7 @@ private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit, onPlanEarly
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            if (d.earlyPlanned.isZero) "+ досрочно в этом месяце" else "досрочно " + if (d.earlyFromCushion) "из подушки" else "с жизни",
+                            if (d.earlyPlanned.isZero) "+ досрочно в этом месяце" else "досрочно " + if (d.earlyFromCushion) "из резерва" else "с жизни",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (d.earlyPlanned.isZero) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
@@ -458,7 +458,7 @@ private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit, onPlanEarly
                     Text(MoneyFormat.format(month.debtsPlanned, false), fontWeight = FontWeight.SemiBold)
                 }
                 month.debtsFromCushion.takeUnless { it.isZero }?.let {
-                    Text("+ ${MoneyFormat.format(it, false)} досрочки из подушки — доход месяца не занимает", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("+ ${MoneyFormat.format(it, false)} досрочки из резерва — доход месяца не занимает", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -547,13 +547,13 @@ private fun SavingsTargetDialog(current: Money?, income: Money, onDismiss: () ->
     val parsed = if (text.isBlank()) null else MoneyFormat.parse(text, base)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Себе в этом месяце") },
+        title = { Text("Отложить в этом месяце") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = ThousandsVisualTransformation.sanitize(it, base.minorUnits) },
-                    label = { Text("Отложить в подушку, ${base.code}") },
+                    label = { Text("Сумма в резерв, ${base.code}") },
                     singleLine = true,
                     visualTransformation = transformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -598,7 +598,7 @@ private fun EarlyPlanDialog(obligation: DebtObligation, initial: EarlyPlan?, onD
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Из подушки")
+                        Text("Из резерва")
                         Text(
                             if (fromCushion) "доход месяца не занимает, в «Не распределено» не входит" else "из дохода месяца: входит в «Кредиты»",
                             style = MaterialTheme.typography.bodySmall,

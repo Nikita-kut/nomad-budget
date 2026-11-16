@@ -93,16 +93,16 @@ fun CapitalScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionTitle("Прогноз капитала", hint = "капитал = все счета − долги", info = Hints.CAPITAL_FORECAST, modifier = Modifier.weight(1f))
                 TextButton(onClick = { editingSettings = true }) {
-                    Text("доходность ${MoneyFormat.formatPercentValue(capital.settings.annualReturn)} · подушка ${months(capital.settings.cushionMonths)}")
+                    Text("доходность ${MoneyFormat.formatPercentValue(capital.settings.annualReturn)} · резерв ${months(capital.settings.cushionMonths)}")
                 }
             }
         }
         item { ForecastCard(capital, horizon, horizonIndex, onHorizon = { horizonIndex = it }) }
-        item { SectionTitle("Подушка по месяцам", hint = "по месяцам бюджета", info = Hints.CAPITAL_MONTHS) }
+        item { SectionTitle("Резерв по месяцам", hint = "по месяцам бюджета", info = Hints.CAPITAL_MONTHS) }
         item { MonthsTable(capital, wide) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("Цели", hint = "копятся в подушке", info = Hints.CAPITAL_GOALS, modifier = Modifier.weight(1f))
+                SectionTitle("Цели", hint = "копятся в резерве", info = Hints.CAPITAL_GOALS, modifier = Modifier.weight(1f))
                 TextButton(onClick = { addingGoal = true }) { Text("+ цель") }
             }
         }
@@ -149,7 +149,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
         },
         { m ->
             StatTile(
-                "Подушка",
+                "Резерв",
                 MoneyFormat.format(capital.cushion, false),
                 capital.cushionMonthsCovered?.let { "хватит на ${MoneyFormat.formatTenths(it.coerceAtLeast(0.0))} мес. обычных расходов" } ?: "нет истории расходов",
                 modifier = m,
@@ -159,7 +159,7 @@ private fun SummaryTiles(capital: CapitalModel, wide: Boolean) {
             StatTile(
                 "Прирост в месяц",
                 capital.paceMedian?.let { MoneyFormat.formatSigned(it + capital.principalPace, false) } ?: "—",
-                "подушка ${capital.paceMedian?.let { MoneyFormat.formatSigned(it, false) } ?: "—"} + тело кредитов ${MoneyFormat.format(capital.principalPace, false)}",
+                "резерв ${capital.paceMedian?.let { MoneyFormat.formatSigned(it, false) } ?: "—"} + тело кредитов ${MoneyFormat.format(capital.principalPace, false)}",
                 modifier = m,
             )
         },
@@ -213,8 +213,8 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
             HorizontalDivider()
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text("Сценарий", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(SCENARIO_WEIGHT))
-                HeaderCell("В подушку в месяц", width = null)
-                HeaderCell("Подушка ${DateFormat.byMonthYear(capital.dateAfterMonths(horizon))}", width = null)
+                HeaderCell("В резерв в месяц", width = null)
+                HeaderCell("Резерв ${DateFormat.byMonthYear(capital.dateAfterMonths(horizon))}", width = null)
                 HeaderCell("Капитал ${DateFormat.byMonthYear(capital.dateAfterMonths(horizon))}", width = null)
             }
             scenarios.forEachIndexed { index, scenario ->
@@ -233,8 +233,8 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
                 }
             }
             Text(
-                "Сейчас капитал ${MoneyFormat.format(capital.netWorth, false)}: подушка ${MoneyFormat.format(capital.cushion, false)}, на жизнь и в копилках ${MoneyFormat.format(capital.life + capital.funds, false)}, долги ${MoneyFormat.format(capital.debt, false)}. " +
-                    "В прогнозе деньги на жизнь и в копилках не меняются, подушка растёт по сценарию, долги уменьшаются по графику платежей.",
+                "Сейчас капитал ${MoneyFormat.format(capital.netWorth, false)}: резерв ${MoneyFormat.format(capital.cushion, false)}, на жизнь и в копилках ${MoneyFormat.format(capital.life + capital.funds, false)}, долги ${MoneyFormat.format(capital.debt, false)}. " +
+                    "В прогнозе деньги на жизнь и в копилках не меняются, резерв растёт по сценарию, долги уменьшаются по графику платежей.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -243,18 +243,18 @@ private fun ForecastCard(capital: CapitalModel, horizon: Int, horizonIndex: Int,
 }
 
 private fun scenarioTitle(scenario: Scenario): String = when (scenario) {
-    Scenario.PLAN -> "По плану «Себе»"
+    Scenario.PLAN -> "По плану «Отложить»"
     Scenario.FACT -> "Как сейчас"
     Scenario.FACT_WITH_RETURN -> "Как сейчас + доходность"
 }
 
 private fun scenarioExplanation(scenario: Scenario, capital: CapitalModel): String = when (scenario) {
-    Scenario.PLAN -> capital.planMonthly?.let { "откладывать ${MoneyFormat.format(it, false)} каждый месяц, как в плане" } ?: "«Себе» в плане не задано"
+    Scenario.PLAN -> capital.planMonthly?.let { "откладывать ${MoneyFormat.format(it, false)} каждый месяц, как в плане" } ?: "«Отложить» в плане не задано"
     Scenario.FACT -> capital.paceMedian?.let { median ->
         "медиана за ${months(capital.paceMonths)}: ${MoneyFormat.formatSigned(median, false)}" +
             (capital.paceAverage?.let { " (среднее ${MoneyFormat.formatSigned(it, false)})" } ?: "")
     } ?: "пока нет закрытых месяцев"
-    Scenario.FACT_WITH_RETURN -> "то же, плюс ${MoneyFormat.formatPercentValue(capital.settings.annualReturn)} годовых на подушку, начисление раз в месяц"
+    Scenario.FACT_WITH_RETURN -> "то же, плюс ${MoneyFormat.formatPercentValue(capital.settings.annualReturn)} годовых на резерв, начисление раз в месяц"
 }
 
 @Composable
@@ -327,7 +327,7 @@ private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: 
                 val byFact = capital.monthsToReach(target, Scenario.FACT)
                 val byPlan = capital.monthsToReach(target, Scenario.PLAN)
                 GoalRow(
-                    title = "Подушка на ${months(capital.settings.cushionMonths)} расходов",
+                    title = "Резерв на ${months(capital.settings.cushionMonths)} расходов",
                     current = capital.cushion,
                     target = target,
                     lines = listOfNotNull(
@@ -337,7 +337,7 @@ private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: 
                             byFact != null -> "как сейчас: ${DateFormat.byMonthYear(capital.dateAfterMonths(byFact))}, через ${months(byFact)}"
                             else -> "как сейчас: не наберётся"
                         },
-                        byPlan?.takeIf { it > 0 }?.let { "по плану «Себе»: ${DateFormat.byMonthYear(capital.dateAfterMonths(it))}, через ${months(it)}" },
+                        byPlan?.takeIf { it > 0 }?.let { "по плану «Отложить»: ${DateFormat.byMonthYear(capital.dateAfterMonths(it))}, через ${months(it)}" },
                     ),
                     onClick = onEditCushion,
                     onDelete = null,
@@ -364,7 +364,7 @@ private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: 
                         DeleteIconButton(
                             description = "Удалить цель",
                             title = "Удалить цель «${goal.name}»?",
-                            text = "Цель удалится насовсем. Деньги в подушке не изменятся.",
+                            text = "Цель удалится насовсем. Деньги в резерве не изменятся.",
                             onConfirm = { onDelete(goal.id) },
                         )
                     },
@@ -374,7 +374,7 @@ private fun GoalsCard(capital: CapitalModel, onEditCushion: () -> Unit, onEdit: 
                 Text("Целей пока нет. Добавь цель кнопкой «+ цель».", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                "Цели считаются от всей подушки: одна сумма может закрывать несколько целей.",
+                "Цели считаются от всего резерва: одна сумма может закрывать несколько целей.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -503,10 +503,10 @@ private const val MONTH_WEIGHT = 1.2f
 @Composable
 private fun GrowthDialog(month: CapitalMonth, onDismiss: () -> Unit) {
     val lines = listOfNotNull(
-        "Пришло в подушку: ${MoneyFormat.format(month.cushionIn, false)}",
-        "Ушло из подушки: ${MoneyFormat.format(month.cushionGone, false)}" +
+        "Пришло в резерв: ${MoneyFormat.format(month.cushionIn, false)}",
+        "Ушло из резерва: ${MoneyFormat.format(month.cushionGone, false)}" +
             (month.cushionToDebts.takeUnless { it.isZero }?.let { ", из них на кредиты ${MoneyFormat.format(it, false)}" } ?: ""),
-        "Подушка за месяц: ${MoneyFormat.formatSigned(month.saved, false)}",
+        "Резерв за месяц: ${MoneyFormat.formatSigned(month.saved, false)}",
         "Погашено тело долга: ${MoneyFormat.format(month.principalPaid, false)}" +
             if (month.principalEarly.isZero) "" else " (досрочно ${MoneyFormat.format(month.principalEarly, false)}, в обычных платежах ${MoneyFormat.format(month.principalRegular, false)})",
         "Рост капитала: ${MoneyFormat.formatSigned(month.saved, false)} + ${MoneyFormat.format(month.principalPaid, false)} = ${MoneyFormat.formatSigned(month.capitalGrowth, false)}",
@@ -518,7 +518,7 @@ private fun GrowthDialog(month: CapitalMonth, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 lines.forEach { Text(it) }
                 Text(
-                    "Капитал — всё, что есть, минус долги. Досрочка из подушки его не меняет: на сколько уменьшилась подушка, на столько же уменьшился долг. Растят капитал новые деньги в подушке и тело долга в обычных платежах. Деньги на картах «На жизнь» сюда не входят.",
+                    "Капитал — всё, что есть, минус долги. Досрочка из резерва его не меняет: на сколько уменьшился резерв, на столько же уменьшился долг. Растят капитал новые деньги в резерве и тело долга в обычных платежах. Деньги на картах «На жизнь» сюда не входят.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

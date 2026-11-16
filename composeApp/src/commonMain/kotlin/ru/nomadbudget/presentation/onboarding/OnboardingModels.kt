@@ -28,6 +28,7 @@ data class OnboardingResult(
     val currencyCodes: List<String>,
     val accounts: List<OnboardingAccountResult>,
     val categories: List<OnboardingCategory>,
+    val multiCurrency: Boolean = false,
 )
 
 data class OnboardingAccountResult(
@@ -41,7 +42,7 @@ object OnboardingDefaults {
 
     const val CARD = "Карта"
     const val CASH = "Наличные"
-    const val CUSHION = "Подушка"
+    const val CUSHION = "Резерв"
 
     fun accounts(): List<OnboardingAccount> = listOf(
         OnboardingAccount("card", CARD, Currency.DEFAULT_BASE.code, AccountRole.LIFE),

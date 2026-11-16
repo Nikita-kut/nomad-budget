@@ -702,7 +702,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                             HeaderAmount("Всего", state.totalBase, emphasize = true)
                             HeaderAmount("На жизнь", state.operationalBase)
                             if (state.fundAccounts.isNotEmpty() && (FeatureGate.isOn(Feature.FUNDS_HEADER) || !state.fundsBalance.isZero)) HeaderAmount("Копилки", state.fundsBalance)
-                            if (FeatureGate.isOn(Feature.CUSHION_HEADER) || !state.savingsBalance.isZero) HeaderAmount("Подушка", state.savingsBalance)
+                            if (FeatureGate.isOn(Feature.CUSHION_HEADER) || !state.savingsBalance.isZero) HeaderAmount("Резерв", state.savingsBalance)
                         }
                     }
                     PeriodSwitcher(state, viewModel)

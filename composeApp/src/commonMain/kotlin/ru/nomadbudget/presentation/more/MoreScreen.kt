@@ -83,7 +83,7 @@ fun MoreScreen(
                             if (index > 0) HorizontalDivider()
                             when (feature) {
                                 Feature.CAPITAL_SCREEN -> MenuRow("Капитал", "счета минус долги, прогноз, цели", onCapital)
-                                Feature.CHARTS_SCREEN -> MenuRow("Графики", "доходы, расходы, подушка по месяцам", onCharts)
+                                Feature.CHARTS_SCREEN -> MenuRow("Графики", "доходы, расходы, резерв по месяцам", onCharts)
                                 else -> MenuRow(
                                     "Курсы валют",
                                     state.rates.all.firstOrNull()?.let { "обновлены ${DateFormat.dayMonth(it.date)}, раз в сутки" } ?: "текущие и история по дням",
@@ -108,7 +108,7 @@ fun MoreScreen(
                 HorizontalDivider()
                 MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
                 HorizontalDivider()
-                MenuRow("Как это работает", "знакомство с приложением: конверты, «Себе», модули", onIntro)
+                MenuRow("Как это работает", "знакомство с приложением: конверты, резерв, модули", onIntro)
                 HorizontalDivider()
                 MenuRow("Модули", "что показывать в приложении: кредиты, копилки, валюты…", onModules)
                 HorizontalDivider()

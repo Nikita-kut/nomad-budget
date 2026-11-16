@@ -125,7 +125,7 @@ fun AccountsScreen(
             AccountsCard(funds, state, totalLabel = "Итого в копилках", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it }, onOpen = { editingFund = it }, empty = "Копилок нет. Сделай копилкой счёт, на котором копишь на аренду или подарки: «Изменить» → тип счёта.")
         }
         val cushionCard: @Composable () -> Unit = {
-            AccountsCard(savings, state, totalLabel = "Итого в подушке", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
+            AccountsCard(savings, state, totalLabel = "Итого в резерве", editMode = editMode, onRename = { renaming = it }, onMove = onMove, onArchive = { archiving = it }, onRole = { changingRole = it })
         }
         item { lifeTitle() }
         run {
@@ -135,7 +135,7 @@ fun AccountsScreen(
                 item { fundsCard() }
             }
             if (FeatureGate.isOn(Feature.CUSHION_ACCOUNTS) || savings.isNotEmpty()) {
-                item { SectionTitle("Подушка", hint = "запас на чёрный день") }
+                item { SectionTitle("Резерв", hint = "запас на чёрный день") }
                 item { cushionCard() }
             }
         }
@@ -406,7 +406,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                 }
                 if (role == AccountRole.CUSHION) {
                     Text(
-                        "Сколько откладывать в подушку каждый месяц, задаётся в «Плане», строка «Себе».",
+                        "Сколько откладывать в резерв каждый месяц, задаётся в «Плане», строка «Отложить».",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -478,7 +478,7 @@ private fun TotalsCard(state: HomeState, wide: Boolean) {
         tiles += { m -> StatTile("Копилки", MoneyFormat.format(state.fundsBalance, false), "на крупные регулярные траты", modifier = m) }
     }
     if (FeatureGate.isOn(Feature.CUSHION_ACCOUNTS) || !state.savingsBalance.isZero) {
-        tiles += { m -> StatTile("Подушка", MoneyFormat.format(state.savingsBalance, false), "запас на чёрный день", modifier = m) }
+        tiles += { m -> StatTile("Резерв", MoneyFormat.format(state.savingsBalance, false), "запас на чёрный день", modifier = m) }
     }
     TileRow(wide, tiles)
 }
@@ -489,7 +489,7 @@ private fun RolePicker(selected: AccountRole, onSelect: (AccountRole) -> Unit) {
         listOf(
             AccountRole.LIFE to ("На жизнь" to "карты и наличные, из них идут обычные траты"),
             AccountRole.FUND to ("Копилка" to "копишь на крупную регулярную трату и платишь её отсюда"),
-            AccountRole.CUSHION to ("Подушка" to "запас на чёрный день, переводы сюда — «Себе»"),
+            AccountRole.CUSHION to ("Резерв" to "запас на чёрный день, переводы сюда — «Отложить»"),
         ).filter { (role, _) ->
             role == selected || when (role) {
                 AccountRole.FUND -> FeatureGate.isOn(AppModule.FUNDS)

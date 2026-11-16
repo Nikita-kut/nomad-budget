@@ -250,7 +250,7 @@ fun SavingsTag(modifier: Modifier = Modifier) {
             .padding(horizontal = 6.dp, vertical = 1.dp),
     ) {
         Text(
-            "подушка",
+            "резерв",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             maxLines = 1,
