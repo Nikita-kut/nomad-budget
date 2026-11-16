@@ -588,12 +588,15 @@ def message_signal(watch: dict, rate: float, cbr: float | None, event: dict) -> 
     return "\n".join(line for line in lines if line)
 
 
-def message_target(rate: float, target: float, previous: float | None) -> str:
+def message_target(watch: dict, rate: float, target: float, previous: float | None) -> str:
     unit = quote_unit(rate)
-    was = f" (было {format_precise(previous * unit)})" if previous is not None else ""
-    goal = format_precise(target * unit)
-    goal = goal[:-3] if goal.endswith(",00") else goal
-    return f"🎯 Курс выше цели {goal}: {format_precise(rate * unit)}{was}"
+    now = format_quote(rate * unit)
+    was = format_quote(previous * unit) if previous is not None else None
+    tail = f", было {was}" if was is not None and was != now else ""
+    return (
+        f"🎯 <b>{pair_title(watch)}</b>: курс выше цели {format_quote(target * unit)}{tail}\n"
+        f"Обмен: {rate_text(watch['from_currency'], watch['to_currency'], rate, unit)}"
+    )
 
 
 def verdict_text(code: str) -> str:
@@ -1108,6 +1111,16 @@ def day_start(now_utc: dt.datetime, trade_open: int) -> dt.datetime:
     return start.astimezone(dt.timezone.utc)
 
 
+def telegram_error(error: Exception) -> str:
+    if not isinstance(error, urllib.error.HTTPError):
+        return type(error).__name__
+    try:
+        description = json.loads(error.read().decode("utf-8", "replace")).get("description", "")
+    except (ValueError, OSError, AttributeError):
+        description = ""
+    return f"HTTP {error.code} {description[:200]}".strip()
+
+
 def send_event(tg: Telegram, chat_id: int, text: str, widget: tuple[str, str] | None, state: dict) -> None:
     if widget is not None:
         document, caption = widget
@@ -1117,7 +1130,7 @@ def send_event(tg: Telegram, chat_id: int, text: str, widget: tuple[str, str] | 
             return
         except (urllib.error.HTTPError, RuntimeError) as e:
             state["widgets_ok"] = False
-            print(f"widget failed, sending text: {type(e).__name__}", file=sys.stderr)
+            print(f"widget failed, sending text: {telegram_error(e)}", file=sys.stderr)
         except (urllib.error.URLError, OSError) as e:
             print(f"send failed: {type(e).__name__}", file=sys.stderr)
             return
@@ -1146,7 +1159,7 @@ def process_watch(db: Supabase, tg: Telegram, watch: dict, pair: dict, chats: li
             text = message_digest(watch, rate, cbr, event, local)
             widget = widget_digest(watch, rate, cbr, event, local, charts)
         elif event["kind"] == "target":
-            text = message_target(rate, event["target"], event.get("previous"))
+            text = message_target(watch, rate, event["target"], event.get("previous"))
             widget = None
         else:
             text = message_signal(watch, rate, cbr, event)
