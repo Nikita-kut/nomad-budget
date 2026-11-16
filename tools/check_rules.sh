@@ -39,6 +39,7 @@ rule "Full-screen dialogs: use AlertDialog or AppModal" 'usePlatformDefaultWidth
 rule "Hardcoded base currency: use HomeState.base, RateTable.base or LocalBaseCurrency" 'Currency\.BASE|Currency\.RUB|Money\.rub\(' '/domain/model/|/demo/|/data/'
 rule "Clickable card via modifier: the highlight leaks past rounded corners, use Card(onClick = …) or StatTile(onClick = …)" '(Card|StatTile)\(.*modifier = [A-Za-z]+[^,]*\.clickable|modifier = m\.clickable' ''
 rule "Button hover elevation: buttons stay flat, the highlight fills the button" 'elevation = ButtonDefaults' ''
+rule "Info dialogs: use InfoHint or InfoDialog" 'Text\("Понятно"\)' '/components/Components\.kt'
 rule "Own copies of format helpers: use presentation/format" 'fun (majorText|shortMonth|periodLabel|thousands|monthYear)\(' '/presentation/format/'
 
 if [ "$fail" -ne 0 ]; then

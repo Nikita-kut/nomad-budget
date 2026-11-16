@@ -50,6 +50,9 @@ import ru.nomadbudget.presentation.charts.ChartLegend
 import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.charts.LineChart
 import ru.nomadbudget.presentation.charts.MultiLineChart
+import ru.nomadbudget.presentation.components.InfoTone
+import ru.nomadbudget.presentation.components.InfoLine
+import ru.nomadbudget.presentation.components.InfoDialog
 import ru.nomadbudget.presentation.components.AmountCell
 import ru.nomadbudget.presentation.components.CapitalSettingsFields
 import ru.nomadbudget.presentation.components.CenteredLazyColumn
@@ -502,29 +505,32 @@ private const val MONTH_WEIGHT = 1.2f
 
 @Composable
 private fun GrowthDialog(month: CapitalMonth, onDismiss: () -> Unit) {
-    val lines = listOfNotNull(
-        "Пришло в резерв: ${MoneyFormat.format(month.cushionIn, false)}",
-        "Ушло из резерва: ${MoneyFormat.format(month.cushionGone, false)}" +
-            (month.cushionToDebts.takeUnless { it.isZero }?.let { ", из них на кредиты ${MoneyFormat.format(it, false)}" } ?: ""),
-        "Резерв за месяц: ${MoneyFormat.formatSigned(month.saved, false)}",
-        "Погашено тело долга: ${MoneyFormat.format(month.principalPaid, false)}" +
-            if (month.principalEarly.isZero) "" else " (досрочно ${MoneyFormat.format(month.principalEarly, false)}, в обычных платежах ${MoneyFormat.format(month.principalRegular, false)})",
-        "Рост капитала: ${MoneyFormat.formatSigned(month.saved, false)} + ${MoneyFormat.format(month.principalPaid, false)} = ${MoneyFormat.formatSigned(month.capitalGrowth, false)}",
-    )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("${DateFormat.monthName(month.period.start)}: откуда рост капитала") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                lines.forEach { Text(it) }
-                Text(
-                    "Капитал — всё, что есть, минус долги. Досрочка из резерва его не меняет: на сколько уменьшился резерв, на столько же уменьшился долг. Растят капитал новые деньги в резерве и тело долга в обычных платежах. Деньги на картах «На жизнь» сюда не входят.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Понятно") } },
+    fun tone(money: Money) = when {
+        money.isNegative -> InfoTone.OUT
+        money.isZero -> InfoTone.NEUTRAL
+        else -> InfoTone.IN
+    }
+    InfoDialog(
+        title = "${DateFormat.monthName(month.period.start)}: откуда рост капитала",
+        lines = listOf(
+            InfoLine("Пришло в резерв", MoneyFormat.formatSigned(month.cushionIn, false), tone(month.cushionIn)),
+            InfoLine(
+                "Ушло из резерва",
+                MoneyFormat.formatSigned(-month.cushionGone, false),
+                tone(-month.cushionGone),
+                month.cushionToDebts.takeUnless { it.isZero }?.let { "из них на кредиты ${MoneyFormat.format(it, false)}" },
+            ),
+            InfoLine("Резерв за месяц", MoneyFormat.formatSigned(month.saved, false), tone(month.saved)),
+            InfoLine(
+                "Погашено тело долга",
+                MoneyFormat.formatSigned(month.principalPaid, false),
+                tone(month.principalPaid),
+                if (month.principalEarly.isZero) null else "досрочно ${MoneyFormat.format(month.principalEarly, false)}, в обычных платежах ${MoneyFormat.format(month.principalRegular, false)}",
+            ),
+        ),
+        total = InfoLine("Рост капитала", MoneyFormat.formatSigned(month.capitalGrowth, false), tone(month.capitalGrowth), "резерв за месяц + погашенное тело долга"),
+        note = "Капитал — всё, что у тебя есть, минус долги. Досрочка из резерва его не меняет: резерв и долг уменьшаются на одну сумму. Растят капитал новые деньги в резерве и тело долга в обычных платежах.",
+        onDismiss = onDismiss,
     )
 }
 
