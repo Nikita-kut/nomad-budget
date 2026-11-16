@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
@@ -41,6 +42,16 @@ import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.style.TextOverflow
+
+@Composable
+fun GroupTitle(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier.fillMaxWidth().padding(top = 18.dp, bottom = 2.dp),
+    )
+}
 
 @Composable
 fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modifier, info: String? = null) {
@@ -79,11 +90,89 @@ fun InfoHint(title: String, text: String, modifier: Modifier = Modifier) {
         AlertDialog(
             onDismissRequest = { open = false },
             title = { Text(title) },
-            text = { Text(text, style = MaterialTheme.typography.bodyMedium) },
+            text = { HintText(text) },
             confirmButton = { TextButton(onClick = { open = false }) { Text("Понятно") } },
         )
     }
 }
+
+enum class InfoTone { IN, OUT, NEUTRAL }
+
+data class InfoLine(val label: String, val amount: String, val tone: InfoTone = InfoTone.NEUTRAL, val detail: String? = null)
+
+@Composable
+fun InfoDialog(title: String, lines: List<InfoLine>, total: InfoLine?, note: String?, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column {
+                    lines.forEachIndexed { index, line ->
+                        if (index > 0) HorizontalDivider()
+                        InfoLineRow(line, bold = false)
+                    }
+                    total?.let {
+                        HorizontalDivider(thickness = 2.dp)
+                        InfoLineRow(it, bold = true)
+                    }
+                }
+                note?.let { HintText(it, lead = false) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Понятно") } },
+    )
+}
+
+@Composable
+private fun InfoLineRow(line: InfoLine, bold: Boolean) {
+    val colors = AppTheme.colors
+    val amountColor = when (line.tone) {
+        InfoTone.IN -> colors.good
+        InfoTone.OUT -> colors.bad
+        InfoTone.NEUTRAL -> MaterialTheme.colorScheme.onSurface
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                line.label,
+                modifier = Modifier.weight(1f),
+                style = if (bold) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+                fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
+            )
+            Text(
+                line.amount,
+                style = if (bold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = amountColor,
+            )
+        }
+        line.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+@Composable
+fun HintText(text: String, lead: Boolean = true) {
+    val scheme = MaterialTheme.colorScheme
+    val split = if (lead) LEAD_END.find(text)?.range?.last?.plus(1) else null
+    val first = split?.let { text.substring(0, it).trim() }
+    val rest = split?.let { text.substring(it).trim() } ?: text
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        first?.let { Text(highlighted(it, scheme.primary), style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface) }
+        if (rest.isNotEmpty()) Text(highlighted(rest, scheme.primary), style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+    }
+}
+
+private val LEAD_END = Regex("""[.!?](?=\s+[А-ЯЁA-Z«])""")
+private val TERM = Regex("""«[^»]{1,40}»""")
+private val NUMBER = Regex("""(?<![A-Za-zА-Яа-яЁё\d])[−+-]?\d[\d  ]*(?:[.,]\d+)?(?:\s?(?:–|-)\s?\d+)?\s?(?:%|₽|\$|мес\.?|месяц[а-я]*)?""")
+
+private fun highlighted(text: String, accent: androidx.compose.ui.graphics.Color): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        TERM.findAll(text).forEach { addStyle(androidx.compose.ui.text.SpanStyle(color = accent, fontWeight = FontWeight.Medium), it.range.first, it.range.last + 1) }
+        NUMBER.findAll(text).filter { it.value.isNotBlank() }.forEach { addStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.SemiBold), it.range.first, it.range.last + 1) }
+    }
 
 @Composable
 fun TagChip(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false) {

@@ -44,6 +44,7 @@ import ru.nomadbudget.presentation.components.DeleteIconButton
 import ru.nomadbudget.presentation.components.Hints
 import ru.nomadbudget.presentation.components.IncomeDaysEditor
 import ru.nomadbudget.presentation.components.PrimaryButton
+import ru.nomadbudget.presentation.components.GroupTitle
 import ru.nomadbudget.presentation.components.SectionTitle
 import ru.nomadbudget.presentation.access.DataAndAccessCard
 import ru.nomadbudget.presentation.tickets.TICKET_BUTTON_KEY
@@ -86,6 +87,7 @@ fun SettingsScreen(
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
     onOpenAdmin: () -> Unit = {},
+    onOpenModules: () -> Unit = {},
 ) {
     val access = koinInject<AccessRepository>()
     val koin = getKoin()
@@ -105,6 +107,7 @@ fun SettingsScreen(
     CenteredLazyColumn {
         if (onBack != null) item { SubScreenHeader("Настройки", onBack) }
 
+        item { GroupTitle("Бюджет") }
         item { SectionTitle("Месяц бюджета", hint = "начинается ${startDayText(settings.periodStartDay)}", info = Hints.PERIOD_START) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -130,50 +133,6 @@ fun SettingsScreen(
                     if (incomeDays != settings.incomeDays.toSet()) {
                         PrimaryButton(onClick = { onSetIncomeDays(incomeDays.toList()) }, enabled = !state.saving) { Text("Сохранить дни дохода") }
                     }
-                }
-            }
-        }
-
-        if (FeatureGate.isOn(AppModule.CUSHION)) {
-        item { SectionTitle("Резерв и капитал", hint = "${settings.cushionMonths} мес. · ${formatReturn(settings.annualReturn)}", info = Hints.CAPITAL_GOALS) }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CapitalSettingsFields(settings = settings.capital, onChange = { capitalDraft = it })
-                    val draft = capitalDraft
-                    if (draft != null && draft != settings.capital) {
-                        PrimaryButton(onClick = { onSaveCapital(draft) }, enabled = !state.saving) { Text("Сохранить") }
-                    }
-                }
-            }
-        }
-        }
-
-        item { SectionTitle("Тема", hint = themeLabel(theme.mode)) }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.padding(Ui.CardPadding), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ThemeMode.entries.forEach { mode ->
-                        FilterChip(selected = theme.mode == mode, onClick = { theme.set(mode) }, label = { Text(themeLabel(mode)) })
-                    }
-                }
-            }
-        }
-
-        item { SectionTitle("Суммы на экране", hint = "кнопка с глазом в шапке") }
-        item {
-            val privacy = LocalAmountPrivacy.current
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.padding(Ui.CardPadding), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Скрывать суммы при открытии")
-                        Text(
-                            "Приложение откроется с «•••» вместо сумм. Показать — кнопкой с глазом. Настройка этого устройства.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(checked = privacy.hideOnStart, onCheckedChange = privacy::changeHideOnStart)
                 }
             }
         }
@@ -228,7 +187,30 @@ fun SettingsScreen(
         }
         }
 
-        item { SectionTitle("Обращения") }
+        if (FeatureGate.isOn(AppModule.CUSHION)) {
+        item { SectionTitle("Резерв и капитал", hint = "${settings.cushionMonths} мес. · ${formatReturn(settings.annualReturn)}", info = Hints.CAPITAL_GOALS) }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CapitalSettingsFields(settings = settings.capital, onChange = { capitalDraft = it })
+                    val draft = capitalDraft
+                    if (draft != null && draft != settings.capital) {
+                        PrimaryButton(onClick = { onSaveCapital(draft) }, enabled = !state.saving) { Text("Сохранить") }
+                    }
+                }
+            }
+        }
+        }
+
+        item { GroupTitle("Что показывать") }
+        item { SectionTitle("Модули", hint = "можно выключить ненужное") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                ActionRow("Выбрать модули", "кредиты, копилки, резерв, валюты, графики — что показывать в приложении", onClick = onOpenModules)
+            }
+        }
+
+        item { SectionTitle("Кнопка «?»", hint = "на этом устройстве") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -244,6 +226,37 @@ fun SettingsScreen(
             }
         }
 
+        item { GroupTitle("Вид") }
+        item { SectionTitle("Тема", hint = themeLabel(theme.mode)) }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(Ui.CardPadding), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeMode.entries.forEach { mode ->
+                        FilterChip(selected = theme.mode == mode, onClick = { theme.set(mode) }, label = { Text(themeLabel(mode)) })
+                    }
+                }
+            }
+        }
+
+        item { SectionTitle("Суммы на экране", hint = "кнопка с глазом в шапке") }
+        item {
+            val privacy = LocalAmountPrivacy.current
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(Ui.CardPadding), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Скрывать суммы при открытии")
+                        Text(
+                            "Приложение откроется с «•••» вместо сумм. Показать — кнопкой с глазом. Настройка этого устройства.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = privacy.hideOnStart, onCheckedChange = privacy::changeHideOnStart)
+                }
+            }
+        }
+
+        item { GroupTitle("Аккаунт и данные") }
         item { SectionTitle("Данные и доступ") }
         item { DataAndAccessCard(access, onOpenAdmin) }
 

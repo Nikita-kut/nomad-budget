@@ -241,7 +241,7 @@ private fun CurrenciesStep(form: OnboardingState) {
         )
     }
     if (!form.multiCurrency) {
-        Text("Все счета будут в этой валюте. Если позже появятся деньги в другой, включи «Мультивалютность»: «Ещё» → «Модули».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Все счета будут в этой валюте. Если позже появятся деньги в другой, включи «Мультивалютность»: «Настройки» → «Модули».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
     form.currencyCodes.forEach { code ->

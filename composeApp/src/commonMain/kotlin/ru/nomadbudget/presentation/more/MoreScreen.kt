@@ -42,7 +42,6 @@ fun MoreScreen(
     onExport: () -> Unit,
     onSettings: () -> Unit,
     onTickets: () -> Unit = {},
-    onModules: () -> Unit = {},
     onIntro: () -> Unit = {},
     onReport: () -> Unit = {},
 ) {
@@ -98,6 +97,12 @@ fun MoreScreen(
         item { SectionTitle("Настройки") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
+                MenuRow("Настройки", "бюджет и валюты, модули, тема, аккаунт", onSettings)
+            }
+        }
+        item { SectionTitle("Данные") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
                 MenuRow("Категории и подкатегории", "${plural(state.activeCategories.size, "категория", "категории", "категорий")}, ${plural(state.subcategories.size, "подкатегория", "подкатегории", "подкатегорий")}", onCategories)
                 HorizontalDivider()
                 MenuRow(
@@ -107,17 +112,13 @@ fun MoreScreen(
                 )
                 HorizontalDivider()
                 MenuRow("Выгрузить операции в CSV", "${operations(state.transactions.size)}, открывается в Excel и Google Таблицах", onExport)
-                HorizontalDivider()
-                MenuRow("Как это работает", "знакомство с приложением: конверты, резерв, модули", onIntro)
-                HorizontalDivider()
-                MenuRow("Модули", "что показывать в приложении: кредиты, копилки, валюты…", onModules)
-                HorizontalDivider()
-                MenuRow("Настройки", "начало месяца, валюты, тема, пароль, выход", onSettings)
             }
         }
-        item { SectionTitle("Обращения") }
+        item { SectionTitle("Помощь") }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
+                MenuRow("Как это работает", "знакомство с приложением: конверты, резерв, модули", onIntro)
+                HorizontalDivider()
                 MenuRow("Сообщить о проблеме", "отметь место на экране, приложи скриншот", onReport)
                 HorizontalDivider()
                 MenuRow("Мои обращения", "статусы ошибок, идей и вопросов", onTickets)

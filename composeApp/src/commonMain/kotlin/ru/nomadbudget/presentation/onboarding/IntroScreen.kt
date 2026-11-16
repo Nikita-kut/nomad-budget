@@ -64,7 +64,7 @@ val INTRO_PAGES = listOf(
     IntroPage(IntroArt.FUNDS, "Копилки на крупные траты", "Для трат раз в квартал или раз в год: страховка, отпуск, техника. Каждый месяц откладываешь понемногу, а когда приходит срок, платишь из копилки — и месяц не проваливается.", listOf(AppModule.FUNDS)),
     IntroPage(IntroArt.CURRENCIES, "Если деньги в разных валютах", "Счета в любой валюте, итоги — в одной основной, по курсу на дату операции. Обмен записывается по реальному курсу. Если все деньги в одной валюте, этот модуль не нужен.", listOf(AppModule.CURRENCIES, AppModule.BANK_WATCH)),
     IntroPage(IntroArt.MORE, "Графики и «Входящие»", "Графики показывают, как менялись доходы, траты и резерв. «Входящие» — трата одной строкой, когда некогда заполнять запись: разберёшь потом.", listOf(AppModule.CHARTS, AppModule.INBOX)),
-    IntroPage(IntroArt.HELP, "Если что-то не так", "Кнопка «?» есть на каждом экране: нажми на место, где ошибка, и напиши пару слов — уйдёт обращение со скриншотом, суммы на нём скрыты. Твои счета и операции видишь только ты. Выгрузить всё в CSV или удалить учётку можно в любой момент в настройках."),
+    IntroPage(IntroArt.HELP, "Если что-то не так", "Кнопка «?» есть на каждом экране: нажми на место, где ошибка, и напиши пару слов — уйдёт обращение со скриншотом, суммы на нём скрыты. Твои счета и операции видишь только ты. Выгрузить всё в CSV можно в «Ещё», удалить учётку — в «Настройках», в любой момент."),
 )
 
 private val DECIDED_IN_SETUP = setOf(AppModule.CURRENCIES)
@@ -151,7 +151,7 @@ fun IntroScreen(
                         TextButton(onClick = onOpenModules, modifier = Modifier.testTag(IntroTags.OPEN_MODULES)) { Text("Включить или выключить — в «Модулях»") }
                     }
                     if (last && firstTime) {
-                        Text("Модули можно поменять в любой момент: «Ещё» → «Модули».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Модули можно поменять в любой момент: «Настройки» → «Модули».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
