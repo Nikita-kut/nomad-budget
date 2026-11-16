@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -37,8 +38,9 @@ fun PrimaryButton(
         onClick = onClick,
         modifier = modifier.heightIn(min = BUTTON_HEIGHT),
         enabled = enabled,
-        shape = MaterialTheme.shapes.small,
+        shape = RoundedCornerShape(BUTTON_RADIUS),
         contentPadding = BUTTON_PADDING,
+        elevation = null,
         content = content,
     )
 }
@@ -54,8 +56,9 @@ fun SecondaryButton(
         onClick = onClick,
         modifier = modifier.heightIn(min = BUTTON_HEIGHT),
         enabled = enabled,
-        shape = MaterialTheme.shapes.small,
+        shape = RoundedCornerShape(BUTTON_RADIUS),
         contentPadding = BUTTON_PADDING,
+        elevation = null,
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = SECONDARY_ALPHA),
             contentColor = MaterialTheme.colorScheme.primary,
@@ -67,16 +70,16 @@ fun SecondaryButton(
 @Composable
 fun AddTile(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val outline = MaterialTheme.colorScheme.outline
-    val shape = MaterialTheme.shapes.large
+    val shape = RoundedCornerShape(BUTTON_RADIUS)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = ADD_TILE_HEIGHT)
+            .heightIn(min = BUTTON_HEIGHT)
             .drawBehind {
                 val stroke = 1.5.dp.toPx()
                 drawRoundRect(
                     color = outline,
-                    cornerRadius = CornerRadius(20.dp.toPx()),
+                    cornerRadius = CornerRadius(BUTTON_RADIUS.toPx()),
                     style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))),
                     topLeft = androidx.compose.ui.geometry.Offset(stroke / 2, stroke / 2),
                     size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
@@ -95,5 +98,6 @@ fun AddTile(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, en
 
 private const val SECONDARY_ALPHA = 0.12f
 private val BUTTON_HEIGHT = 44.dp
-private val ADD_TILE_HEIGHT = 56.dp
 private val BUTTON_PADDING = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+
+private val BUTTON_RADIUS = 10.dp

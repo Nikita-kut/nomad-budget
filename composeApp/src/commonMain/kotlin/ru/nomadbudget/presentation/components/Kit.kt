@@ -1,6 +1,7 @@
 package ru.nomadbudget.presentation.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -71,10 +73,12 @@ fun StatTile(
     valueColor: Color? = null,
     info: String? = null,
     subColor: Color? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val hero = AppTheme.colors
     val shape = MaterialTheme.shapes.large
-    val cardModifier = if (accent) modifier.clip(shape).background(Brush.linearGradient(hero.hero)) else modifier
+    val clipped = modifier.clip(shape).let { if (onClick != null) it.clickable(onClick = onClick) else it }
+    val cardModifier = if (accent) clipped.background(Brush.linearGradient(hero.hero)) else clipped
     Card(
         modifier = cardModifier,
         shape = shape,
@@ -83,8 +87,8 @@ fun StatTile(
         val labelColor = if (accent) hero.heroMuted else MaterialTheme.colorScheme.onSurfaceVariant
         val compact = LocalCompactTiles.current
         Column(modifier = Modifier.padding(if (compact) Ui.CardPadding - 2.dp else Ui.CardPadding + 2.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge, color = labelColor, maxLines = if (compact) 2 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Row(modifier = Modifier.heightIn(min = INFO_HINT_SIZE), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge, color = labelColor, minLines = if (compact) 2 else 1, maxLines = if (compact) 2 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 info?.let { InfoHint(label, it) }
             }
             Text(value, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall, color = if (accent) hero.onHero else valueColor ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)

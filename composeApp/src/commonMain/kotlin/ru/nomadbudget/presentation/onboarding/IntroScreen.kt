@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,6 +71,7 @@ object IntroTags {
     const val NEXT = "intro.next"
     const val BACK = "intro.back"
     const val SKIP = "intro.skip"
+    const val OPEN_MODULES = "intro.open_modules"
     fun module(module: AppModule) = "intro.module.${module.key}"
 }
 
@@ -83,11 +85,17 @@ fun IntroScreen(
     firstTime: Boolean,
     onSetModules: (Set<String>, Set<String>) -> Unit,
     onDone: () -> Unit,
+    onOpenModules: () -> Unit = {},
 ) {
     var index by remember { mutableIntStateOf(0) }
     val page = INTRO_PAGES[index]
     val last = index == INTRO_PAGES.lastIndex
-    val enabled = enabledModules(state.settings.modulesOff)
+    var draftOff by remember { mutableStateOf(state.settings.modulesOff) }
+    val enabled = enabledModules(if (firstTime) draftOff else state.settings.modulesOff)
+    val finish = {
+        if (firstTime && draftOff != state.settings.modulesOff) onSetModules(draftOff, state.settings.blocksOff)
+        onDone()
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -104,11 +112,11 @@ fun IntroScreen(
                             )
                         }
                     }
-                    if (!last) TextButton(onClick = onDone, modifier = Modifier.testTag(IntroTags.SKIP)) { Text(if (firstTime) "Пропустить" else "Закрыть") }
+                    if (!last) TextButton(onClick = finish, modifier = Modifier.testTag(IntroTags.SKIP)) { Text(if (firstTime) "Пропустить" else "Закрыть") }
                 }
                 Column(
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
                 ) {
                     IntroIllustration(page.art, state)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -127,27 +135,31 @@ fun IntroScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                                Switch(
-                                    checked = on,
-                                    onCheckedChange = { onSetModules(withModule(state.settings.modulesOff, module, it), state.settings.blocksOff) },
-                                    modifier = Modifier.testTag(IntroTags.module(module)),
-                                )
+                                if (firstTime) {
+                                    Switch(
+                                        checked = on,
+                                        onCheckedChange = { draftOff = withModule(draftOff, module, it) },
+                                        modifier = Modifier.testTag(IntroTags.module(module)),
+                                    )
+                                }
                             }
                         }
                     }
-                    if (last && !firstTime) {
+                    if (!firstTime && offeredModules(page, features).isNotEmpty()) {
+                        TextButton(onClick = onOpenModules, modifier = Modifier.testTag(IntroTags.OPEN_MODULES)) { Text("Включить или выключить — в «Модулях»") }
+                    }
+                    if (last && firstTime) {
                         Text("Модули можно поменять в любой момент: «Ещё» → «Модули».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (index > 0) SecondaryButton(onClick = { index-- }, modifier = Modifier.testTag(IntroTags.BACK)) { Text("Назад") }
                     PrimaryButton(
-                        onClick = { if (last) onDone() else index++ },
+                        onClick = { if (last) finish() else index++ },
                         modifier = Modifier.weight(1f).testTag(IntroTags.NEXT),
                     ) {
                         Text(
                             when {
-                                index == 0 -> "Как это работает"
                                 last && firstTime -> "Перейти к настройке"
                                 last -> "Готово"
                                 else -> "Дальше"

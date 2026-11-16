@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -127,19 +128,18 @@ fun CategoriesScreen(
             item { ArchiveCard(archived.map { ArchivedItem(it.id, it.name, if (it.kind == CategoryKind.INCOME) "доход" else "расход") }, onRestore = onRestoreCategory) }
         }
         val system = state.categories.filter { it.isSystem && !it.isArchived }
+        val corrections = system.filter { it.name == CorrectionCategory.NAME }
+        val movedOut = system - corrections.toSet()
         if (system.isNotEmpty()) {
             item { SectionTitle("Служебные", hint = "в бюджете не участвуют") }
-            items(system, key = { "sys-" + it.id }) { category ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(category.name, fontWeight = FontWeight.Medium)
-                            Text(if (category.kind == CategoryKind.EXPENSE) "расход · только остатки счетов" else "доход · только остатки счетов", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (category.name != CorrectionCategory.NAME) {
-                            TextButton(onClick = { onSetSystem(category.id, false) }) { Text("Вернуть в бюджет") }
-                        }
-                    }
+            if (corrections.isNotEmpty()) {
+                item(key = "sys-correction") {
+                    SystemCategoryCard(CorrectionCategory.NAME, "доход и расход · нужна для «Сверить остаток», удалить нельзя")
+                }
+            }
+            items(movedOut, key = { "sys-" + it.id }) { category ->
+                SystemCategoryCard(category.name, if (category.kind == CategoryKind.EXPENSE) "расход · только остатки счетов" else "доход · только остатки счетов") {
+                    TextButton(onClick = { onSetSystem(category.id, false) }) { Text("Вернуть в бюджет") }
                 }
             }
         }
@@ -337,4 +337,17 @@ private fun AddSubcategoryDialog(category: Category, periodTitle: String, onDism
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
+}
+
+@Composable
+private fun SystemCategoryCard(name: String, caption: String, action: @Composable () -> Unit = {}) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, fontWeight = FontWeight.Medium)
+                Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            action()
+        }
+    }
 }

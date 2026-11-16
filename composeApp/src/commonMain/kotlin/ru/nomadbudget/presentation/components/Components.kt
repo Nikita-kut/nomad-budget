@@ -67,7 +67,7 @@ fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modif
 @Composable
 fun InfoHint(title: String, text: String, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    IconButton(onClick = { open = true }, modifier = modifier.size(32.dp)) {
+    IconButton(onClick = { open = true }, modifier = modifier.size(INFO_HINT_SIZE)) {
         Icon(
             AppIcons.Info,
             contentDescription = "Что это",
@@ -358,3 +358,5 @@ fun FundTag(modifier: Modifier = Modifier) {
             .padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }
+
+val INFO_HINT_SIZE = 32.dp

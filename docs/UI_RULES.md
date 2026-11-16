@@ -14,6 +14,8 @@ One rule, one component. A fix to a visual problem goes into the shared componen
 - Always `StatTile` inside `TileRow`.
 - A tile has a fixed structure: label, value, progress track (space reserved even when empty), two-line caption. Tiles in one row are the same height.
 - The main tile of a screen is `accent = true`; only one per row.
+- Values in one row are always on one line: the label row has the height of the «i» button whether the tile has a hint or not, compact labels always reserve two lines. Never put a hint or extra text above the value in a single tile.
+- A tile that opens something takes `onClick`; never pass `.clickable` in its modifier.
 
 ## Charts
 
@@ -41,6 +43,10 @@ Four kinds, all in `presentation/components/Buttons.kt`. Raw Material buttons ar
 - `TextButton` — minor actions inside cards and dialogs: «Отмена», «Показать все», «Изменить».
 
 No outlined buttons. No more than one `PrimaryButton` per card.
+
+- All four share one size: height 44, radius 10. A button and an `AddTile` in one row are the same size.
+- Buttons are flat: no hover or press elevation. Hover and press highlight fill the whole button.
+- Anything clickable highlights its whole visible shape. A clickable card is `Card(onClick = …)`; a custom clickable is `clip(shape)` then `clickable`, then padding inside. `.clickable` after `.padding` or on a card modifier is not used (checked by `tools/check_rules.sh`).
 
 ## Скрытие сумм
 

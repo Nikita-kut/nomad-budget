@@ -1,8 +1,11 @@
 package ru.nomadbudget.data.dto
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class UserSettingsDto(
     @SerialName("period_start_day") val periodStartDay: Int,
@@ -11,9 +14,9 @@ data class UserSettingsDto(
     @SerialName("cushion_months") val cushionMonths: Int,
     @SerialName("annual_return") val annualReturn: Double,
     @SerialName("onboarded_at") val onboardedAt: String?,
-    val currencies: List<String> = emptyList(),
-    @SerialName("modules_off") val modulesOff: List<String> = emptyList(),
-    @SerialName("blocks_off") val blocksOff: List<String> = emptyList(),
+    @EncodeDefault val currencies: List<String> = emptyList(),
+    @EncodeDefault @SerialName("modules_off") val modulesOff: List<String> = emptyList(),
+    @EncodeDefault @SerialName("blocks_off") val blocksOff: List<String> = emptyList(),
 )
 
 @Serializable

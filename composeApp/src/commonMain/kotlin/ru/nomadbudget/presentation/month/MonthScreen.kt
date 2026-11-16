@@ -215,7 +215,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
     }
     val showPace = state.month.isCurrent && budget.hasPlan && !over
     val ahead = showPace && budget.pace(state.month.elapsedShare) == Pace.AHEAD
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
+    Card(onClick = onToggle, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(budget.category.name, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -318,7 +318,7 @@ private fun recordTitle(state: HomeState, tx: Transaction.Expense): String =
 @Composable
 private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
-    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onOpenPlanning)) {
+    Card(onClick = onOpenPlanning, modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 6.dp)) {
             funds.forEachIndexed { index, fund ->
                 if (index > 0) HorizontalDivider()
@@ -550,7 +550,8 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
                     month.perDay?.let { "≈ ${MoneyFormat.format(it, false)} в день на ${plural(month.daysLeft, "день", "дня", "дней")}" },
                     "потрачено ${MoneyFormat.format(month.flexibleFactWhole, false)} из ${MoneyFormat.format(month.flexiblePlannedWhole, false)}",
                 ).joinToString(" · "),
-                modifier = m.clickable(onClick = onOpenPlanning),
+                modifier = m,
+                onClick = onOpenPlanning,
                 progress = month.flexibleFactWhole.shareOf(month.flexiblePlannedWhole).toFloat(),
                 progressColor = if (over) colors.bad else MaterialTheme.colorScheme.primary,
                 marker = if (month.isCurrent) month.elapsedShare.toFloat() else null,
@@ -589,7 +590,8 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
                 label = "Осталось по кредитам",
                 value = MoneyFormat.format(month.debtsLeft, false),
                 sub = "оплачено ${month.debtsPaid} из ${month.debts.size}" + (next?.let { " · ближайший: ${it.debt.name}${it.due?.let { d -> " к ${d.day}-му" }.orEmpty()}" } ?: ""),
-                modifier = m.clickable(onClick = onOpenDebts),
+                modifier = m,
+                onClick = onOpenDebts,
                 progress = (month.debtsPlanned - month.debtsLeft).shareOf(month.debtsPlanned).toFloat(),
                 progressColor = if (overdue) colors.bad else colors.good,
                 valueColor = if (overdue) colors.bad else null,
