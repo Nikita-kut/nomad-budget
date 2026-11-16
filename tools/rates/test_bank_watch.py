@@ -414,6 +414,21 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(["target"], self.kinds(events))
         self.assertEqual(38.0, events[0]["previous"])
 
+    def test_target_repeats_only_when_the_shown_rate_changes(self):
+        w = watch(target=300.0)
+        state, events = self.step(w, 300.02, {}, msk(11))
+        self.assertEqual(["target"], self.kinds(events))
+        state, events = self.step(w, 299.97, state, msk(11, 15))
+        self.assertEqual([], events)
+        state, events = self.step(w, 300.04, state, msk(11, 30))
+        self.assertEqual([], events, "на экране всё те же 300 — не шлём")
+        state, events = self.step(w, 301.0, state, msk(11, 45))
+        self.assertEqual(["target"], self.kinds(events))
+        state, events = self.step(w, 298.0, state, msk(12))
+        self.assertEqual([], events)
+        state, events = self.step(w, 301.0, state, msk(12, 15))
+        self.assertEqual(["target"], self.kinds(events), "ушёл ниже цели заметно и вернулся — шлём снова")
+
     def test_target_ignores_warmup_and_trading_hours_but_not_send_window(self):
         w = watch(target=40.0, quiet_from=9, quiet_to=9)
         for moment in (msk(11), msk(21), msk(12, day=SATURDAY), msk(12, day=4)):
