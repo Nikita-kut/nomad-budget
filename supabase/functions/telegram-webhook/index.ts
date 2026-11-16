@@ -17,7 +17,11 @@ const HOUR_MS = 3_600_000;
 type Chat = { id: number; first_name?: string; username?: string; title?: string };
 type WatchState = { now_text?: string; now_widget?: string; now_caption?: string; widgets_ok?: boolean };
 type Watch = { id: string; user_id?: string; from_currency: string; to_currency: string; state?: WatchState };
-type Answer = { text: string; widget?: { html: string; caption: string } };
+type Answer = { text: string; widget?: { html: string; caption: string }; subscribed?: boolean };
+
+const REFRESH_TEXT = "🔄 Обновить";
+const REFRESH_KEYBOARD = { keyboard: [[{ text: REFRESH_TEXT }]], resize_keyboard: true, is_persistent: true };
+const NO_KEYBOARD = { remove_keyboard: true };
 
 async function rest(path: string, init: RequestInit = {}): Promise<unknown> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -36,7 +40,7 @@ async function rest(path: string, init: RequestInit = {}): Promise<unknown> {
 
 function subscribeText(watch: Watch): string {
   return `Подписка на курс включена: <b>${watch.from_currency} → ${watch.to_currency}</b>, обмен в приложении.\n` +
-    "Курс сейчас — /rate, отписаться — /stop";
+    `Курс сейчас — кнопка «${REFRESH_TEXT}» внизу или /rate, отписаться — /stop`;
 }
 
 async function isBlocked(userId: string | undefined): Promise<boolean> {
@@ -51,15 +55,15 @@ async function nowAnswer(chatId: number): Promise<Answer> {
   for (const row of all) {
     if (!(await isBlocked(row.rate_watches?.user_id))) rows.push(row);
   }
-  if (rows.length === 0) return { text: NOT_SUBSCRIBED_TEXT };
+  if (rows.length === 0) return { text: NOT_SUBSCRIBED_TEXT, subscribed: false };
   const states = rows.map((row) => row.rate_watches?.state).filter((state): state is WatchState => !!state);
   const texts = states.map((state) => state.now_text).filter((text): text is string => !!text);
   const text = texts.length > 0 ? texts.join("\n\n") : NOT_CHECKED_TEXT;
   const only = states.length === 1 ? states[0] : undefined;
   if (only?.widgets_ok === true && only.now_widget && only.now_caption) {
-    return { text, widget: { html: only.now_widget, caption: only.now_caption } };
+    return { text, widget: { html: only.now_widget, caption: only.now_caption }, subscribed: true };
   }
-  return { text };
+  return { text, subscribed: true };
 }
 
 async function subscribe(chat: Chat, code: string): Promise<string> {
@@ -109,14 +113,17 @@ async function reply(chat: Chat, text: string): Promise<Answer> {
   const [head, ...rest_] = text.trim().split(/\s+/);
   const command = (head ?? "").split("@")[0].toLowerCase();
   const argument = rest_.join(" ").trim();
-  if (command === "/start" && argument) return { text: await subscribe(chat, argument) };
+  if (command === "/start" && argument) {
+    const text = await subscribe(chat, argument);
+    return { text, subscribed: text !== BAD_LINK_TEXT };
+  }
   if (command === "/start" || command === "/help") return { text: HELP_TEXT };
   if (command === "/pause") return { text: await pause(chat.id, argument) };
   if (command === "/resume") return { text: await resume(chat.id) };
   if (command === "/stop") {
     await rest(`telegram_subscribers?chat_id=eq.${chat.id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
     await rest(`telegram_chat_prefs?chat_id=eq.${chat.id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
-    return { text: STOP_TEXT };
+    return { text: STOP_TEXT, subscribed: false };
   }
   return await nowAnswer(chat.id);
 }
@@ -135,7 +142,15 @@ Deno.serve(async (request) => {
     if (answer.widget) {
       return Response.json({ method: "sendWidget", chat_id: chat.id, html: answer.widget.html, caption: answer.widget.caption, parse_mode: "HTML" });
     }
-    return Response.json({ method: "sendMessage", chat_id: chat.id, text: answer.text, parse_mode: "HTML", disable_web_page_preview: true });
+    const keyboard = answer.subscribed === true ? REFRESH_KEYBOARD : answer.subscribed === false ? NO_KEYBOARD : undefined;
+    return Response.json({
+      method: "sendMessage",
+      chat_id: chat.id,
+      text: answer.text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      ...(keyboard ? { reply_markup: keyboard } : {}),
+    });
   } catch (error) {
     console.error(`webhook failed: ${error instanceof Error ? error.message : "unknown"}`);
     return new Response("ok");

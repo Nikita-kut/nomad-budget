@@ -318,7 +318,7 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual({"good": True, "best": 97.0, "bad": True, "worst": 3.0}, events[0]["notes"])
         self.assertEqual({}, state["notes"])
         text = bw.message_digest(w, 50.0, None, events[0], local(msk(10, 0, day=11)))
-        self.assertIn("Вне окна отправки: было выгодно, до 97,00; было невыгодно, до 3,00", text)
+        self.assertIn("🌙 вне окна отправки: было выгодно, до 97,00; было невыгодно, до 3,00", text)
 
     def test_without_digest_nothing_is_kept_for_later(self):
         state, events = self.step(watch(), 95.0, {}, msk(18, 15))
@@ -375,10 +375,11 @@ class EvaluateTest(unittest.TestCase):
         self.assertIsNone(events[0]["assessment"])
         self.assertIsNone(state["window"])
         text = bw.message_digest(w, 95.0, 100.0, events[0], local(msk(10, day=SATURDAY)))
-        self.assertIn("☀️ <b>RUB → USD</b> · утренняя сводка, 10:00 МСК", text)
+        self.assertIn("☀️ <b>RUB → USD</b> · утренняя сводка", text)
+        self.assertIn("<i>курс на 10:00 МСК</i>", text)
         self.assertIn("биржа закрыта, курс выходного дня", text)
         self.assertNotIn("замеров", text)
-        self.assertIn(f"Обмен: 1{NBSP}RUB = 95,00{NBSP}USD", text)
+        self.assertIn(f"<b>95,00{NBSP}USD</b> за 1{NBSP}RUB", text)
 
     def test_warmup_gives_no_signals_and_says_so_in_digest(self):
         w = watch(digest_hour=10)
@@ -429,8 +430,8 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(["digest"], self.kinds(events))
         self.assertEqual(40.0, events[0]["target"])
         text = bw.message_digest(w, 51.0, None, events[0], local(msk(10, 0, day=11)))
-        self.assertIn("Вне окна отправки: выше цели было: макс 52,00", text)
-        self.assertIn("Выше цели 40,00", text)
+        self.assertIn("🌙 вне окна отправки: выше цели было: макс 52,00", text)
+        self.assertIn("🎯 выше цели 40,00", text)
         self.assertEqual({}, state["notes"])
 
     def test_target_wins_over_window_message_but_window_state_moves(self):
@@ -506,8 +507,8 @@ class MessageTest(unittest.TestCase):
         text = bw.message_signal(w, 0.0121, 0.0125, self.good(0.0121))
         lines = text.split("\n")
         self.assertEqual("🟢 <b>RUB → USD</b>: выгодно менять", lines[0])
-        self.assertEqual(f"100{NBSP}RUB = 1,21{NBSP}USD · лучше 92{NBSP}% замеров недели", lines[1])
-        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[2])
+        self.assertEqual(f"<b>1,21{NBSP}USD</b> за 100{NBSP}RUB · лучше 92{NBSP}% замеров недели", lines[1])
+        self.assertEqual(f"ЦБ 1,25 · разница {MINUS}3,2{NBSP}%", lines[2])
         self.assertEqual(3, len(lines))
 
     def test_repeat_message_names_previous_rate(self):
@@ -522,8 +523,8 @@ class MessageTest(unittest.TestCase):
         watch = {"from_currency": "RUB", "to_currency": "VND"}
         error = urllib.error.HTTPError("u", 400, "Bad Request", {}, io.BytesIO(b'{"ok":false,"description":"Bad Request: widget is too big"}'))
         self.assertEqual("HTTP 400 Bad Request: widget is too big", bw.telegram_error(error))
-        self.assertEqual("🎯 <b>RUB → VND</b>: курс выше цели 305, было 305\nОбмен: 1\u00a0RUB = 306\u00a0VND", bw.message_target(watch, 306.1, 305.0, 304.6))
-        self.assertEqual("🎯 <b>RUB → VND</b>: курс выше цели 300\nОбмен: 1\u00a0RUB = 300\u00a0VND", bw.message_target(watch, 300.0, 300.0, 299.91))
+        self.assertEqual("🎯 <b>RUB → VND</b>: курс выше цели 305, было 305\n<b>306\u00a0VND</b> за 1\u00a0RUB", bw.message_target(watch, 306.1, 305.0, 304.6))
+        self.assertEqual("🎯 <b>RUB → VND</b>: курс выше цели 300\n<b>300\u00a0VND</b> за 1\u00a0RUB", bw.message_target(watch, 300.0, 300.0, 299.91))
         self.assertNotIn(",", bw.message_target(watch, 300.0, 300.0, 299.91).split("\n")[0].split("цели")[1])
 
     def test_bad_message(self):
@@ -539,24 +540,25 @@ class MessageTest(unittest.TestCase):
         w = watch(digest_hour=10)
         event = {"kind": "digest", "verdict": "good", "assessment": bw.assess(w, 0.0121, 0.0125, SMALL_WEEK), "notes": {}}
         lines = bw.message_digest(w, 0.0121, 0.0125, event, local(msk(10, 30))).split("\n")
-        self.assertEqual("☀️ <b>RUB → USD</b> · курс на начало торгов, 10:30 МСК", lines[0])
-        self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD · выгодно", lines[1])
-        self.assertEqual(f"ЦБ: 100{NBSP}RUB = 1,25{NBSP}USD · разница {MINUS}3,2{NBSP}%", lines[2])
-        self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[3])
-        self.assertEqual(4, len(lines))
+        self.assertEqual("☀️ <b>RUB → USD</b> · начало торгов", lines[0])
+        self.assertEqual(f"<b>1,21{NBSP}USD</b> за 100{NBSP}RUB · 🟢 выгодно", lines[1])
+        self.assertEqual(f"ЦБ 1,25 · разница {MINUS}3,2{NBSP}%", lines[2])
+        self.assertEqual(f"📊 лучше 92{NBSP}% замеров недели", lines[3])
+        self.assertEqual("<i>курс на 10:30 МСК</i>", lines[4])
+        self.assertEqual(5, len(lines))
 
     def test_digest_verdict_texts(self):
         w = watch(digest_hour=10)
         assessment = bw.assess(w, 0.0115, None, SMALL_WEEK)
-        for code, expected in (("normal", "· обычно"), ("bad", "· не меняй"), ("night", "· биржа закрыта, ночной курс")):
+        for code, expected in (("normal", "· ⚪️ обычно"), ("bad", "· 🔴 не меняй"), ("night", "· 🌙 биржа закрыта, ночной курс")):
             event = {"kind": "digest", "verdict": code, "assessment": assessment if code != "night" else None, "notes": {}}
             self.assertIn(expected, bw.message_digest(w, 0.0115, None, event, local(msk(10))))
 
     def test_notes_line(self):
         self.assertIsNone(bw.notes_line({}, 1))
-        self.assertEqual("Вне окна отправки: было выгодно, до 1,22", bw.notes_line({"good": True, "best": 0.0122}, 100))
-        self.assertEqual("Вне окна отправки: было невыгодно, до 1,01", bw.notes_line({"bad": True, "worst": 0.0101}, 100))
-        self.assertEqual("Вне окна отправки: выше цели было: макс 1,22", bw.notes_line({"target_max": 0.0122}, 100))
+        self.assertEqual("🌙 вне окна отправки: было выгодно, до 1,22", bw.notes_line({"good": True, "best": 0.0122}, 100))
+        self.assertEqual("🌙 вне окна отправки: было невыгодно, до 1,01", bw.notes_line({"bad": True, "worst": 0.0101}, 100))
+        self.assertEqual("🌙 вне окна отправки: выше цели было: макс 1,22", bw.notes_line({"target_max": 0.0122}, 100))
 
     def test_plural_and_share(self):
         self.assertEqual(f"1{NBSP}замер", bw.plural(1, "замер", "замера", "замеров"))
@@ -575,10 +577,11 @@ class MessageTest(unittest.TestCase):
         w = watch(target=0.012)
         assessment = bw.assess(w, 0.0121, 0.0125, SMALL_WEEK)
         lines = bw.message_now(w, 0.0121, 0.0125, "good", assessment, local(msk(13, 26))).split("\n")
-        self.assertEqual("💱 <b>RUB → USD</b> · курс на 13:26 МСК", lines[0])
-        self.assertEqual(f"Обмен: 100{NBSP}RUB = 1,21{NBSP}USD · выгодно", lines[1])
-        self.assertEqual(f"Лучше 92{NBSP}% замеров недели", lines[3])
-        self.assertEqual("Выше цели 1,20", lines[4])
+        self.assertEqual("💱 <b>RUB → USD</b>", lines[0])
+        self.assertEqual(f"<b>1,21{NBSP}USD</b> за 100{NBSP}RUB · 🟢 выгодно", lines[1])
+        self.assertEqual(f"📊 лучше 92{NBSP}% замеров недели", lines[3])
+        self.assertEqual("🎯 выше цели 1,20", lines[4])
+        self.assertEqual("<i>курс на 13:26 МСК</i>", lines[5])
         night = bw.message_now(watch(), 0.0115, None, "night", None, local(msk(22)))
         self.assertIn("биржа закрыта, ночной курс", night)
         self.assertNotIn("замеров", night)
@@ -601,7 +604,8 @@ class MessageTest(unittest.TestCase):
         source = (Path(__file__).resolve().parents[2] / "supabase" / "functions" / "telegram-webhook" / "index.ts").read_text()
         for text in (bw.HELP_TEXT, bw.STOP_TEXT, bw.NOT_SUBSCRIBED_TEXT):
             self.assertIn(json_literal(text), source)
-        self.assertIn("Курс сейчас — /rate, отписаться — /stop", source)
+        self.assertIn("Курс сейчас — кнопка «${REFRESH_TEXT}» внизу или /rate, отписаться — /stop", source)
+        self.assertIn(f'const REFRESH_TEXT = "{bw.REFRESH_TEXT}"', source)
 
 
 class RetryTest(unittest.TestCase):
