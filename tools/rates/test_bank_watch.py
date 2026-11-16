@@ -604,7 +604,8 @@ class MessageTest(unittest.TestCase):
         source = (Path(__file__).resolve().parents[2] / "supabase" / "functions" / "telegram-webhook" / "index.ts").read_text()
         for text in (bw.HELP_TEXT, bw.STOP_TEXT, bw.NOT_SUBSCRIBED_TEXT):
             self.assertIn(json_literal(text), source)
-        self.assertIn("Курс сейчас — /rate, отписаться — /stop", source)
+        self.assertIn("Курс сейчас — кнопка «${REFRESH_TEXT}» внизу или /rate, отписаться — /stop", source)
+        self.assertIn(f'const REFRESH_TEXT = "{bw.REFRESH_TEXT}"', source)
 
 
 class RetryTest(unittest.TestCase):
