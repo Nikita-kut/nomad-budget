@@ -1,3 +1,4 @@
+import json
 import urllib.error
 import io
 import datetime as dt
@@ -973,5 +974,28 @@ class ProbeWidgetTest(unittest.TestCase):
         self.assertEqual(1, bw.probe_widget(self.Db([]), RecordingTelegram(), None))
 
 
+    def test_webhook_carries_the_same_bank_certificate(self):
+        root = Path(__file__).resolve().parents[2]
+        source = (root / "supabase" / "functions" / "telegram-webhook" / "tbank_ca.ts").read_text()
+        self.assertEqual("export const TBANK_CA = " + json.dumps(bw.PROVIDER_CA.read_text()) + ";\n", source)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class RefreshContextTest(unittest.TestCase):
+    def test_fixtures_for_webhook_are_up_to_date(self):
+        import refresh_fixtures
+        stored = json.loads(refresh_fixtures.TARGET.read_text())
+        self.assertEqual(refresh_fixtures.build(), stored, "пересобери: python3 tools/rates/refresh_fixtures.py")
+
+    def test_context_gives_the_same_text_as_the_full_assessment(self):
+        w = watch(target=0.012)
+        history = [{"buy": row["buy"], "cbr": 0.0125, "at": None} for row in SMALL_WEEK]
+        for rate, moment in ((0.0121, msk(13, 26)), (0.0101, msk(11)), (0.0115, msk(22)), (0.0115, msk(12, day=SATURDAY))):
+            assessment = bw.assess(w, rate, 0.0125, history) if bw.in_trading_hours(moment, 630, 1110, set()) else None
+            code = bw.verdict(assessment, bw.exchange_now(moment).date(), set())
+            expected = bw.message_now(w, rate, 0.0125, code, assessment, bw.local_now(moment, "Europe/Moscow"))
+            context = bw.refresh_context(w, 0.0125, history, set(), moment)
+            self.assertEqual(expected, bw.compose_now(context, rate, moment))
