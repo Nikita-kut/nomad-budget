@@ -502,6 +502,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     state = state,
                                     onSubmit = viewModel::addExchange,
                                     onDelete = viewModel::deleteTransaction,
+                                    onUpdate = viewModel::updateTransaction,
                                     onBack = if (wide) null else back,
                                 )
                             }
@@ -889,4 +890,4 @@ private fun HeaderAmount(label: String, money: Money, emphasize: Boolean = false
     }
 }
 
-private val SYNC_TIME_OFFSET = 14.dp
+private val SYNC_TIME_OFFSET = 4.dp
