@@ -307,7 +307,6 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                 it.isOn<MoreRoute>() || it.isOn<CategoriesRoute>() || it.isOn<BalanceCheckRoute>() || it.isOn<SettingsRoute>() ||
                     it.isOn<RatesRoute>() || it.isOn<ChartsRoute>() || it.isOn<CapitalRoute>() || it.isOn<ExchangeRoute>() || it.isOn<DebtsRoute>()
             },
-            Tab(SettingsRoute, "Настройки", AppIcons.Settings, primary = false) { it.isOn<SettingsRoute>() },
         )
     }
     val tabs = allTabs.filter { tab -> tab.feature == null || features.isOn(tab.feature) }
@@ -401,7 +400,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
-            topBar = { if (!onEntry || wide) HeaderBar(state, viewModel, wide) },
+            topBar = { if (!onEntry || wide) HeaderBar(state, viewModel, wide, onSettings = { navController.navigate(SettingsRoute) { launchSingleTop = true } }) },
             floatingActionButton = {
                 if (!wide && !onEntry) {
                     FloatingActionButton(onClick = openEntry, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Icon(AppIcons.Add, contentDescription = "Новая запись") }
@@ -564,7 +563,6 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     },
                                     onSettings = { navController.navigate(SettingsRoute) },
                                     onTickets = { navController.navigate(TicketsRoute) },
-                                    onModules = { navController.navigate(ModulesRoute) },
                                     onIntro = { navController.navigate(IntroRoute) },
                                     onReport = ticketLauncher::open,
                                 )
@@ -572,7 +570,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                             composable<SettingsRoute> {
                                 SettingsScreen(
                                     state = state,
-                                    onBack = if (wide) null else back,
+                                    onBack = back,
                                     onSetPeriodStartDay = viewModel::setPeriodStartDay,
                                     onSetIncomeDays = viewModel::setIncomeDays,
                                     onSaveCapital = viewModel::saveCapitalSettings,
@@ -584,6 +582,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                     onSignOut = viewModel::signOut,
                                     onDeleteAccount = viewModel::deleteAccount,
                                     onOpenAdmin = { navController.navigate(AdminRoute) },
+                                    onOpenModules = { navController.navigate(ModulesRoute) },
                                 )
                             }
                             composable<IntroRoute> {
@@ -684,7 +683,7 @@ private fun NavHostController.switchTo(route: Any) {
 }
 
 @Composable
-private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean) {
+private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean, onSettings: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
             if (wide) {
@@ -705,7 +704,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                             if (FeatureGate.isOn(Feature.CUSHION_HEADER) || !state.savingsBalance.isZero) HeaderAmount("Резерв", state.savingsBalance)
                         }
                     }
-                    PeriodSwitcher(state, viewModel)
+                    PeriodSwitcher(state, viewModel, onSettings)
                 }
                 RatesWarning(state)
             } else {
@@ -715,6 +714,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean)
                     PrivacyButton()
                     ThemeButton()
                     RefreshButton(state, viewModel)
+                    SettingsButton(onSettings)
                 }
                 if (state.loading) {
                     Box(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) { HeaderSkeleton() }
@@ -776,12 +776,20 @@ private fun RatesWarning(state: HomeState) {
 }
 
 @Composable
-private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel) {
+private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel, onSettings: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         PrivacyButton()
         ThemeButton()
         RefreshButton(state, viewModel)
+        SettingsButton(onSettings)
         PeriodNavigator(state, viewModel)
+    }
+}
+
+@Composable
+private fun SettingsButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(AppIcons.Settings, contentDescription = "Настройки")
     }
 }
 

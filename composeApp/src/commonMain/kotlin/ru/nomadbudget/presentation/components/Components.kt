@@ -43,6 +43,16 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
+fun GroupTitle(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier.fillMaxWidth().padding(top = 18.dp, bottom = 2.dp),
+    )
+}
+
+@Composable
 fun SectionTitle(title: String, hint: String? = null, modifier: Modifier = Modifier, info: String? = null) {
     Row(
         modifier = modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
