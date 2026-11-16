@@ -336,13 +336,6 @@ private fun AllocationCard(month: MonthModel, onOpenModules: () -> Unit) {
                     }
                 }
             }
-            if (!month.debtsFromCushion.isZero && FeatureGate.isOn(Feature.DEBTS_PLAN)) {
-                Text(
-                    "Ещё ${MoneyFormat.format(month.debtsFromCushion, false)} досрочки по кредитам — из резерва, в эту сумму не входит",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
