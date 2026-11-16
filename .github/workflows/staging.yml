@@ -22,7 +22,7 @@ jobs:
       PROJECT_REF: ${{ vars.STAGING_PROJECT_REF }}
     steps:
       - uses: actions/checkout@v7
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.117.0
       - name: Guard against prod
