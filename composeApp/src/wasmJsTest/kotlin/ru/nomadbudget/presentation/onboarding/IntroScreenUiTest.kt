@@ -43,7 +43,24 @@ class IntroScreenUiTest {
         next(3)
         onNodeWithTag(IntroTags.module(AppModule.CAPITAL)).performClick()
         waitForIdle()
+        assertEquals(0, saved.size, "переключатель в знакомстве не сохраняет сразу")
+        onNodeWithTag(IntroTags.SKIP).performClick()
+        waitForIdle()
         assertEquals(emptySet(), saved.last())
+    }
+
+    @Test
+    fun reopenedIntroNeverChangesModules() = runComposeUiTest {
+        var opened = 0
+        setContent { AppTheme { IntroScreen(state(), FeatureState.EVERYTHING, firstTime = false, onSetModules = { m, _ -> saved += m }, onDone = {}, onOpenModules = { opened++ }) } }
+        next(3)
+        onNodeWithTag(IntroTags.module(AppModule.CAPITAL)).assertDoesNotExist()
+        onNodeWithTag(IntroTags.OPEN_MODULES).performClick()
+        waitForIdle()
+        assertEquals(1, opened)
+        onNodeWithTag(IntroTags.SKIP).performClick()
+        waitForIdle()
+        assertEquals(0, saved.size)
     }
 
     @Test

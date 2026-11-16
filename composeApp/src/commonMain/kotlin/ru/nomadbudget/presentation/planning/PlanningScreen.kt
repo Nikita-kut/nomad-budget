@@ -269,7 +269,7 @@ enum class AllocationKind { DEBTS, FUNDS, ENVELOPES, SAVINGS, HIDDEN, REST }
 
 data class AllocationPart(val kind: AllocationKind, val label: String, val money: Money)
 
-fun allocationParts(debts: Money, funds: Money, envelopes: Money, savings: Money, unallocated: Money, debtsLabel: String = "Кредиты"): List<AllocationPart> {
+fun allocationParts(debts: Money, funds: Money, envelopes: Money, savings: Money, unallocated: Money): List<AllocationPart> {
     val zero = Money.zero(envelopes.currency)
     val hidden = listOfNotNull(
         ("кредиты" to debts).takeUnless { FeatureGate.isOn(Feature.DEBTS_PLAN) },
@@ -278,7 +278,7 @@ fun allocationParts(debts: Money, funds: Money, envelopes: Money, savings: Money
     ).filter { it.second.minor > 0L }
     val negative = unallocated.isNegative
     return listOfNotNull(
-        AllocationPart(AllocationKind.DEBTS, debtsLabel, debts).takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
+        AllocationPart(AllocationKind.DEBTS, "Кредиты", debts).takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
         AllocationPart(AllocationKind.FUNDS, "Взносы в копилки", funds).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
         AllocationPart(AllocationKind.ENVELOPES, "Конверты", envelopes),
         AllocationPart(AllocationKind.SAVINGS, "Себе", savings).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
@@ -303,7 +303,6 @@ private fun AllocationCard(month: MonthModel, onOpenModules: () -> Unit) {
         envelopes = month.flexiblePlanned,
         savings = month.savingsTarget ?: Money.zero(base),
         unallocated = month.unallocated,
-        debtsLabel = if (month.debtsFromCushion.isZero) "Кредиты" else "Кредиты, + ${MoneyFormat.format(month.debtsFromCushion, false)} из подушки",
     ).map { part ->
         val color = when (part.kind) {
             AllocationKind.DEBTS -> outline
@@ -336,6 +335,13 @@ private fun AllocationCard(month: MonthModel, onOpenModules: () -> Unit) {
                         )
                     }
                 }
+            }
+            if (!month.debtsFromCushion.isZero && FeatureGate.isOn(Feature.DEBTS_PLAN)) {
+                Text(
+                    "Ещё ${MoneyFormat.format(month.debtsFromCushion, false)} досрочки по кредитам — из подушки, в эту сумму не входит",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -378,7 +384,7 @@ private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: Str
 
 @Composable
 private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -> Unit, onOpenCapital: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val target = month.savingsTarget
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -418,7 +424,7 @@ private fun SavingsCard(month: MonthModel, capital: CapitalModel?, onClick: () -
 @Composable
 private fun DebtsPlanCard(state: HomeState, onOpenDebts: () -> Unit, onPlanEarly: (DebtObligation) -> Unit) {
     val month = state.month
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDebts)) {
+    Card(onClick = onOpenDebts, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (month.debts.isEmpty()) {
                 Text("Кредитов нет. Добавь их в «Кредитах», платежи попадут в план сами.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 6.dp))
@@ -494,7 +500,7 @@ private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpe
 @Composable
 private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, onClick: () -> Unit) {
     val colors = AppTheme.colors
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(budget.category.name, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))

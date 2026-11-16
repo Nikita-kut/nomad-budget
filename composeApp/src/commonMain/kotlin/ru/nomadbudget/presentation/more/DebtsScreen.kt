@@ -345,7 +345,7 @@ private fun DebtCard(
     val debt = obligation.debt
     var menu by remember { mutableStateOf(false) }
     val forecast = DebtCalculator.forecast(debt, debt.plannedPayment)
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)) {
+    Card(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(debt.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))

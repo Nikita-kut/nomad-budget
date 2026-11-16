@@ -30,7 +30,7 @@ enum class Feature(val key: String, val module: AppModule?, val title: String, v
     CURRENCIES_RATES("currencies.rates", AppModule.CURRENCIES, "Экран «Курсы»"),
     CURRENCIES_ACCOUNTS("currencies.accounts", AppModule.CURRENCIES, "Курсы и обмен на экране счетов"),
     CURRENCIES_SETTINGS("currencies.settings", AppModule.CURRENCIES, "Валюты в настройках"),
-    BANK_WATCH_RATES("bank_watch.rates", AppModule.BANK_WATCH, "Курс банка на экране курсов"),
+    BANK_WATCH_RATES("bank_watch.rates", AppModule.BANK_WATCH, "Курс банка на экране курсов", defaultStage = Stage.OWNER),
     INBOX_ENTRY("inbox.entry", AppModule.INBOX, "Входящие в новой записи"),
     TICKETS_BUTTON("tickets.button", null, "Кнопка «Сообщить о проблеме»"),
 }

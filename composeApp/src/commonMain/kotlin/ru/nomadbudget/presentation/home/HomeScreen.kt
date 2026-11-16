@@ -587,7 +587,7 @@ private fun HomeContent(viewModel: HomeViewModel, state: HomeState) {
                                 )
                             }
                             composable<IntroRoute> {
-                                IntroScreen(state = state, features = features, firstTime = false, onSetModules = viewModel::setModules, onDone = back)
+                                IntroScreen(state = state, features = features, firstTime = false, onSetModules = viewModel::setModules, onDone = back, onOpenModules = { navController.navigate(ModulesRoute) })
                             }
                             composable<ModulesRoute> {
                                 ModulesScreen(state = state, features = features, onSave = viewModel::setModules, onBack = back)
