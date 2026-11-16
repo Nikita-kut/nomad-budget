@@ -9,6 +9,7 @@
 Режимы:
   bank_watch.py                      рабочий прогон
   bank_watch.py --dry-run FROM TO    только курсы банка и ЦБ для пары, без Supabase и Telegram
+  bank_watch.py --probe-widget       один тестовый виджет владельцу, в лог — ответ Telegram
 
 В лог не печатаются коды валют и значения пользователей: логи публичного репозитория видны всем.
 Семантика курсов и формат сообщений — docs/BANK_RATE_WATCH.md.
@@ -1195,6 +1196,26 @@ def dry_run(from_code: str, to_code: str) -> None:
             print(f"  spread:   {format_percent(spread(exchange, cbr))}")
 
 
+def probe_widget(db: Supabase, tg: Telegram, owner_chat: int | None) -> int:
+    if owner_chat is None:
+        print("OWNER_TELEGRAM_CHAT_ID is not set", file=sys.stderr)
+        return 1
+    watches = [w for w in db.select("rate_watches", "select=id,state") if (w.get("state") or {}).get("now_widget")]
+    if not watches:
+        print("no stored widget to probe", file=sys.stderr)
+        return 1
+    watch = watches[0]
+    state = watch["state"]
+    try:
+        tg.call("sendWidget", chat_id=owner_chat, html=state["now_widget"], caption=state.get("now_caption") or "", parse_mode="HTML")
+    except (urllib.error.HTTPError, RuntimeError) as e:
+        print(f"widget probe failed: {telegram_error(e)}", file=sys.stderr)
+        return 1
+    db.patch("rate_watches", f"id=eq.{watch['id']}", {"state": {**state, "widgets_ok": True}})
+    print("widget probe ok")
+    return 0
+
+
 def main() -> int:
     if "--dry-run" in sys.argv:
         args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -1216,6 +1237,8 @@ def main() -> int:
     webhook = (url.rstrip("/") + WEBHOOK_PATH, secret) if secret else None
     owner = os.environ.get("OWNER_TELEGRAM_CHAT_ID", "").strip()
     owner_chat = int(owner) if owner.lstrip("-").isdigit() else None
+    if "--probe-widget" in sys.argv:
+        return probe_widget(Supabase(url, key), Telegram(token), owner_chat)
     run(Supabase(url, key), Telegram(token), dt.datetime.now(dt.timezone.utc).replace(microsecond=0), webhook, owner_chat)
     return 0
 
