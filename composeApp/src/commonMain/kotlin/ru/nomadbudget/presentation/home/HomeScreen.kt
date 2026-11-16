@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -817,7 +818,7 @@ private fun ThemeButton() {
 
 @Composable
 private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(contentAlignment = Alignment.Center) {
         IconButton(onClick = viewModel::refresh, enabled = !state.loading && !state.refreshing) {
             if (state.refreshing) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -826,7 +827,14 @@ private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
             }
         }
         state.lastSyncedAt?.let {
-            Text(DateFormat.timeOnly(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                DateFormat.timeOnly(it),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.align(Alignment.BottomCenter).offset(y = SYNC_TIME_OFFSET),
+            )
         }
     }
 }
@@ -880,3 +888,5 @@ private fun HeaderAmount(label: String, money: Money, emphasize: Boolean = false
         )
     }
 }
+
+private val SYNC_TIME_OFFSET = 14.dp

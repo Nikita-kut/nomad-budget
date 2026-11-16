@@ -46,6 +46,7 @@ No outlined buttons. No more than one `PrimaryButton` per card.
 
 - All four share one size: height 44, radius 10. A button and an `AddTile` in one row are the same size.
 - Buttons are flat: no hover or press elevation. Hover and press highlight fill the whole button.
+- Icon buttons in one row sit on one line. A caption under an icon (like the sync time under «Обновить») is drawn outside the button's box and never changes its height.
 - Anything clickable highlights its whole visible shape. A clickable card is `Card(onClick = …)`; a custom clickable is `clip(shape)` then `clickable`, then padding inside. `.clickable` after `.padding` or on a card modifier is not used (checked by `tools/check_rules.sh`).
 
 ## Скрытие сумм
