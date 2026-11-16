@@ -392,9 +392,9 @@ private fun describe(tx: Transaction, state: HomeState): RowText = when (tx) {
         note = tx.note,
         primary = MoneyFormat.format(tx.amount),
         secondary = when {
-            state.accountsById[tx.toAccountId]?.isSavings == true -> "в подушку"
+            state.accountsById[tx.toAccountId]?.isSavings == true -> "в резерв"
             state.accountsById[tx.toAccountId]?.isFund == true -> "в копилку"
-            state.accountsById[tx.fromAccountId]?.isSavings == true -> "из подушки"
+            state.accountsById[tx.fromAccountId]?.isSavings == true -> "из резерва"
             state.accountsById[tx.fromAccountId]?.isFund == true -> "из копилки"
             else -> ""
         },

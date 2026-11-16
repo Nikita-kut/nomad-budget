@@ -56,16 +56,18 @@ enum class IntroArt { WELCOME, ENVELOPES, SAVINGS, CUSHION, DEBTS, FUNDS, CURREN
 data class IntroPage(val art: IntroArt, val title: String, val text: String, val modules: List<AppModule> = emptyList())
 
 val INTRO_PAGES = listOf(
-    IntroPage(IntroArt.WELCOME, "Знаешь, сколько можно потратить сегодня", "Nomad Budget — личный бюджет для тех, кто живёт в одной валюте, а получает в другой, или просто хочет спокойно дожить до следующего дохода."),
-    IntroPage(IntroArt.ENVELOPES, "Доход — по конвертам", "Решаешь заранее, сколько уйдёт на еду, жильё и всё остальное. Главная цифра каждого дня — сколько ещё можно потратить, не залезая в чужой конверт."),
-    IntroPage(IntroArt.SAVINGS, "Сначала заплати себе", "Часть дохода откладываешь сразу, в начале месяца, — это «Себе». Остальное делишь по конвертам. Так подушка растёт сама.", listOf(AppModule.CUSHION)),
-    IntroPage(IntroArt.CUSHION, "Подушка и капитал", "Подушка — запас на чёрный день в месяцах твоих расходов. Капитал — все счета минус долги, с прогнозом и целями.", listOf(AppModule.CAPITAL)),
-    IntroPage(IntroArt.DEBTS, "Кредиты без сюрпризов", "Обязательный платёж сам попадает в план месяца. Досрочку можно запланировать — с карты или из подушки.", listOf(AppModule.DEBTS)),
-    IntroPage(IntroArt.FUNDS, "Копилки на крупное", "Аренда раз в квартал, отпуск, техника. Каждый месяц откладываешь понемногу — и платишь из копилки, не трогая конверты.", listOf(AppModule.FUNDS)),
-    IntroPage(IntroArt.CURRENCIES, "Несколько валют", "Счета в разных валютах, обмены по реальному курсу. Бот подскажет, когда менять выгодно.", listOf(AppModule.CURRENCIES, AppModule.BANK_WATCH)),
-    IntroPage(IntroArt.MORE, "Графики и «Входящие»", "Как менялись доходы, траты и подушка по месяцам. А трату на бегу можно записать одной строкой и разобрать потом.", listOf(AppModule.CHARTS, AppModule.INBOX)),
-    IntroPage(IntroArt.HELP, "Если что-то не так", "Кнопка «?» есть на каждом экране: нажми на место, где что-то не так, — отправится обращение со скриншотом, суммы на нём скрыты. Твои счета и операции в приложении видишь только ты. Выгрузить всё в CSV или удалить учётку можно в любой момент в настройках."),
+    IntroPage(IntroArt.WELCOME, "Сколько можно потратить сегодня", "Nomad Budget — личный бюджет на месяц. Ты заранее решаешь, куда пойдёт доход, а приложение каждый день показывает, сколько ещё можно потратить, чтобы спокойно дотянуть до следующего дохода. Подходит и для одной валюты, и для нескольких."),
+    IntroPage(IntroArt.ENVELOPES, "Доход — по конвертам", "Конверт — сумма на месяц для одной категории: еда, жильё, транспорт. Каждая трата уменьшает свой конверт. Главная цифра — сколько осталось во всех конвертах и сколько это в день."),
+    IntroPage(IntroArt.SAVINGS, "Сначала откладываешь, потом тратишь", "В начале месяца сразу переводишь часть дохода в резерв — это строка «Отложить» в плане. Остальное раскладываешь по конвертам. Так сбережения растут каждый месяц, а не только когда что-то осталось.", listOf(AppModule.CUSHION)),
+    IntroPage(IntroArt.CUSHION, "Резерв и капитал", "Резерв — деньги на случай, если доход пропадёт. Его удобно мерить в месяцах расходов: сколько проживёшь без дохода. Капитал — всё, что у тебя есть, минус долги: видно, растёт ли он и когда дойдёшь до цели.", listOf(AppModule.CAPITAL)),
+    IntroPage(IntroArt.DEBTS, "Кредиты в плане", "Обязательный платёж сам попадает в план месяца, и эти деньги не уйдут на другое. Досрочное погашение тоже можно запланировать — из дохода или из резерва.", listOf(AppModule.DEBTS)),
+    IntroPage(IntroArt.FUNDS, "Копилки на крупные траты", "Для трат раз в квартал или раз в год: страховка, отпуск, техника. Каждый месяц откладываешь понемногу, а когда приходит срок, платишь из копилки — и месяц не проваливается.", listOf(AppModule.FUNDS)),
+    IntroPage(IntroArt.CURRENCIES, "Если деньги в разных валютах", "Счета в любой валюте, итоги — в одной основной, по курсу на дату операции. Обмен записывается по реальному курсу. Если все деньги в одной валюте, этот модуль не нужен.", listOf(AppModule.CURRENCIES, AppModule.BANK_WATCH)),
+    IntroPage(IntroArt.MORE, "Графики и «Входящие»", "Графики показывают, как менялись доходы, траты и резерв. «Входящие» — трата одной строкой, когда некогда заполнять запись: разберёшь потом.", listOf(AppModule.CHARTS, AppModule.INBOX)),
+    IntroPage(IntroArt.HELP, "Если что-то не так", "Кнопка «?» есть на каждом экране: нажми на место, где ошибка, и напиши пару слов — уйдёт обращение со скриншотом, суммы на нём скрыты. Твои счета и операции видишь только ты. Выгрузить всё в CSV или удалить учётку можно в любой момент в настройках."),
 )
+
+private val DECIDED_IN_SETUP = setOf(AppModule.CURRENCIES)
 
 object IntroTags {
     const val NEXT = "intro.next"
@@ -123,7 +125,7 @@ fun IntroScreen(
                         Text(page.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                         Text(page.text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    offeredModules(page, features).forEach { module ->
+                    offeredModules(page, features).filterNot { firstTime && it in DECIDED_IN_SETUP }.forEach { module ->
                         val on = module in enabled
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -182,9 +184,9 @@ private fun IntroIllustration(art: IntroArt, state: HomeState) {
             when (art) {
                 IntroArt.WELCOME -> {
                     listOf(
-                        Triple("1", "Конверты на месяц", "Видно, сколько можно потратить сегодня") to scheme.primary,
-                        Triple("2", "Сначала себе", "Подушка растёт, даже когда кажется, что не из чего") to colors.save,
-                        Triple("3", "Только нужное", "Кредиты, копилки, валюты — включай модули, которые нужны тебе") to colors.good,
+                        Triple("1", "План на месяц", "доход раскладываешь заранее, а не считаешь в конце") to scheme.primary,
+                        Triple("2", "Сначала откладываешь", "резерв растёт каждый месяц, а не «что останется»") to colors.save,
+                        Triple("3", "Только нужное", "кредиты, копилки, валюты — включаешь, если пригодятся") to colors.good,
                     ).forEach { (texts, color) ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
@@ -227,10 +229,10 @@ private fun IntroIllustration(art: IntroArt, state: HomeState) {
                         Box(Modifier.weight(52f).fillMaxSize().background(scheme.primary))
                         Box(Modifier.weight(18f).fillMaxSize().background(colors.good))
                     }
-                    Text("«Себе» — первым, потом кредиты, конверты и свободное", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                    Text("«Отложить» — первым, потом кредиты, конверты и свободное", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                 }
                 IntroArt.CUSHION -> {
-                    Text("Подушка · цель — 6 месяцев расходов", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                    Text("Резерв · цель — 6 месяцев расходов", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                     Text("4,2 мес.", fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
                     Bar(0.7f, colors.save, scheme.surfaceVariant)
                     Text("Через 12 месяцев по плану — 6 месяцев", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)

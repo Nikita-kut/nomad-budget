@@ -22,6 +22,7 @@ class OnboardingStateTest {
     @Test
     fun changeBase_toExtraCurrency_removesItFromExtras_andItsAutoCash() {
         val form = OnboardingState()
+        form.multiCurrency = true
         form.currencyCodes += "XTS"
         form.syncAutoAccounts()
         form.changeBase(xts)
@@ -33,6 +34,7 @@ class OnboardingStateTest {
     @Test
     fun changeBase_keepsAccountsInOtherCurrencies() {
         val form = OnboardingState()
+        form.multiCurrency = true
         form.currencyCodes += "USD"
         form.syncAutoAccounts()
         form.changeBase(xts)

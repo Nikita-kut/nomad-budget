@@ -156,7 +156,7 @@ internal class DebtActions(
                 if (d.id != debtId) d else d.copy(earlyPlans = d.earlyPlans.filterNot { it.periodStart == start } + EarlyPlan(start, amount, fromCushion))
             })
         }
-        store.message(if (amount.isZero) "Досрочки в этом месяце нет" else "Досрочка в плане: ${MoneyFormat.format(amount, false)}" + if (fromCushion) " из подушки" else "")
+        store.message(if (amount.isZero) "Досрочки в этом месяце нет" else "Досрочка в плане: ${MoneyFormat.format(amount, false)}" + if (fromCushion) " из резерва" else "")
     }
 
     private suspend fun ensureBaseline(debt: Debt): List<PaymentChange> {

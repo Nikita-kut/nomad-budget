@@ -44,7 +44,7 @@ class HiddenAllocationTest {
     fun hiddenBlockInsideAModuleAlsoGoesToTheHiddenLine() {
         FeatureGate.state = FeatureState.EVERYTHING.copy(blocksOff = setOf(Feature.CUSHION_PLAN.key))
         val hidden = parts().single { it.kind == AllocationKind.HIDDEN }
-        assertEquals("Скрытые модули: «Себе»", hidden.label)
+        assertEquals("Скрытые модули: «Отложить»", hidden.label)
         assertEquals(savings, hidden.money)
     }
 

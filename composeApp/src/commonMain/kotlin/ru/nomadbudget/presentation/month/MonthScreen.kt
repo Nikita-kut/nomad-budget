@@ -369,7 +369,7 @@ private fun FirstRunCard(state: HomeState, onOpenAccounts: () -> Unit, onOpenPla
         Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("С чего начать", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             FirstRunStep("1", "Проверь счета и остатки", if (state.activeAccounts.isEmpty()) "добавь счета" else "счетов: ${state.activeAccounts.size}", "Счета", onOpenAccounts)
-            FirstRunStep("2", "Задай план месяца", "доход, «Себе», расходы по категориям", "План", onOpenPlanning)
+            FirstRunStep("2", "Задай план месяца", "доход, «Отложить», расходы по категориям", "План", onOpenPlanning)
             FirstRunStep("3", "Запиши первую трату", "кнопка «+» внизу или здесь", "Записать", onOpenEntry)
         }
     }
@@ -564,7 +564,7 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
     val target = month.savingsTarget
     if (FeatureGate.isOn(Feature.CUSHION_MONTH_TILE)) tiles += { m ->
         StatTile(
-            label = "Подушка за месяц",
+            label = "Резерв за месяц",
             value = MoneyFormat.formatSigned(month.cushionNet, false),
             sub = listOfNotNull(
                 listOfNotNull(
@@ -572,7 +572,7 @@ private fun MonthTiles(month: MonthModel, saving: Boolean, onCopyPlan: () -> Uni
                     month.cushionToDebts.takeUnless { it.isZero }?.let { "на кредиты ${MoneyFormat.format(it, false)}" },
                     month.cushionOtherOut.takeUnless { it.isZero }?.let { "снято ${MoneyFormat.format(it, false)}" },
                 ).joinToString(" · "),
-                target?.let { "«Себе» ${MoneyFormat.format(month.saved.coerceAtLeastZero(), false)} из ${MoneyFormat.format(it, false)}" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "план «Себе» не задан",
+                target?.let { "Отложено ${MoneyFormat.format(month.saved.coerceAtLeastZero(), false)} из ${MoneyFormat.format(it, false)}" + if (month.savingsLeft.isZero) " · выполнено" else " · ещё ${MoneyFormat.format(month.savingsLeft, false)}" } ?: "сколько отложить — не задано",
             ).joinToString("\n"),
             modifier = m,
             progress = target?.let { month.saved.shareOf(it).toFloat() } ?: 0f,

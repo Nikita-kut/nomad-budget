@@ -20,12 +20,12 @@ internal class PlanActions(
 
     fun setPlanned(categoryId: String, planned: Money) = setItemPlanned(categoryId, null, planned)
 
-    fun setSavingsTarget(target: Money?) = runner.run("Не удалось сохранить план «Себе»") {
+    fun setSavingsTarget(target: Money?) = runner.run("Не удалось сохранить «Отложить»") {
         val periodId = currentPeriodId()
         val value = target?.takeIf { it.minor > 0L }
         budgetRepository.setSavingsTarget(periodId, value)
         store.update { it.copy(periodId = periodId, savingsTarget = value) }
-        store.message(if (value == null) "План «Себе» убран" else "План «Себе»: ${MoneyFormat.format(value, false)}")
+        store.message(if (value == null) "«Отложить» убрано" else "Отложить в этом месяце: ${MoneyFormat.format(value, false)}")
     }
 
     fun setItemPlanned(categoryId: String, subcategoryId: String?, planned: Money) = runner.run("Не удалось сохранить план") {

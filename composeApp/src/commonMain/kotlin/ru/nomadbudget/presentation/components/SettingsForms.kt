@@ -86,7 +86,7 @@ fun CapitalSettingsFields(settings: CapitalSettings, onChange: (CapitalSettings?
                 months = it.filter(Char::isDigit).take(2)
                 publish()
             },
-            label = { Text("Размер подушки, месяцев расходов") },
+            label = { Text("Размер резерва, месяцев расходов") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
@@ -97,7 +97,7 @@ fun CapitalSettingsFields(settings: CapitalSettings, onChange: (CapitalSettings?
                 rate = it
                 publish()
             },
-            label = { Text("Доходность подушки, % годовых") },
+            label = { Text("Доходность резерва, % годовых") },
             placeholder = { Text("0") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

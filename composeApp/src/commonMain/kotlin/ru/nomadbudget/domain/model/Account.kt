@@ -21,7 +21,7 @@ data class Account(
 ) {
     init {
         require(openingBalance.currency == currency) { "Валюта начального остатка не совпадает со счётом" }
-        require(!(isFund && isSavings)) { "Счёт не может быть и копилкой, и подушкой" }
+        require(!(isFund && isSavings)) { "Счёт не может быть и копилкой, и резервом" }
     }
 
     fun activeOn(date: kotlinx.datetime.LocalDate): Boolean = !isArchived || (archivedOn != null && archivedOn >= date)

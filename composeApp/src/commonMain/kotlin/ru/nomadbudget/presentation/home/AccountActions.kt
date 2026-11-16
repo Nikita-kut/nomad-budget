@@ -36,7 +36,7 @@ internal class AccountActions(
             when (role) {
                 AccountRole.LIFE -> "Счёт добавлен"
                 AccountRole.FUND -> "Копилка добавлена"
-                AccountRole.CUSHION -> "Подушка добавлена"
+                AccountRole.CUSHION -> "Резерв добавлен"
             },
         )
     }
@@ -58,7 +58,7 @@ internal class AccountActions(
             when (role) {
                 AccountRole.LIFE -> "Счёт теперь на жизнь"
                 AccountRole.FUND -> "Счёт теперь копилка"
-                AccountRole.CUSHION -> "Счёт теперь подушка"
+                AccountRole.CUSHION -> "Счёт теперь в резерве"
             },
         )
     }

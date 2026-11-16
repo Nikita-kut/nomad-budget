@@ -33,7 +33,7 @@ import ru.nomadbudget.presentation.more.SubScreenHeader
 
 fun moduleData(module: AppModule, state: HomeState): String? = when (module) {
     AppModule.DEBTS -> state.openDebts.takeIf { it.isNotEmpty() }?.let { "открытых кредитов: ${it.size}" }
-    AppModule.CUSHION -> state.cushionAccounts.takeIf { it.isNotEmpty() }?.let { "счетов подушки: ${it.size}" }
+    AppModule.CUSHION -> state.cushionAccounts.takeIf { it.isNotEmpty() }?.let { "счетов резерва: ${it.size}" }
     AppModule.FUNDS -> state.fundAccounts.takeIf { it.isNotEmpty() }?.let { "копилок: ${it.size}" }
     AppModule.CAPITAL -> state.capitalGoals.takeIf { it.isNotEmpty() }?.let { "целей: ${it.size}" }
     AppModule.CHARTS -> null

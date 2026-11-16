@@ -92,7 +92,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
         item {
             ChartPanel(
                 title = "Доля отложенного",
-                hint = "доля дохода, отложенная в подушку; месяцы без дохода не показаны",
+                hint = "доля дохода, отложенная в резерв; месяцы без дохода не показаны",
                 info = Hints.CHART_SAVINGS_RATE,
                 legend = listOf(LegendEntry("Отложено / доход месяца", savedColor)),
                 totalPoints = rated.size,
@@ -161,7 +161,7 @@ fun ChartsScreen(state: HomeState, wide: Boolean = false) {
                 title = "Отложено с начала периода",
                 hint = "итог нарастающим итогом с начала выбранного периода",
                 info = Hints.CHART_SAVED,
-                legend = listOf(LegendEntry("Пришло в подушку минус ушло из неё", savedColor)),
+                legend = listOf(LegendEntry("Пришло в резерв минус ушло из него", savedColor)),
                 totalPoints = all.size,
                 periods = MONTH_PERIODS,
             ) { from, visible ->
@@ -225,12 +225,12 @@ private fun Totals(points: List<MonthPoint>, base: Currency, wide: Boolean) {
         listOf(
             { m -> StatTile("Доход за $months мес.", MoneyFormat.format(totals.income, false), "в среднем ${MoneyFormat.format(totals.averageIncome, false)} в месяц", m) },
             { m -> StatTile("Расход за $months мес.", MoneyFormat.format(totals.expense, false), "в среднем ${MoneyFormat.format(totals.averageExpense, false)} в месяц", m) },
-            { m -> StatTile("Отложено чистыми", MoneyFormat.format(totals.netSaved, false), "пришло в подушку минус ушло из неё", m) },
+            { m -> StatTile("Отложено чистыми", MoneyFormat.format(totals.netSaved, false), "пришло в резерв минус ушло из него", m) },
             { m ->
                 StatTile(
                     "Доля отложенного",
                     totals.savingsShare?.let(MoneyFormat::formatShare) ?: "—",
-                    "доля дохода, которая осталась в подушке",
+                    "доля дохода, которая осталась в резерве",
                     m,
                     progress = totals.savingsShare?.toFloat(),
                     progressColor = AppTheme.colors.save,

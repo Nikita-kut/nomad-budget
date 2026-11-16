@@ -135,7 +135,7 @@ fun SettingsScreen(
         }
 
         if (FeatureGate.isOn(AppModule.CUSHION)) {
-        item { SectionTitle("Подушка и капитал", hint = "${settings.cushionMonths} мес. · ${formatReturn(settings.annualReturn)}", info = Hints.CAPITAL_GOALS) }
+        item { SectionTitle("Резерв и капитал", hint = "${settings.cushionMonths} мес. · ${formatReturn(settings.annualReturn)}", info = Hints.CAPITAL_GOALS) }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(Ui.CardPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -465,7 +465,7 @@ private fun ChangeBaseDialog(state: HomeState, onDismiss: () -> Unit, onConfirm:
         } ?: CurrencySearchField(exclude = setOf(state.base.code), onPick = { picked = it.code })
         Text(
             "Все суммы пересчитаются в новую валюту: операции — по курсу на свой день (если счёт в новой валюте, берётся точная сумма), " +
-                "план и «Себе» — по курсу на начало месяца, цели капитала — по сегодняшнему. Остатки счетов не меняются. " +
+                "план и «Отложить» — по курсу на начало месяца, цели капитала — по сегодняшнему. Остатки счетов не меняются. " +
                 "Пока после смены нет новых операций, её можно отменить.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

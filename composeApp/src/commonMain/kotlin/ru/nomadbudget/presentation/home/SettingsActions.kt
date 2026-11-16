@@ -1,5 +1,7 @@
 package ru.nomadbudget.presentation.home
 
+import ru.nomadbudget.features.withModule
+import ru.nomadbudget.features.AppModule
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException
@@ -73,7 +75,7 @@ internal class SettingsActions(
     }
 
     fun saveCapitalSettings(settings: CapitalSettings) = runner.run("Не удалось сохранить настройки") {
-        require(settings.cushionMonths in CapitalSettings.CUSHION_MONTHS_RANGE) { "Подушка: от 1 до 36 месяцев" }
+        require(settings.cushionMonths in CapitalSettings.CUSHION_MONTHS_RANGE) { "Резерв: от 1 до 36 месяцев" }
         require(settings.annualReturn in 0.0..CapitalSettings.MAX_ANNUAL_RETURN) { "Доходность от 0 до 100 %" }
         saveSettings(store.value.settings.withCapital(settings))
         store.message("Настройки капитала сохранены")
@@ -214,6 +216,7 @@ internal class SettingsActions(
             baseCurrencyCode = result.baseCode,
             incomeDays = cleanIncomeDays(result.incomeDays),
             onboardedAt = Clock.System.now(),
+            modulesOff = withModule(store.value.settings.modulesOff, AppModule.CURRENCIES, result.multiCurrency),
         )
         val saved = userSettingsRepository.save(settings)
         store.update { it.copy(settings = saved, period = SalaryCycle.periodContaining(it.today, saved.periodStartDay)) }

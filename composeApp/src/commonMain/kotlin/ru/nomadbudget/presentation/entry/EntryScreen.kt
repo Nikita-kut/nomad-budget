@@ -375,7 +375,7 @@ private fun EntryForm(
             if (form.type == EntryType.EXPENSE && account != null) {
                 when (account.role) {
                     AccountRole.FUND -> Text("Трата из копилки «${account.name}»: в конверты месяца не попадёт", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
-                    AccountRole.CUSHION -> Text("Трата из подушки: уменьшит отложенное в подушку за месяц", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
+                    AccountRole.CUSHION -> Text("Трата из резерва: уменьшит отложенное за месяц", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.warning)
                     AccountRole.LIFE -> Unit
                 }
             }
@@ -503,7 +503,7 @@ private fun EntryForm(
                         enabled = selectedTo != null,
                     ) { Text("Поменять местами") }
                     state.activeAccounts.firstOrNull { it.role == AccountRole.CUSHION && it.currency == currency && it.id != account?.id }?.let { savings ->
-                        SecondaryButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В подушку") }
+                        SecondaryButton(onClick = { form.toAccount = savings }, enabled = savings.id != selectedTo?.id) { Text("В резерв") }
                     }
                     state.activeAccounts.filter { it.role == AccountRole.FUND && it.currency == currency && it.id != account?.id }.forEach { fund ->
                         SecondaryButton(onClick = { form.toAccount = fund }, enabled = fund.id != selectedTo?.id) { Text("В «${fund.name}»") }

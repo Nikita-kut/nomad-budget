@@ -117,7 +117,7 @@ private class DemoSeed(private val db: DemoDatabase) {
     private val usdCard = Account("usd_card", "Карта USD", usd, AccountKind.CARD, false, Money(50_000L, usd), 40)
     private val usdCash = Account("usd_cash", "Наличные $", usd, AccountKind.CASH, false, Money(20_000L, usd), 50)
     private val localCash = Account("local_cash", "Наличные ¤", local, AccountKind.CASH, false, Money(30_000L, local), 60)
-    private val cushion = Account("cushion", "Подушка", Currency.RUB, AccountKind.SAVINGS, true, Money.rub(30_000_000L), 10)
+    private val cushion = Account("cushion", "Резерв", Currency.RUB, AccountKind.SAVINGS, true, Money.rub(30_000_000L), 10)
     private val invest = Account("invest", "Инвесткопилка", Currency.RUB, AccountKind.INVESTMENT, true, Money.rub(15_000_000L), 20)
     private val rentFund = Account(
         "rent_fund", "На аренду", Currency.RUB, AccountKind.ACCOUNT, false, Money.rub(0L), 10,
