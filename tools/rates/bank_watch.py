@@ -399,11 +399,19 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
     last = _float_or_none(state.get("last"))
     above_target = target is not None and rate >= target
     target_event = None
-    if above_target and rate_changed(rate, last):
+    if "target_shown" in state:
+        target_shown = state["target_shown"]
+    else:
+        target_shown = format_quote(last * quote_unit(target)) if target is not None and last is not None and last >= target else None
+    shown = format_quote(rate * quote_unit(target)) if target is not None else None
+    if above_target and rate_changed(rate, last) and shown != target_shown:
         if not quiet:
             target_event = {"kind": "target", "target": target, "previous": last}
+            target_shown = shown
         elif digest_at is not None:
             notes["target_max"] = max(rate, notes.get("target_max", rate))
+    elif target is not None and not above_target and shown != format_quote(target * quote_unit(target)):
+        target_shown = None
 
     if kind is None:
         window = None
@@ -452,6 +460,7 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
         "window": window,
         "notes": notes,
         "last_digest_date": last_digest,
+        "target_shown": target_shown,
     }
     return new_state, events
 
