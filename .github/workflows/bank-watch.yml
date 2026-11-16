@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      probe_widget:
+        description: "Send one test widget to the owner and log Telegram's answer"
+        type: boolean
+        default: false
 
 concurrency:
   group: bank-watch
@@ -16,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Check rates and notify
-        run: python3 tools/rates/bank_watch.py
+        run: python3 tools/rates/bank_watch.py ${{ inputs.probe_widget && '--probe-widget' || '' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

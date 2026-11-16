@@ -921,5 +921,38 @@ class PauseTest(unittest.TestCase):
         self.assertIn("pause", names)
         self.assertIn("resume", names)
 
+
+class ProbeWidgetTest(unittest.TestCase):
+    class Db(FakeDb):
+        def __init__(self, rows):
+            super().__init__()
+            self.rows = rows
+            self.patches = []
+
+        def select(self, table, query=""):
+            return self.rows if table == "rate_watches" else []
+
+        def patch(self, table, query, body):
+            self.patches.append(body)
+
+    def test_success_sends_to_owner_and_restores_widgets(self):
+        db = self.Db([{"id": "w", "state": {"now_widget": "<html></html>", "now_caption": "c", "widgets_ok": False}}])
+        tg = RecordingTelegram()
+        self.assertEqual(0, bw.probe_widget(db, tg, 42))
+        self.assertEqual(["sendWidget"], tg.calls)
+        self.assertTrue(db.patches[0]["state"]["widgets_ok"])
+
+    def test_failure_keeps_state(self):
+        class Failing:
+            def call(self, method, **params):
+                raise bw.urllib.error.HTTPError("u", 400, "Bad Request", {}, io.BytesIO(b'{"description":"Bad Request: nope"}'))
+        db = self.Db([{"id": "w", "state": {"now_widget": "<html></html>"}}])
+        self.assertEqual(1, bw.probe_widget(db, Failing(), 42))
+        self.assertEqual([], db.patches)
+
+    def test_no_owner_does_nothing(self):
+        self.assertEqual(1, bw.probe_widget(self.Db([]), RecordingTelegram(), None))
+
+
 if __name__ == "__main__":
     unittest.main()
