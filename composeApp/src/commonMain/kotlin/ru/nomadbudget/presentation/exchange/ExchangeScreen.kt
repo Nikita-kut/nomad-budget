@@ -55,10 +55,18 @@ import ru.nomadbudget.presentation.components.ChartPeriod
 import ru.nomadbudget.presentation.charts.MultiLineChart
 import ru.nomadbudget.presentation.charts.LegendEntry
 import ru.nomadbudget.presentation.components.Ui
+import ru.nomadbudget.presentation.entry.EditTransactionDialog
 import ru.nomadbudget.presentation.components.AppIcons
 
 @Composable
-fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete: (String) -> Unit, onBack: (() -> Unit)? = null) {
+fun ExchangeScreen(
+    state: HomeState,
+    onSubmit: (ExchangeDraft) -> Unit,
+    onDelete: (String) -> Unit,
+    onUpdate: (Transaction, String?) -> Unit,
+    onBack: (() -> Unit)? = null,
+) {
+    var editing by remember { mutableStateOf<Transaction.Exchange?>(null) }
     CenteredLazyColumn {
         if (onBack != null) {
             item { SubScreenHeader("Обмен валюты", onBack) }
@@ -74,8 +82,23 @@ fun ExchangeScreen(state: HomeState, onSubmit: (ExchangeDraft) -> Unit, onDelete
             item { EmptyHint("Обменов пока нет") }
         }
         items(state.exchanges, key = Transaction.Exchange::id) { exchange ->
-            ExchangeRow(exchange, state, onDelete)
+            ExchangeRow(exchange, state, onDelete, onEdit = { editing = exchange })
         }
+    }
+    editing?.let { exchange ->
+        EditTransactionDialog(
+            tx = exchange,
+            state = state,
+            onDismiss = { editing = null },
+            onSave = { updated, subcategoryName ->
+                onUpdate(updated, subcategoryName)
+                editing = null
+            },
+            onDelete = {
+                onDelete(exchange.id)
+                editing = null
+            },
+        )
     }
 }
 
@@ -189,13 +212,13 @@ private fun RateHints(
 }
 
 @Composable
-private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDelete: (String) -> Unit) {
+private fun ExchangeRow(exchange: Transaction.Exchange, state: HomeState, onDelete: (String) -> Unit, onEdit: () -> Unit) {
     val analysis = if (state.rates.hasRate(exchange.given.currency) && state.rates.hasRate(exchange.received.currency)) {
         ExchangeAnalyzer.analyze(exchange, state.rates)
     } else {
         null
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
