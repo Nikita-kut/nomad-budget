@@ -121,7 +121,7 @@ private class DemoSeed(private val db: DemoDatabase) {
     private val invest = Account("invest", "Инвесткопилка", Currency.RUB, AccountKind.INVESTMENT, true, Money.rub(15_000_000L), 20)
     private val rentFund = Account(
         "rent_fund", "На аренду", Currency.RUB, AccountKind.ACCOUNT, false, Money.rub(0L), 10,
-        isFund = true, fundMonthly = Money.rub(4_500_000L), fundGoal = Money.rub(4_500_000L), fundDay = 6,
+        isFund = true, fundGoal = Money.rub(4_500_000L), fundDay = 6, fundCategoryId = "housing", fundSubcategoryId = "sub_rent",
     )
     private val giftsFund = Account(
         "gifts_fund", "Подарки родным", Currency.RUB, AccountKind.ACCOUNT, false, Money.rub(1_500_000L), 20,
@@ -273,6 +273,7 @@ private class DemoSeed(private val db: DemoDatabase) {
             BudgetLine(food.id, Money.rub(800_000L), cafe.id),
             BudgetLine(transport.id, Money.rub(500_000L), taxi.id),
             BudgetLine(transport.id, Money.rub(100_000L), metro.id),
+            BudgetLine(housing.id, Money.rub(4_500_000L), rent.id),
             BudgetLine(housing.id, Money.rub(600_000L), utilities.id),
             BudgetLine(housing.id, Money.rub(90_000L), internet.id),
             BudgetLine(comm.id, Money.rub(65_000L), mobile.id),

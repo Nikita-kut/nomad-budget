@@ -97,6 +97,14 @@ data class CategoryBudget(
         }
 }
 
+data class EnvelopeSpend(
+    val tx: Transaction,
+    val categoryId: String,
+    val subcategoryId: String?,
+    val amountBase: Money,
+    val fund: Account? = null,
+)
+
 object BudgetCalculator {
 
     const val WARNING_THRESHOLD: Double = 0.85
@@ -105,6 +113,29 @@ object BudgetCalculator {
 
     fun isEnvelopeSpend(tx: Transaction.Expense, accountsById: Map<String, Account>): Boolean =
         tx.debtId == null && (accountsById[tx.accountId]?.role ?: AccountRole.LIFE) == AccountRole.LIFE
+
+    fun envelopeSpends(transactions: List<Transaction>, accountsById: Map<String, Account>): List<EnvelopeSpend> =
+        transactions.mapNotNull { tx ->
+            when (tx) {
+                is Transaction.Expense -> EnvelopeSpend(tx, tx.categoryId, tx.subcategoryId, tx.amountBase).takeIf { isEnvelopeSpend(tx, accountsById) }
+                is Transaction.Transfer -> fundContribution(tx, tx.fromAccountId, tx.toAccountId, accountsById)
+                is Transaction.Exchange -> fundContribution(tx, tx.fromAccountId, tx.toAccountId, accountsById)
+                is Transaction.Income -> null
+            }
+        }
+
+    private fun fundContribution(tx: Transaction, fromId: String, toId: String, accountsById: Map<String, Account>): EnvelopeSpend? {
+        val from = accountsById[fromId]
+        val to = accountsById[toId]
+        val fromLife = (from?.role ?: AccountRole.LIFE) == AccountRole.LIFE
+        val toLife = (to?.role ?: AccountRole.LIFE) == AccountRole.LIFE
+        to?.fundTarget?.takeIf { fromLife }?.let { return EnvelopeSpend(tx, it.categoryId, it.subcategoryId, tx.amountBase, to) }
+        from?.fundTarget?.takeIf { toLife }?.let { return EnvelopeSpend(tx, it.categoryId, it.subcategoryId, -tx.amountBase, from) }
+        return null
+    }
+
+    private fun isCoveredByFund(tx: Transaction.Expense, accountsById: Map<String, Account>): Boolean =
+        accountsById[tx.accountId]?.fundTarget?.categoryId == tx.categoryId
 
     fun categoryBudgets(
         categories: List<Category>,
@@ -118,19 +149,16 @@ object BudgetCalculator {
         val subcategoriesById = subcategories.associateBy { it.id }
         val accountsById = accounts.associateBy { it.id }
         val inPeriod = transactions.filter { it.date in period }
+        val spends = envelopeSpends(inPeriod, accountsById).groupBy { it.categoryId }
+        val incomes = inPeriod.filterIsInstance<Transaction.Income>().groupBy { it.categoryId }
         return categories
             .filterNot { it.isSystem }
             .sortedBy { it.sortOrder }
             .map { category ->
-                val related = inPeriod.filter {
-                    when (it) {
-                        is Transaction.Expense -> it.categoryId == category.id && isEnvelopeSpend(it, accountsById)
-                        is Transaction.Income -> it.categoryId == category.id
-                        is Transaction.Transfer, is Transaction.Exchange -> false
-                    }
-                }
+                val categorySpends = spends[category.id].orEmpty()
+                val categoryIncomes = incomes[category.id].orEmpty()
                 val fundSpends = inPeriod.filterIsInstance<Transaction.Expense>().filter {
-                    it.categoryId == category.id && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND
+                    it.categoryId == category.id && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND && !isCoveredByFund(it, accountsById)
                 }
                 val categoryLines = if (category.isArchived) emptyList() else lines.filter { it.categoryId == category.id }
                 val itemLines = categoryLines.filter { it.subcategoryId != null }
@@ -139,9 +167,9 @@ object BudgetCalculator {
                 CategoryBudget(
                     category = category,
                     planned = freePlanned + itemsPlanned,
-                    fact = related.map { it.amountBase }.sumIn(base),
-                    transactionCount = related.size,
-                    items = buildItems(related, itemLines, subcategoriesById, base, fundSpends),
+                    fact = (categorySpends.map { it.amountBase } + categoryIncomes.map { it.amountBase }).sumIn(base),
+                    transactionCount = categorySpends.size + categoryIncomes.size,
+                    items = buildItems(categorySpends, itemLines, subcategoriesById, base, fundSpends),
                     plannedByItems = itemLines.isNotEmpty(),
                     freePlanned = freePlanned,
                     itemsPlanned = itemsPlanned,
@@ -151,14 +179,13 @@ object BudgetCalculator {
     }
 
     private fun buildItems(
-        related: List<Transaction>,
+        spends: List<EnvelopeSpend>,
         itemLines: List<BudgetLine>,
         subcategoriesById: Map<String, Subcategory>,
         base: Currency,
         fundSpends: List<Transaction.Expense> = emptyList(),
     ): List<SubcategoryBudget> {
-        val factBySubcategory = related
-            .filterIsInstance<Transaction.Expense>()
+        val factBySubcategory = spends
             .groupBy { it.subcategoryId }
             .mapValues { (_, list) -> list.map { it.amountBase }.sumIn(base) }
         val fundBySubcategory = fundSpends.groupBy { it.subcategoryId }.mapValues { (_, list) -> list.map { it.amountBase }.sumIn(base) }

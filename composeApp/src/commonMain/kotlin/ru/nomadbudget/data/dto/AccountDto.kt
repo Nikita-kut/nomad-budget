@@ -1,5 +1,7 @@
 package ru.nomadbudget.data.dto
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -17,6 +19,8 @@ data class AccountDto(
     @SerialName("fund_monthly") val fundMonthly: Long? = null,
     @SerialName("fund_goal") val fundGoal: Long? = null,
     @SerialName("fund_day") val fundDay: Int? = null,
+    @SerialName("fund_category_id") val fundCategoryId: String? = null,
+    @SerialName("fund_subcategory_id") val fundSubcategoryId: String? = null,
 )
 
 @Serializable
@@ -30,11 +34,14 @@ data class AccountInsertDto(
     @SerialName("opening_balance") val openingBalance: Long = 0L,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class AccountFundDto(
-    @SerialName("fund_monthly") val fundMonthly: Long?,
-    @SerialName("fund_goal") val fundGoal: Long?,
-    @SerialName("fund_day") val fundDay: Int?,
+    @EncodeDefault @SerialName("fund_monthly") val fundMonthly: Long? = null,
+    @EncodeDefault @SerialName("fund_goal") val fundGoal: Long? = null,
+    @EncodeDefault @SerialName("fund_day") val fundDay: Int? = null,
+    @EncodeDefault @SerialName("fund_category_id") val fundCategoryId: String? = null,
+    @EncodeDefault @SerialName("fund_subcategory_id") val fundSubcategoryId: String? = null,
 )
 
 @Serializable

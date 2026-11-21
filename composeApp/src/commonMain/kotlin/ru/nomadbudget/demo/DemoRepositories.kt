@@ -30,6 +30,7 @@ import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.EarlyPlan
 import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.domain.model.IsoCurrencies
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.PaymentChange
@@ -209,8 +210,8 @@ private class DemoAccountRepository(private val db: DemoDatabase) : AccountRepos
 
     override suspend fun setRole(id: String, isSavings: Boolean, isFund: Boolean) = replace(id) { it.copy(isSavings = isSavings, isFund = isFund) }
 
-    override suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?) =
-        replace(id) { it.copy(fundMonthly = monthly, fundGoal = goal, fundDay = day) }
+    override suspend fun setFund(id: String, plan: FundPlan) =
+        replace(id) { it.withFundPlan(plan) }
 
     override suspend fun rename(id: String, name: String) = replace(id) { it.copy(name = name) }
 

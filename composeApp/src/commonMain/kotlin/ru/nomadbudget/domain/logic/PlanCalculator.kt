@@ -37,13 +37,10 @@ object PlanCalculator {
         val active = previous.filter { p -> transactions.any { it.date in p } }
         if (active.isEmpty()) return emptyMap()
         val byPeriod = active.map { p ->
-            transactions.filter { it.date in p }.mapNotNull { tx ->
-                when (tx) {
-                    is Transaction.Expense -> (tx.categoryId to tx.amountBase).takeIf { BudgetCalculator.isEnvelopeSpend(tx, accountsById) }
-                    is Transaction.Income -> tx.categoryId to tx.amountBase
-                    is Transaction.Transfer, is Transaction.Exchange -> null
-                }
-            }.groupBy({ it.first }, { it.second }).mapValues { (_, list) -> list.sumIn(base) }
+            val inPeriod = transactions.filter { it.date in p }
+            val spends = BudgetCalculator.envelopeSpends(inPeriod, accountsById).map { it.categoryId to it.amountBase }
+            val incomes = inPeriod.filterIsInstance<Transaction.Income>().map { it.categoryId to it.amountBase }
+            (spends + incomes).groupBy({ it.first }, { it.second }).mapValues { (_, list) -> list.sumIn(base) }
         }
         val lastActive = if (transactions.any { it.date in previous.first() }) byPeriod.first() else emptyMap()
         val categories = byPeriod.flatMap { it.keys }.toSet()

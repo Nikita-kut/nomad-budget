@@ -15,6 +15,7 @@ import ru.nomadbudget.domain.model.CategoryKind
 import ru.nomadbudget.domain.model.Currency
 import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.Draft
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Transaction
 import ru.nomadbudget.domain.repository.AccountRepository
@@ -258,8 +259,8 @@ class HomeViewModel(
         accounts.setAccountRole(id, role)
     }
 
-    fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?) {
-        accounts.setFund(id, monthly, goal, day)
+    fun setFund(id: String, plan: FundPlan) {
+        accounts.setFund(id, plan)
     }
 
     fun moveAccount(id: String, up: Boolean) {

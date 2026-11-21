@@ -1,5 +1,11 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.domain.model.Category
+import ru.nomadbudget.domain.model.FundPlan
+import ru.nomadbudget.domain.model.FundTarget
+import ru.nomadbudget.domain.model.Subcategory
+import ru.nomadbudget.presentation.components.CategoryChoice
+import ru.nomadbudget.presentation.components.CategoryPicker
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -180,8 +186,16 @@ fun PlanEditorDialog(
 }
 
 @Composable
-fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Money?, Money?, Int?) -> Unit) {
+fun FundSettingsDialog(
+    account: Account,
+    categories: List<Category>,
+    subcategories: List<Subcategory>,
+    onDismiss: () -> Unit,
+    onConfirm: (FundPlan) -> Unit,
+) {
     val currency = account.currency
+    val choices = remember(categories, subcategories) { fundTargetChoices(categories, subcategories) }
+    var target by remember { mutableStateOf(account.fundTarget) }
     var monthly by remember { mutableStateOf(account.fundMonthly?.let(MoneyFormat::editText).orEmpty()) }
     var goal by remember { mutableStateOf(account.fundGoal?.let(MoneyFormat::editText).orEmpty()) }
     var day by remember { mutableStateOf(account.fundDay?.toString().orEmpty()) }
@@ -189,21 +203,35 @@ fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Mone
     val monthlyMoney = if (monthly.isBlank()) null else MoneyFormat.parse(monthly, currency)
     val goalMoney = if (goal.isBlank()) null else MoneyFormat.parse(goal, currency)
     val dayValue = day.toIntOrNull()
-    val valid = (monthly.isBlank() || monthlyMoney != null) && (goal.isBlank() || goalMoney != null) && (day.isBlank() || dayValue in 1..31)
+    val linked = target != null
+    val valid = (linked || monthly.isBlank() || monthlyMoney != null) && (goal.isBlank() || goalMoney != null) && (day.isBlank() || dayValue in 1..31)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Копилка «${account.name}»") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = monthly,
-                    onValueChange = { monthly = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
-                    label = { Text("Взнос в месяц, ${currency.code}") },
-                    singleLine = true,
-                    visualTransformation = transformation,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
+                CategoryPicker(
+                    label = "На что копишь",
+                    choices = choices.map { it.second },
+                    selected = choices.firstOrNull { it.first == target }?.second,
+                    onSelect = { choice -> target = choices.firstOrNull { it.second == choice }?.first },
+                    allowCreate = false,
+                    onEnterWhenClosed = {},
+                    supporting = if (linked) "перевод в копилку идёт в план этой статьи" else "необязательно",
                 )
+                if (linked) {
+                    TextButton(onClick = { target = null }) { Text("Не привязывать к статье") }
+                } else {
+                    OutlinedTextField(
+                        value = monthly,
+                        onValueChange = { monthly = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
+                        label = { Text("Взнос в месяц, ${currency.code}") },
+                        singleLine = true,
+                        visualTransformation = transformation,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 OutlinedTextField(
                     value = goal,
                     onValueChange = { goal = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
@@ -224,15 +252,32 @@ fun FundSettingsDialog(account: Account, onDismiss: () -> Unit, onConfirm: (Mone
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    "Взнос входит в обязательные платежи месяца. Переводи его на счёт копилки, а трату плати прямо с этого счёта: так она не попадёт в конверты.",
+                    if (linked) {
+                        "Сколько копить в месяц, задаёт план статьи. Перевод на счёт копилки считается тратой по ней, а оплата с копилки второй раз не считается."
+                    } else {
+                        "Взнос входит в обязательные платежи месяца. Переводи его на счёт копилки, а трату плати прямо с этого счёта: так она не попадёт в конверты."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
-        confirmButton = { PrimaryButton(onClick = { onConfirm(monthlyMoney, goalMoney, dayValue) }, enabled = valid) { Text("Сохранить") } },
+        confirmButton = {
+            PrimaryButton(onClick = { onConfirm(FundPlan(monthlyMoney.takeUnless { linked }, goalMoney, dayValue, target)) }, enabled = valid) { Text("Сохранить") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
+}
+
+internal fun fundTargetChoices(categories: List<Category>, subcategories: List<Subcategory>): List<Pair<FundTarget, CategoryChoice>> {
+    val bySubcategory = subcategories.filterNot { it.isArchived }.groupBy { it.categoryId }
+    return categories
+        .filter { it.kind == CategoryKind.EXPENSE && !it.isSystem && !it.isArchived }
+        .sortedBy { it.sortOrder }
+        .flatMap { category ->
+            listOf(FundTarget(category.id) to CategoryChoice(category)) +
+                bySubcategory[category.id].orEmpty().sortedBy { it.name }.map { FundTarget(category.id, it.id) to CategoryChoice(category, it.name) }
+        }
 }
 
 @Composable

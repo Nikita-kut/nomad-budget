@@ -67,7 +67,7 @@ object HistoryCalculator {
             val income = inPeriod.filterIsInstance<Transaction.Income>().filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base)
             val expenses = inPeriod.filterIsInstance<Transaction.Expense>().filter { it.categoryId !in systemIds }
             val expense = expenses.map { it.amountBase }.sumIn(base)
-            val envelope = expenses.filter { BudgetCalculator.isEnvelopeSpend(it, accountsById) }.map { it.amountBase }.sumIn(base)
+            val envelope = BudgetCalculator.envelopeSpends(inPeriod, accountsById).filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base)
             val saved = BudgetCalculator.cushionInflow(inPeriod, savingsIds, systemIds, base)
             val taken = BudgetCalculator.cushionOutflow(inPeriod, savingsIds, base)
             val spent = BudgetCalculator.cushionSpent(inPeriod, savingsIds, systemIds, base)

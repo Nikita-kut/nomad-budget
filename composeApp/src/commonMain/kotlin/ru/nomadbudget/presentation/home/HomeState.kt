@@ -2,6 +2,7 @@ package ru.nomadbudget.presentation.home
 
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.model.FundTarget
 import ru.nomadbudget.domain.model.SalaryCycle
 import kotlinx.datetime.plus
 import kotlinx.datetime.DateTimeUnit
@@ -284,4 +285,7 @@ data class HomeState(
     fun categoryName(id: String?): String = id?.let { categoriesById[it]?.name } ?: "—"
 
     fun subcategoryName(id: String?): String? = id?.let { subcategoriesById[it]?.name }
+
+    fun fundTargetLabel(target: FundTarget): String? =
+        categoriesById[target.categoryId]?.name?.let { category -> subcategoryName(target.subcategoryId)?.let { "$category › $it" } ?: category }
 }

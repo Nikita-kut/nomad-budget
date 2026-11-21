@@ -28,6 +28,8 @@ object AccountMapper {
             fundMonthly = dto.fundMonthly?.let { Money(it, currency) },
             fundGoal = dto.fundGoal?.let { Money(it, currency) },
             fundDay = dto.fundDay,
+            fundCategoryId = dto.fundCategoryId,
+            fundSubcategoryId = dto.fundSubcategoryId?.takeIf { dto.fundCategoryId != null },
         )
     }
 }
