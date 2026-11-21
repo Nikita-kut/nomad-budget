@@ -238,6 +238,13 @@ class CategoryRepositoryImpl(private val client: SupabaseClient, private val cac
                 client.from(Tables.BUDGET_LINES).delete { filter { eq("id", line.id) } }
             }
         }
+        val targetCategory = client.from(Tables.SUBCATEGORIES).select { filter { eq("id", toId) } }.decodeList<SubcategoryDto>().firstOrNull()?.categoryId
+        if (targetCategory != null) {
+            client.from(Tables.ACCOUNTS).update({
+                set("fund_subcategory_id", toId)
+                set("fund_category_id", targetCategory)
+            }) { filter { eq("fund_subcategory_id", fromId) } }
+        }
         client.from(Tables.SUBCATEGORIES).delete { filter { eq("id", fromId) } }
     }
 }

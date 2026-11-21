@@ -348,7 +348,7 @@ private fun envelopeRecords(state: HomeState, categoryId: String, withFundPaid: 
         )
     }
     val fundPaid = if (!withFundPaid) emptyList() else state.inPeriod.filterIsInstance<Transaction.Expense>()
-        .filter { it.categoryId == categoryId && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND }
+        .filter { it.categoryId == categoryId && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND && !BudgetCalculator.isCoveredByFund(it, accountsById) }
         .map { tx ->
             EnvelopeRecord(
                 date = tx.date,
@@ -375,7 +375,7 @@ private fun FundsCard(funds: List<FundState>, targetLabel: (FundTarget) -> Strin
                     }
                     val parts = buildList {
                         fund.account.fundTarget?.let(targetLabel)?.let { label ->
-                            add(if (fund.contributed.isZero) "копишь на «$label»" else "внесено ${MoneyFormat.format(fund.contributed, false)} в план «$label»")
+                            add(if (fund.contributed.isZero) "копишь на «$label»" else "внесено ${MoneyFormat.format(fund.contributed, false)} · копишь на «$label»")
                         }
                         fund.monthlyPlanned?.let { planned ->
                             add(if (fund.contributionLeft.isZero) "взнос ${MoneyFormat.format(planned, false)} внесён" else "взнос: ещё ${MoneyFormat.format(fund.contributionLeft, false)} из ${MoneyFormat.format(planned, false)}")
@@ -429,7 +429,7 @@ private fun TotalsCard(month: MonthModel, onOpenPlanning: () -> Unit) {
                 planColor = if ((month.available - month.outPlanned).isNegative) colors.bad else muted,
             )
             val notes = listOfNotNull(
-                month.cushionToDebts.takeUnless { it.isZero }?.let { "на кредиты из резерва ещё ${MoneyFormat.format(it, false)}" },
+                month.reservesToDebts.takeUnless { it.isZero }?.let { "на кредиты из резерва и копилок ещё ${MoneyFormat.format(it, false)}" },
                 month.spentFromReserves.takeUnless { it.isZero }?.let { "потрачено из резерва и копилок ${MoneyFormat.format(it, false)}" },
             )
             if (notes.isNotEmpty()) {

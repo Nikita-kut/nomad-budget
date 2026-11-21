@@ -72,6 +72,9 @@ data class MonthModel(
     val carryOver: Money = Money.zero(base),
     val fundInflowInEnvelopes: Money = Money.zero(base),
     val fundPaidForTargets: Money = Money.zero(base),
+    val fundsNetInflow: Money = Money.zero(base),
+    val fundsSpentOutsideDebts: Money = Money.zero(base),
+    val fundToDebts: Money = Money.zero(base),
 ) {
     val incomePlanned: Money = incomeBudgets.map { it.planned }.sumIn(base)
     val incomeFact: Money = incomeBudgets.map { it.fact }.sumIn(base)
@@ -126,11 +129,11 @@ data class MonthModel(
         if (available.minor > 0L) (available - unallocated).minor.toDouble() / available.minor else null
 
     val debtsPaidTotal: Money = debts.map { it.paid }.sumIn(base)
-    val debtsPaidFromIncome: Money = debtsPaidTotal - cushionToDebts
+    val debtsPaidFromIncome: Money = debtsPaidTotal - cushionToDebts - fundToDebts
     val savedFromIncome: Money = savedIn - savedOut
-    val fundsContributed: Money = funds.map { it.contributed }.sumIn(base) - fundInflowInEnvelopes
-    val fundsSpent: Money = funds.map { it.spent }.sumIn(base)
-    val spentFromReserves: Money = spentFromCushion - cushionToDebts + fundsSpent - fundPaidForTargets
+    val fundsContributed: Money = fundsNetInflow - fundInflowInEnvelopes
+    val reservesToDebts: Money = cushionToDebts + fundToDebts
+    val spentFromReserves: Money = spentFromCushion - cushionToDebts + fundsSpentOutsideDebts - fundPaidForTargets
 
     val outFact: Money = flexibleFactWhole + debtsPaidFromIncome + savedFromIncome + fundsContributed
     val outPlanned: Money = flexiblePlannedWhole + obligationsPlanned + (savingsTarget ?: Money.zero(base))
@@ -161,7 +164,10 @@ data class MonthModel(
             val inPeriod = transactions.filter { it.date in period }
             val debtPayments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }
             val systemIds = categories.filter { it.isSystem }.map { it.id }.toSet()
-            val linkedSpends = BudgetCalculator.envelopeSpends(inPeriod, accounts.associateBy { it.id }).filter { it.fund != null }
+            val accountsById = accounts.associateBy { it.id }
+            val fundIds = accounts.filter { it.role == AccountRole.FUND }.map { it.id }.toSet()
+            val linkedSpends = BudgetCalculator.envelopeSpends(inPeriod, accountsById).filter { it.fund != null }
+            val fundToDebts = BudgetCalculator.cushionToDebts(inPeriod, fundIds, systemIds, base)
             val usedIds = inPeriod.mapNotNull { it.categoryIdOrNull }.toSet() + linkedSpends.map { it.categoryId }
             val visible = categories.filter { !it.isSystem && (!it.isArchived || it.id in usedIds) }
             val budgets = BudgetCalculator.categoryBudgets(visible, lines, inPeriod, period, subcategories, accounts, base)
@@ -189,9 +195,12 @@ data class MonthModel(
                 cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemIds, base),
                 corrections = corrections,
                 fundPaidForTargets = inPeriod.filterIsInstance<Transaction.Expense>()
-                    .filter { tx -> accounts.any { it.id == tx.accountId && it.role == AccountRole.FUND && !it.isArchived && it.fundTarget?.categoryId == tx.categoryId } && tx.categoryId !in systemIds }
+                    .filter { tx -> tx.categoryId !in systemIds && BudgetCalculator.isCoveredByFund(tx, accountsById) }
                     .map { it.amountBase }.sumIn(base),
-                fundInflowInEnvelopes = linkedSpends.filter { it.fund?.isArchived == false && it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base),
+                fundInflowInEnvelopes = linkedSpends.filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base),
+                fundsNetInflow = BudgetCalculator.cushionInflow(inPeriod, fundIds, systemIds, base) - BudgetCalculator.cushionOutflow(inPeriod, fundIds, base),
+                fundsSpentOutsideDebts = BudgetCalculator.cushionSpent(inPeriod, fundIds, systemIds, base) - fundToDebts,
+                fundToDebts = fundToDebts,
             )
         }
 

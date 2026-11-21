@@ -153,4 +153,53 @@ class FundTargetTest {
         assertEquals(balances.getValue("card"), month.leftFact)
         assertEquals(month.available - month.unallocated, month.outPlanned)
     }
+
+    private fun totals(all: List<Account>, transactions: List<Transaction>, debts: List<ru.nomadbudget.domain.model.Debt> = emptyList()): MonthModel {
+        val food = Category("food", "Еда", CategoryKind.EXPENSE, 30)
+        val salary = Category("salary", "Зарплата", CategoryKind.INCOME, 40)
+        val balances = all.associate { it.id to BalanceCalculator.balance(it, transactions) }
+        return MonthModel.build(
+            period, day, listOf(housing, gifts, food, salary), listOf(rent, utilities), lines, transactions, all, debts,
+            RateTable(emptyList(), Currency.RUB), balances, null,
+        )
+    }
+
+    private fun income(rub: Long) = Transaction.Income("i", day, "card", Money.rub(rub), "salary", Money.rub(rub), RateSource.API)
+
+    @Test
+    fun loanPaidFromFundIsNotMoneyOfTheMonth() {
+        val loan = ru.nomadbudget.domain.model.Debt("loan", "Кредит", Currency.RUB, Money.rub(10_000_000L), Money.rub(1_000_000L), null, payDay = 20)
+        val transactions = listOf(
+            income(5_000_000L),
+            transfer("p", "card", "plain", 1_500_000L),
+            Transaction.Expense("d", day, "plain", Money.rub(1_000_000L), "gifts", null, Money.rub(1_000_000L), RateSource.API, debtId = "loan"),
+        )
+        val month = totals(accounts, transactions, listOf(loan))
+
+        assertTrue(month.debtsPaidFromIncome.isZero)
+        assertEquals(Money.rub(1_000_000L), month.reservesToDebts)
+        assertTrue(month.spentFromReserves.isZero)
+        assertEquals(BalanceCalculator.balance(card, transactions), month.leftFact)
+    }
+
+    @Test
+    fun archivedFundStillCountsInTheMonthItGotMoney() {
+        val archived = plainFund.copy(isArchived = true)
+        val all = listOf(card, reserve, fund, archived)
+        val transactions = listOf(income(5_000_000L), transfer("p", "card", "plain", 700_000L), transfer("x", "plain", "fund", 200_000L))
+        val month = totals(all, transactions)
+
+        assertEquals(Money.rub(700_000L), month.fundsContributed + month.fundInflowInEnvelopes)
+        assertEquals(BalanceCalculator.balance(card, transactions), month.leftFact)
+    }
+
+    @Test
+    fun fundLinkedToSubcategoryPayingAnotherSubcategoryStaysVisible() {
+        val transactions = listOf(transfer("t", "card", "fund", 2_000_000L), expense("u", "fund", "housing", "utilities", 700_000L))
+        val housingBudget = budgets(transactions).getValue("housing")
+
+        assertEquals(Money.rub(2_000_000L), housingBudget.fact)
+        assertEquals(Money.rub(700_000L), housingBudget.fundFact)
+        assertEquals(Money.rub(700_000L), totals(accounts, transactions).spentFromReserves)
+    }
 }

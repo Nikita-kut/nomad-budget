@@ -271,6 +271,9 @@ private class DemoCategoryRepository(private val db: DemoDatabase) : CategoryRep
             lines.remove(from)
             if (to == null) lines += from.copy(subcategoryId = toId) else lines.replaceEach { if (it === to) it.copy(planned = it.planned + from.planned) else it }
         }
+        db.subcategories.firstOrNull { it.id == toId }?.let { target ->
+            db.accounts.replaceEach { if (it.fundSubcategoryId == fromId) it.copy(fundCategoryId = target.categoryId, fundSubcategoryId = toId) else it }
+        }
         db.subcategories.removeAll { it.id == fromId }
     }
 }

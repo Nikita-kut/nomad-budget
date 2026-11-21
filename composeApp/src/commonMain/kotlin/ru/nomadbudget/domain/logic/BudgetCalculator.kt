@@ -134,8 +134,8 @@ object BudgetCalculator {
         return null
     }
 
-    private fun isCoveredByFund(tx: Transaction.Expense, accountsById: Map<String, Account>): Boolean =
-        accountsById[tx.accountId]?.fundTarget?.categoryId == tx.categoryId
+    fun isCoveredByFund(tx: Transaction.Expense, accountsById: Map<String, Account>): Boolean =
+        tx.debtId == null && accountsById[tx.accountId]?.fundTarget?.covers(tx.categoryId, tx.subcategoryId) == true
 
     fun categoryBudgets(
         categories: List<Category>,

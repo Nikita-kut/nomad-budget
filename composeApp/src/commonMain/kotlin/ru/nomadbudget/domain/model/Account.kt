@@ -53,7 +53,10 @@ data class Account(
 data class FundTarget(
     val categoryId: String,
     val subcategoryId: String? = null,
-)
+) {
+    fun covers(categoryId: String, subcategoryId: String?): Boolean =
+        categoryId == this.categoryId && (this.subcategoryId == null || this.subcategoryId == subcategoryId)
+}
 
 data class FundPlan(
     val monthly: Money? = null,
