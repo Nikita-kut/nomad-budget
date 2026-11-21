@@ -30,7 +30,7 @@ jobs:
           fi
       - name: Tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq age postgresql-client >/dev/null
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.117.0
       - name: Dump prod (read-only role)
