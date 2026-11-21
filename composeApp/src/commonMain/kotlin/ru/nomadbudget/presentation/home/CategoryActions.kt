@@ -56,7 +56,8 @@ internal class CategoryActions(
     fun deleteSubcategory(id: String) = runner.run("Не удалось удалить") {
         val current = store.value
         val used = current.transactions.any { it is Transaction.Expense && it.subcategoryId == id } ||
-            current.allPlanLines.any { it.line.subcategoryId == id }
+            current.allPlanLines.any { it.line.subcategoryId == id } ||
+            current.accounts.any { it.fundSubcategoryId == id }
         if (used) {
             categoryRepository.archiveSubcategory(id, true)
             store.update { state -> state.copy(subcategories = state.subcategories.map { if (it.id == id) it.copy(isArchived = true) else it }) }

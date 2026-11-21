@@ -70,6 +70,11 @@ data class MonthModel(
     val cushionToDebts: Money = Money.zero(base),
     val corrections: Money,
     val carryOver: Money = Money.zero(base),
+    val fundInflowInEnvelopes: Money = Money.zero(base),
+    val fundPaidForTargets: Money = Money.zero(base),
+    val fundsNetInflow: Money = Money.zero(base),
+    val fundsSpentOutsideDebts: Money = Money.zero(base),
+    val fundToDebts: Money = Money.zero(base),
 ) {
     val incomePlanned: Money = incomeBudgets.map { it.planned }.sumIn(base)
     val incomeFact: Money = incomeBudgets.map { it.fact }.sumIn(base)
@@ -123,6 +128,17 @@ data class MonthModel(
     val allocatedShare: Double? =
         if (available.minor > 0L) (available - unallocated).minor.toDouble() / available.minor else null
 
+    val debtsPaidTotal: Money = debts.map { it.paid }.sumIn(base)
+    val debtsPaidFromIncome: Money = debtsPaidTotal - cushionToDebts - fundToDebts
+    val savedFromIncome: Money = savedIn - savedOut
+    val fundsContributed: Money = fundsNetInflow - fundInflowInEnvelopes
+    val reservesToDebts: Money = cushionToDebts + fundToDebts
+    val spentFromReserves: Money = spentFromCushion - cushionToDebts + fundsSpentOutsideDebts - fundPaidForTargets
+
+    val outFact: Money = flexibleFactWhole + debtsPaidFromIncome + savedFromIncome + fundsContributed
+    val outPlanned: Money = flexiblePlannedWhole + obligationsPlanned + (savingsTarget ?: Money.zero(base))
+    val leftFact: Money = carryOver + incomeFact - outFact
+
     val hasPlan: Boolean = !flexiblePlanned.isZero || !incomePlanned.isZero || (savingsTarget?.isZero == false) || obligationsCount > 0
 
     companion object {
@@ -148,7 +164,12 @@ data class MonthModel(
             val inPeriod = transactions.filter { it.date in period }
             val debtPayments = transactions.filterIsInstance<Transaction.Expense>().filter { it.debtId != null }
             val systemIds = categories.filter { it.isSystem }.map { it.id }.toSet()
-            val visible = categories.filter { !it.isSystem && (!it.isArchived || inPeriod.any { tx -> tx.categoryIdOrNull == it.id }) }
+            val accountsById = accounts.associateBy { it.id }
+            val fundIds = accounts.filter { it.role == AccountRole.FUND }.map { it.id }.toSet()
+            val linkedSpends = BudgetCalculator.envelopeSpends(inPeriod, accountsById).filter { it.fund != null }
+            val fundToDebts = BudgetCalculator.cushionToDebts(inPeriod, fundIds, systemIds, base)
+            val usedIds = inPeriod.mapNotNull { it.categoryIdOrNull }.toSet() + linkedSpends.map { it.categoryId }
+            val visible = categories.filter { !it.isSystem && (!it.isArchived || it.id in usedIds) }
             val budgets = BudgetCalculator.categoryBudgets(visible, lines, inPeriod, period, subcategories, accounts, base)
             val cushionIds = accounts.filter { it.role == AccountRole.CUSHION }.map { it.id }.toSet()
             val corrections = inPeriod.mapNotNull {
@@ -173,6 +194,13 @@ data class MonthModel(
                 spentFromCushion = BudgetCalculator.cushionSpent(inPeriod, cushionIds, systemIds, base),
                 cushionToDebts = BudgetCalculator.cushionToDebts(inPeriod, cushionIds, systemIds, base),
                 corrections = corrections,
+                fundPaidForTargets = inPeriod.filterIsInstance<Transaction.Expense>()
+                    .filter { tx -> tx.categoryId !in systemIds && BudgetCalculator.isCoveredByFund(tx, accountsById) }
+                    .map { it.amountBase }.sumIn(base),
+                fundInflowInEnvelopes = linkedSpends.filter { it.categoryId !in systemIds }.map { it.amountBase }.sumIn(base),
+                fundsNetInflow = BudgetCalculator.cushionInflow(inPeriod, fundIds, systemIds, base) - BudgetCalculator.cushionOutflow(inPeriod, fundIds, base),
+                fundsSpentOutsideDebts = BudgetCalculator.cushionSpent(inPeriod, fundIds, systemIds, base) - fundToDebts,
+                fundToDebts = fundToDebts,
             )
         }
 
@@ -292,7 +320,8 @@ data class MonthModel(
             val ids = setOf(fund.id)
             val contributed = BudgetCalculator.cushionInflow(inPeriod, ids, systemIds, base) - BudgetCalculator.cushionOutflow(inPeriod, ids, base)
             val spent = BudgetCalculator.cushionSpent(inPeriod, ids, systemIds, base)
-            val monthly = fund.fundMonthly?.let(rates::toBaseOrNull)?.takeIf { it.minor > 0L }
+            val ownMonthly = fund.fundMonthly?.takeIf { it.minor > 0L && fund.fundTarget == null }
+            val monthly = ownMonthly?.let(rates::toBaseOrNull)?.takeIf { it.minor > 0L }
             val own = fund.currency
             val ownIn = inPeriod.mapNotNull {
                 when (it) {
@@ -310,7 +339,7 @@ data class MonthModel(
                 }
             }.filter { it.currency == own }.sumIn(own)
             val contributedOwn = ownIn - ownOut
-            val monthlyOwn = fund.fundMonthly?.takeIf { it.minor > 0L && it.currency == own }
+            val monthlyOwn = ownMonthly?.takeIf { it.currency == own }
             val leftOwn = monthlyOwn?.let { (it - contributedOwn).coerceAtLeastZero() }
             val due = dueDate(period, fund.fundDay)
             return FundState(

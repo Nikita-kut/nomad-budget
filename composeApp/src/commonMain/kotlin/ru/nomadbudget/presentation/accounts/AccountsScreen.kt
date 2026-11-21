@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.accounts
 
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.features.AppModule
 import ru.nomadbudget.features.FeatureGate
 import ru.nomadbudget.features.Feature
@@ -80,7 +81,7 @@ fun AccountsScreen(
     onArchive: (String) -> Unit,
     onRestore: (String) -> Unit = {},
     onSetRole: (String, AccountRole) -> Unit = { _, _ -> },
-    onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
+    onSetFund: (String, FundPlan) -> Unit = { _, _ -> },
     onCheckBalance: () -> Unit = {},
     twoColumns: Boolean = false,
     onOpenDebts: () -> Unit = {},
@@ -169,8 +170,8 @@ fun AccountsScreen(
         }
     }
     editingFund?.let { account ->
-        FundSettingsDialog(account, onDismiss = { editingFund = null }) { monthly, goal, day ->
-            onSetFund(account.id, monthly, goal, day)
+        FundSettingsDialog(account, state.categories, state.subcategories, onDismiss = { editingFund = null }) { plan ->
+            onSetFund(account.id, plan)
             editingFund = null
         }
     }
@@ -284,7 +285,8 @@ private fun AccountRow(
             AccountName(account, fontWeight = FontWeight.Medium)
             if (account.isFund) {
                 val parts = listOfNotNull(
-                    account.fundMonthly?.let { "взнос ${MoneyFormat.format(it, false)} в месяц" },
+                    account.fundTarget?.let(state::fundTargetLabel)?.let { "на «$it»" },
+                    account.fundMonthly?.takeIf { account.fundTarget == null }?.let { "взнос ${MoneyFormat.format(it, false)} в месяц" },
                     account.fundGoal?.let { goal -> account.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} $d-го" } ?: "цель ${MoneyFormat.format(goal, false)}" },
                 )
                 Text(
@@ -422,9 +424,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                             currency = currency,
                             role = role,
                             openingBalance = openingMoney,
-                            fundMonthly = monthlyMoney.takeIf { role == AccountRole.FUND },
-                            fundGoal = goalMoney.takeIf { role == AccountRole.FUND },
-                            fundDay = dayValue.takeIf { role == AccountRole.FUND },
+                            fund = if (role == AccountRole.FUND) FundPlan(monthlyMoney, goalMoney, dayValue) else FundPlan(),
                         ),
                     )
                 },

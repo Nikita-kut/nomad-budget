@@ -56,6 +56,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.PaddingValues
@@ -711,12 +712,12 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean,
                 RatesWarning(state)
             } else {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    PeriodNavigator(state, viewModel, modifier = Modifier.weight(1f))
-                    if (DemoMode.enabled) DemoBadge()
-                    PrivacyButton()
-                    ThemeButton()
-                    RefreshButton(state, viewModel)
-                    SettingsButton(onSettings)
+                    val compact = Modifier.size(NARROW_ICON_BUTTON)
+                    PeriodNavigator(state, viewModel, modifier = Modifier.weight(1f), buttonModifier = compact)
+                    PrivacyButton(compact)
+                    ThemeButton(compact)
+                    RefreshButton(state, viewModel, compact)
+                    SettingsButton(onSettings, compact)
                 }
                 if (state.loading) {
                     Box(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) { HeaderSkeleton() }
@@ -727,6 +728,7 @@ private fun HeaderBar(state: HomeState, viewModel: HomeViewModel, wide: Boolean,
                         verticalAlignment = Alignment.Bottom,
                     ) {
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (DemoMode.enabled) DemoBadge()
                             Text("Всего", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(MoneyFormat.format(state.totalBase, false), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
@@ -789,27 +791,27 @@ private fun PeriodSwitcher(state: HomeState, viewModel: HomeViewModel, onSetting
 }
 
 @Composable
-private fun SettingsButton(onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
+private fun SettingsButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onClick, modifier = modifier) {
         Icon(AppIcons.Settings, contentDescription = "Настройки")
     }
 }
 
 @Composable
-private fun PrivacyButton() {
+private fun PrivacyButton(modifier: Modifier = Modifier) {
     val privacy = LocalAmountPrivacy.current
     val hidden = privacy.hidden
-    IconButton(onClick = privacy::toggle) {
+    IconButton(onClick = privacy::toggle, modifier = modifier) {
         Icon(if (hidden) AppIcons.EyeOff else AppIcons.Eye, contentDescription = if (hidden) "Показать суммы" else "Скрыть суммы")
     }
 }
 
 @Composable
-private fun ThemeButton() {
+private fun ThemeButton(modifier: Modifier = Modifier) {
     val settings = LocalThemeSettings.current
     val system = isSystemInDarkTheme()
     val dark = settings.isDark(system)
-    IconButton(onClick = { settings.toggle(system) }) {
+    IconButton(onClick = { settings.toggle(system) }, modifier = modifier) {
         Icon(
             if (dark) AppIcons.Sun else AppIcons.Moon,
             contentDescription = if (dark) "Включить светлую тему" else "Включить тёмную тему",
@@ -818,9 +820,9 @@ private fun ThemeButton() {
 }
 
 @Composable
-private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
+private fun RefreshButton(state: HomeState, viewModel: HomeViewModel, modifier: Modifier = Modifier) {
     Box(contentAlignment = Alignment.Center) {
-        IconButton(onClick = viewModel::refresh, enabled = !state.loading && !state.refreshing) {
+        IconButton(onClick = viewModel::refresh, enabled = !state.loading && !state.refreshing, modifier = modifier) {
             if (state.refreshing) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
@@ -841,9 +843,9 @@ private fun RefreshButton(state: HomeState, viewModel: HomeViewModel) {
 }
 
 @Composable
-private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier: Modifier = Modifier) {
+private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier: Modifier = Modifier, buttonModifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = viewModel::showPreviousPeriod) {
+        IconButton(onClick = viewModel::showPreviousPeriod, modifier = buttonModifier) {
             Icon(AppIcons.ChevronLeft, contentDescription = "Предыдущий месяц")
         }
         Column(
@@ -856,9 +858,10 @@ private fun PeriodNavigator(state: HomeState, viewModel: HomeViewModel, modifier
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = viewModel::showNextPeriod) {
+        IconButton(onClick = viewModel::showNextPeriod, modifier = buttonModifier) {
             Icon(AppIcons.ChevronRight, contentDescription = "Следующий месяц")
         }
     }
@@ -891,3 +894,4 @@ private fun HeaderAmount(label: String, money: Money, emphasize: Boolean = false
 }
 
 private val SYNC_TIME_OFFSET = 4.dp
+private val NARROW_ICON_BUTTON = 40.dp

@@ -19,6 +19,7 @@ import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.Draft
 import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
@@ -70,7 +71,7 @@ interface AccountRepository {
         openingBalance: Money = Money.zero(currency),
     ): Account
     suspend fun setRole(id: String, isSavings: Boolean, isFund: Boolean)
-    suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?)
+    suspend fun setFund(id: String, plan: FundPlan)
     suspend fun rename(id: String, name: String)
     suspend fun setSortOrder(id: String, sortOrder: Int)
     suspend fun setArchived(id: String, archived: Boolean)

@@ -63,6 +63,7 @@ import ru.nomadbudget.domain.model.Debt
 import ru.nomadbudget.domain.model.DebtCloseReason
 import ru.nomadbudget.domain.model.DefaultRates
 import ru.nomadbudget.domain.model.ExchangeRate
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.model.Period
 import ru.nomadbudget.domain.model.RateTable
@@ -165,8 +166,9 @@ class AccountRepositoryImpl(
         client.from(Tables.ACCOUNTS).update(AccountRoleDto(isSavings, isFund)) { filter { eq("id", id) } }
     }
 
-    override suspend fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?) {
-        client.from(Tables.ACCOUNTS).update(AccountFundDto(monthly?.minor, goal?.minor, day)) { filter { eq("id", id) } }
+    override suspend fun setFund(id: String, plan: FundPlan) {
+        val dto = AccountFundDto(plan.monthly?.minor, plan.goal?.minor, plan.day, plan.target?.categoryId, plan.target?.subcategoryId)
+        client.from(Tables.ACCOUNTS).update(dto) { filter { eq("id", id) } }
     }
 
     override suspend fun setArchived(id: String, archived: Boolean) {
@@ -235,6 +237,13 @@ class CategoryRepositoryImpl(private val client: SupabaseClient, private val cac
                 client.from(Tables.BUDGET_LINES).update({ set("planned_base", target.plannedBase + line.plannedBase) }) { filter { eq("id", target.id) } }
                 client.from(Tables.BUDGET_LINES).delete { filter { eq("id", line.id) } }
             }
+        }
+        val targetCategory = client.from(Tables.SUBCATEGORIES).select { filter { eq("id", toId) } }.decodeList<SubcategoryDto>().firstOrNull()?.categoryId
+        if (targetCategory != null) {
+            client.from(Tables.ACCOUNTS).update({
+                set("fund_subcategory_id", toId)
+                set("fund_category_id", targetCategory)
+            }) { filter { eq("fund_subcategory_id", fromId) } }
         }
         client.from(Tables.SUBCATEGORIES).delete { filter { eq("id", fromId) } }
     }

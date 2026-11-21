@@ -3,6 +3,7 @@ package ru.nomadbudget.presentation.home
 import ru.nomadbudget.domain.model.AccountKind
 import ru.nomadbudget.domain.model.AccountRole
 import ru.nomadbudget.domain.model.Currency
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.domain.model.Money
 import ru.nomadbudget.domain.repository.AccountRepository
 
@@ -22,14 +23,13 @@ internal class AccountActions(
         val order = (store.value.accounts.maxOfOrNull { it.sortOrder } ?: 0) + HomeDefaults.SORT_STEP
         val isSavings = role == AccountRole.CUSHION
         val kind = if (isSavings) AccountKind.SAVINGS else AccountKind.ACCOUNT
-        require(draft.fundDay == null || draft.fundDay in HomeDefaults.DAYS_OF_MONTH) { "День от 1 до 31" }
+        require(draft.fund.day == null || draft.fund.day in HomeDefaults.DAYS_OF_MONTH) { "День от 1 до 31" }
         val opening = draft.openingBalance ?: Money.zero(currency)
         var created = accountRepository.add(trimmed, currency, kind, isSavings, role == AccountRole.FUND, order, opening)
-        if (role == AccountRole.FUND && (draft.fundMonthly != null || draft.fundGoal != null || draft.fundDay != null)) {
-            val monthly = draft.fundMonthly?.takeIf { it.minor > 0L }
-            val goal = draft.fundGoal?.takeIf { it.minor > 0L }
-            accountRepository.setFund(created.id, monthly, goal, draft.fundDay)
-            created = created.copy(fundMonthly = monthly, fundGoal = goal, fundDay = draft.fundDay)
+        val plan = draft.fund.normalized()
+        if (role == AccountRole.FUND && plan != FundPlan()) {
+            accountRepository.setFund(created.id, plan)
+            created = created.withFundPlan(plan)
         }
         store.update { it.copy(accounts = it.accounts + created) }
         store.message(
@@ -63,12 +63,11 @@ internal class AccountActions(
         )
     }
 
-    fun setFund(id: String, monthly: Money?, goal: Money?, day: Int?) = runner.run("Не удалось сохранить копилку") {
-        require(day == null || day in HomeDefaults.DAYS_OF_MONTH) { "День от 1 до 31" }
-        val m = monthly?.takeIf { it.minor > 0L }
-        val g = goal?.takeIf { it.minor > 0L }
-        accountRepository.setFund(id, m, g, day)
-        store.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.copy(fundMonthly = m, fundGoal = g, fundDay = day) else it }) }
+    fun setFund(id: String, plan: FundPlan) = runner.run("Не удалось сохранить копилку") {
+        require(plan.day == null || plan.day in HomeDefaults.DAYS_OF_MONTH) { "День от 1 до 31" }
+        val normalized = plan.normalized()
+        accountRepository.setFund(id, normalized)
+        store.update { state -> state.copy(accounts = state.accounts.map { if (it.id == id) it.withFundPlan(normalized) else it }) }
         store.message("Копилка обновлена")
     }
 
@@ -110,7 +109,5 @@ data class NewAccountDraft(
     val currency: Currency,
     val role: AccountRole,
     val openingBalance: Money? = null,
-    val fundMonthly: Money? = null,
-    val fundGoal: Money? = null,
-    val fundDay: Int? = null,
+    val fund: FundPlan = FundPlan(),
 )

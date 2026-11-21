@@ -1,5 +1,6 @@
 package ru.nomadbudget.presentation.planning
 
+import ru.nomadbudget.domain.model.FundPlan
 import ru.nomadbudget.features.FeatureGate
 import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.format.rememberAmountTransformation
@@ -84,7 +85,7 @@ fun PlanningScreen(
     onSaveCategoryPlan: (CategoryPlanDraft) -> Unit,
     onCopyPlan: () -> Unit,
     onSetSavingsTarget: (Money?) -> Unit = {},
-    onSetFund: (String, Money?, Money?, Int?) -> Unit = { _, _, _, _ -> },
+    onSetFund: (String, FundPlan) -> Unit = { _, _ -> },
     onOpenDebts: () -> Unit = {},
     onOpenAccounts: () -> Unit = {},
     twoColumns: Boolean = false,
@@ -206,9 +207,11 @@ fun PlanningScreen(
     editingFund?.let { fund ->
         FundSettingsDialog(
             account = fund,
+            categories = state.categories,
+            subcategories = state.subcategories,
             onDismiss = { editingFund = null },
-            onConfirm = { monthly, goal, day ->
-                onSetFund(fund.id, monthly, goal, day)
+            onConfirm = { plan ->
+                onSetFund(fund.id, plan)
                 editingFund = null
             },
         )
@@ -358,7 +361,7 @@ private fun SegmentBar(parts: List<Pair<Money, Color>>) {
 }
 
 @Composable
-private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: String? = null) {
+private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: String? = null, empty: String = "задать") {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -368,7 +371,7 @@ private fun PlanRow(name: String, planned: Money?, onClick: () -> Unit, sub: Str
             sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         Text(
-            planned?.let { MoneyFormat.format(it, false) } ?: "задать",
+            planned?.let { MoneyFormat.format(it, false) } ?: empty,
             fontWeight = if (planned != null) FontWeight.SemiBold else null,
             color = if (planned != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
         )
@@ -464,15 +467,21 @@ private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpe
         Column {
             state.fundAccounts.forEachIndexed { index, fund ->
                 if (index > 0) HorizontalDivider()
-                val monthly = fund.fundMonthly?.let(state.rates::toBaseOrNull)
+                val target = fund.fundTarget?.let(state::fundTargetLabel)
+                val monthly = fund.fundMonthly?.takeIf { target == null }?.let(state.rates::toBaseOrNull)
                 val balance = state.rates.toBaseOrNull(state.balances.getValue(fund.id))
                 PlanRow(
                     fund.name,
                     monthly,
                     onClick = { onEditFund(fund) },
+                    empty = if (target != null) "в конверте" else "задать",
                     sub = listOfNotNull(
                         balance?.let { "в копилке ${MoneyFormat.format(it, false)}" },
-                        if (monthly == null) "взнос в этом месяце не планируется" else "взнос в месяц",
+                        when {
+                            target != null -> "взнос — по плану «$target»"
+                            monthly == null -> "взнос в этом месяце не планируется"
+                            else -> "взнос в месяц"
+                        },
                         fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} $d-го" } ?: "цель ${MoneyFormat.format(goal, false)}" },
                     ).joinToString(" · "),
                 )

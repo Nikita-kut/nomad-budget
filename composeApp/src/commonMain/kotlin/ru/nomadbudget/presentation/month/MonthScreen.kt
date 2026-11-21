@@ -1,5 +1,11 @@
 package ru.nomadbudget.presentation.month
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import kotlinx.datetime.LocalDate
+import ru.nomadbudget.domain.model.AccountRole
+import ru.nomadbudget.domain.model.FundTarget
 import ru.nomadbudget.features.FeatureGate
 import ru.nomadbudget.features.Feature
 import ru.nomadbudget.presentation.components.SecondaryButton
@@ -95,6 +101,10 @@ fun MonthScreen(
             item { FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry) }
         }
         item { MonthTiles(month, state.saving, onCopyPlan, onOpenPlanning, onOpenDebts, wide = false) }
+        if (month.hasPlan || !month.outFact.isZero || !month.incomeFact.isZero) {
+            item { SectionTitle("Итоги месяца", hint = "пришло и ушло", info = Hints.MONTH_TOTALS) }
+            item { TotalsCard(month, onOpenPlanning) }
+        }
         item { SectionTitle("Доходы", hint = "получено и план", info = Hints.INCOME) }
         item { IncomeCard(month) }
         if (!month.corrections.isZero) {
@@ -124,7 +134,7 @@ fun MonthScreen(
         }
         if (month.funds.isNotEmpty() && FeatureGate.isOn(Feature.FUNDS_MONTH)) {
             item { SectionTitle("Копилки", hint = "откладываешь на крупное", info = Hints.FUNDS) }
-            item { FundsCard(month.funds, onOpenPlanning) }
+            item { FundsCard(month.funds, state::fundTargetLabel, onOpenPlanning) }
         }
     }
 }
@@ -284,27 +294,24 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
                     Text("прочее по плану ${MoneyFormat.format(budget.freePlanned, false)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 HorizontalDivider()
-                val accountsById = state.accountsById
-                val records = state.inPeriod.filterIsInstance<Transaction.Expense>()
-                    .filter { it.categoryId == budget.category.id && BudgetCalculator.isEnvelopeSpend(it, accountsById) }
-                    .sortedByDescending { it.date }
+                val records = envelopeRecords(state, budget.category.id, withFundPaid = false)
                 if (records.isEmpty()) {
                     Text("Записей пока нет", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                records.forEach { tx ->
+                records.forEach { record ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(DateFormat.dayMonth(tx.date), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(DateFormat.dayMonth(record.date), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            recordTitle(state, tx),
+                            record.title,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
-                        if (tx.amount.currency != state.base) {
-                            CurrencyAmount(MoneyFormat.format(tx.amount), MaterialTheme.typography.bodySmall)
+                        if (record.own.currency != state.base) {
+                            CurrencyAmount(MoneyFormat.format(record.own), MaterialTheme.typography.bodySmall)
                         }
-                        Text(MoneyFormat.format(tx.amountBase, false), style = MaterialTheme.typography.bodySmall)
+                        Text(MoneyFormat.format(record.base, false), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -312,11 +319,50 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
     }
 }
 
-private fun recordTitle(state: HomeState, tx: Transaction.Expense): String =
-    listOfNotNull(state.subcategoryName(tx.subcategoryId), tx.note.ifBlank { null }).joinToString(" · ").ifEmpty { "—" }
+private data class EnvelopeRecord(
+    val date: LocalDate,
+    val title: String,
+    val account: String,
+    val own: Money,
+    val base: Money,
+)
+
+private fun envelopeRecords(state: HomeState, categoryId: String, withFundPaid: Boolean): List<EnvelopeRecord> {
+    val accountsById = state.accountsById
+    val spends = BudgetCalculator.envelopeSpends(state.inPeriod, accountsById).filter { it.categoryId == categoryId }.map { spend ->
+        val tx = spend.tx
+        val fund = spend.fund
+        val source = when (tx) {
+            is Transaction.Expense -> tx.accountId
+            is Transaction.Transfer -> if (spend.amountBase.isNegative) tx.toAccountId else tx.fromAccountId
+            is Transaction.Exchange -> if (spend.amountBase.isNegative) tx.toAccountId else tx.fromAccountId
+            is Transaction.Income -> tx.accountId
+        }
+        val action = fund?.let { if (spend.amountBase.isNegative) "обратно из копилки «${it.name}»" else "в копилку «${it.name}»" }
+        EnvelopeRecord(
+            date = tx.date,
+            title = listOfNotNull(state.subcategoryName(spend.subcategoryId), action, tx.note.ifBlank { null }).joinToString(" · ").ifEmpty { "—" },
+            account = state.accountName(source),
+            own = if (spend.amountBase.isNegative) -tx.ownAmount else tx.ownAmount,
+            base = spend.amountBase,
+        )
+    }
+    val fundPaid = if (!withFundPaid) emptyList() else state.inPeriod.filterIsInstance<Transaction.Expense>()
+        .filter { it.categoryId == categoryId && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND && !BudgetCalculator.isCoveredByFund(it, accountsById) }
+        .map { tx ->
+            EnvelopeRecord(
+                date = tx.date,
+                title = listOfNotNull(state.subcategoryName(tx.subcategoryId), tx.note.ifBlank { null }).joinToString(" · ").ifEmpty { "—" },
+                account = state.accountName(tx.accountId) + " · копилка",
+                own = tx.amount,
+                base = tx.amountBase,
+            )
+        }
+    return (spends + fundPaid).sortedByDescending { it.date }
+}
 
 @Composable
-private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
+private fun FundsCard(funds: List<FundState>, targetLabel: (FundTarget) -> String?, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     Card(onClick = onOpenPlanning, modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 6.dp)) {
@@ -328,6 +374,9 @@ private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit, modifi
                         Text(MoneyFormat.format(fund.balance, false), fontWeight = FontWeight.SemiBold)
                     }
                     val parts = buildList {
+                        fund.account.fundTarget?.let(targetLabel)?.let { label ->
+                            add(if (fund.contributed.isZero) "копишь на «$label»" else "внесено ${MoneyFormat.format(fund.contributed, false)} · копишь на «$label»")
+                        }
                         fund.monthlyPlanned?.let { planned ->
                             add(if (fund.contributionLeft.isZero) "взнос ${MoneyFormat.format(planned, false)} внесён" else "взнос: ещё ${MoneyFormat.format(fund.contributionLeft, false)} из ${MoneyFormat.format(planned, false)}")
                         }
@@ -352,6 +401,75 @@ private fun FundsCard(funds: List<FundState>, onOpenPlanning: () -> Unit, modifi
         }
     }
 }
+
+@Composable
+private fun TotalsCard(month: MonthModel, onOpenPlanning: () -> Unit) {
+    val colors = AppTheme.colors
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    fun shown(feature: Feature, fact: Money, plan: Money?): Boolean = FeatureGate.isOn(feature) || !fact.isZero || plan?.isZero == false
+    Card(onClick = onOpenPlanning, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = Ui.CardPadding, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            TotalsRow("", "факт", "план", color = muted, style = MaterialTheme.typography.labelMedium)
+            TotalsGroup("Пришло", colors.good)
+            TotalsRow("Доходы", month.incomeFact, month.incomePlanned)
+            if (!month.carryOver.isZero) TotalsRow("С прошлого месяца", month.carryOver, month.carryOver)
+            TotalsGroup("Ушло", colors.bad)
+            TotalsRow("Конверты", month.flexibleFactWhole, month.flexiblePlannedWhole)
+            if (shown(Feature.DEBTS_PLAN, month.debtsPaidFromIncome, month.debtsPlanned)) TotalsRow("Кредиты", month.debtsPaidFromIncome, month.debtsPlanned)
+            if (shown(Feature.CUSHION_PLAN, month.savedFromIncome, month.savingsTarget)) TotalsRow("Отложить", month.savedFromIncome, month.savingsTarget ?: Money.zero(month.base))
+            if (shown(Feature.FUNDS_PLAN, month.fundsContributed, month.fundsPlanned)) TotalsRow("Взносы в копилки", month.fundsContributed, month.fundsPlanned)
+            TotalsRow("Всего ушло", month.outFact, month.outPlanned, bold = true)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            TotalsRow(
+                "Остаётся",
+                MoneyFormat.format(month.leftFact, false),
+                MoneyFormat.format(month.available - month.outPlanned, false),
+                bold = true,
+                factColor = if (month.leftFact.isNegative) colors.bad else null,
+                planColor = if ((month.available - month.outPlanned).isNegative) colors.bad else muted,
+            )
+            val notes = listOfNotNull(
+                month.reservesToDebts.takeUnless { it.isZero }?.let { "на кредиты из резерва и копилок ещё ${MoneyFormat.format(it, false)}" },
+                month.spentFromReserves.takeUnless { it.isZero }?.let { "потрачено из резерва и копилок ${MoneyFormat.format(it, false)}" },
+            )
+            if (notes.isNotEmpty()) {
+                Text("Не из денег месяца: ${notes.joinToString(", ")}.", style = MaterialTheme.typography.bodySmall, color = muted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TotalsGroup(title: String, color: Color) {
+    Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = color, modifier = Modifier.padding(top = 4.dp))
+}
+
+@Composable
+private fun TotalsRow(label: String, fact: Money, plan: Money, bold: Boolean = false) {
+    TotalsRow(label, MoneyFormat.format(fact, false), MoneyFormat.format(plan, false), bold = bold)
+}
+
+@Composable
+private fun TotalsRow(
+    label: String,
+    fact: String,
+    plan: String,
+    bold: Boolean = false,
+    color: Color? = null,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    factColor: Color? = null,
+    planColor: Color? = null,
+) {
+    val weight = if (bold) FontWeight.SemiBold else null
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = style, fontWeight = weight, color = color ?: Color.Unspecified, modifier = Modifier.weight(1f).padding(end = 8.dp), maxLines = 2)
+        Text(fact, style = style, fontWeight = weight, color = factColor ?: color ?: Color.Unspecified, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(TOTALS_AMOUNT_WIDTH))
+        Text(plan, style = style, fontWeight = weight, color = planColor ?: color ?: muted, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(TOTALS_AMOUNT_WIDTH))
+    }
+}
+
+private val TOTALS_AMOUNT_WIDTH = 100.dp
 
 @Composable
 private fun IdleLine(names: List<String>, onOpenPlanning: () -> Unit) {
@@ -406,6 +524,14 @@ private fun WideMonth(
         state.error?.let { message -> item { ErrorCard(message, onRetry) } }
         if (state.isFirstRun) item { FirstRunCard(state, onOpenAccounts, onOpenPlanning, onOpenEntry) }
         item { MonthTiles(month, state.saving, onCopyPlan, onOpenPlanning, onOpenDebts, wide = true) }
+        if (month.hasPlan || !month.outFact.isZero || !month.incomeFact.isZero) {
+            item {
+                Column {
+                    SectionTitle("Итоги месяца", hint = "пришло и ушло", info = Hints.MONTH_TOTALS)
+                    TotalsCard(month, onOpenPlanning)
+                }
+            }
+        }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionTitle("Конверты", hint = "потрачено с карт и наличных и план", info = Hints.ENVELOPES)
@@ -424,7 +550,7 @@ private fun WideMonth(
                     if (month.funds.isNotEmpty() && FeatureGate.isOn(Feature.FUNDS_MONTH)) {
                         {
                             SectionTitle("Копилки", hint = "откладываешь на крупное", info = Hints.FUNDS)
-                            FundsCard(month.funds, onOpenPlanning, Modifier.weight(1f))
+                            FundsCard(month.funds, state::fundTargetLabel, onOpenPlanning, Modifier.weight(1f))
                         }
                     } else {
                         null
@@ -489,26 +615,23 @@ private fun EnvelopeTable(budgets: List<CategoryBudget>, state: HomeState, expan
                                 AmountCell(moneyOrDash(item.remainingWhole), color = item.remainingWhole?.takeIf { it.isNegative }?.let { colors.bad }, style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        val records = state.inPeriod.filterIsInstance<Transaction.Expense>()
-                            .filter { it.categoryId == budget.category.id && it.debtId == null }
-                            .sortedByDescending { it.date }
+                        val records = envelopeRecords(state, budget.category.id, withFundPaid = true)
                         if (records.isNotEmpty()) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        records.forEach { tx ->
-                            val fromFund = state.accountsById[tx.accountId]?.isFund == true
+                        records.forEach { record ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(DateFormat.dayMonth(tx.date), style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.width(DATE_WIDTH))
+                                Text(DateFormat.dayMonth(record.date), style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.width(DATE_WIDTH))
                                 Text(
-                                    recordTitle(state, tx),
+                                    record.title,
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
                                 )
-                                Text(state.accountName(tx.accountId) + if (fromFund) " · копилка" else "", style = MaterialTheme.typography.bodySmall, color = muted)
-                                if (tx.amount.currency != state.base) {
-                                    CurrencyAmount(MoneyFormat.format(tx.amount), MaterialTheme.typography.bodySmall)
+                                Text(record.account, style = MaterialTheme.typography.bodySmall, color = muted)
+                                if (record.own.currency != state.base) {
+                                    CurrencyAmount(MoneyFormat.format(record.own), MaterialTheme.typography.bodySmall)
                                 }
-                                AmountCell(MoneyFormat.format(tx.amountBase, false), style = MaterialTheme.typography.bodySmall)
+                                AmountCell(MoneyFormat.format(record.base, false), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
