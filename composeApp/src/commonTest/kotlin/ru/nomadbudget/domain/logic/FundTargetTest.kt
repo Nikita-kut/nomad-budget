@@ -140,6 +140,7 @@ class FundTargetTest {
             assertEquals(Money.rub(5_000_000L), m.fromFundsFact, "пришло из копилки, месяц $i")
             assertEquals(Money.rub(5_000_000L), m.fromFundsPlanned, "план из копилки, месяц $i")
             assertEquals(MonthModel.lifeBalanceAt(months[i + 1].start, all, transactions, RateTable(emptyList(), Currency.RUB)), m.leftFact, "остаётся, месяц $i")
+            assertEquals(m.available - m.unallocated, m.outPlanned, "план сходится, месяц $i")
         }
         assertEquals(Money.rub(15_000_000L), built[0].fundsContributed)
         assertTrue(built[1].fundsContributed.isZero)
@@ -147,6 +148,51 @@ class FundTargetTest {
         assertEquals(Money.rub(10_000_000L), built[1].available)
         assertEquals(2, built[0].funds.single().monthsLeft)
         assertTrue(built[3].fromFundsPlanned.isZero)
+    }
+
+    @Test
+    fun twoFundsOnOneLineCoverItOnce() {
+        val first = fund.copy(openingBalance = Money.rub(10_000_000L), fundMonthly = null)
+        val second = fund.copy(id = "fund2", name = "Ещё на квартиру", openingBalance = Money.rub(10_000_000L), fundMonthly = null)
+        val wholeCategory = fund.copy(id = "fund3", name = "На жильё", openingBalance = Money.rub(10_000_000L), fundMonthly = null, fundSubcategoryId = null)
+        val month = totals(listOf(card, reserve, first, second, wholeCategory), emptyList())
+
+        assertEquals(Money.rub(3_000_000L), month.fromFundsPlanned)
+        assertEquals(Money.rub(2_300_000L), month.funds.single { it.account.id == "fund" }.covers)
+        assertTrue(month.funds.single { it.account.id == "fund2" }.covers.isZero)
+        assertEquals(Money.rub(700_000L), month.funds.single { it.account.id == "fund3" }.covers)
+        assertEquals(month.available - month.unallocated, month.outPlanned)
+    }
+
+    @Test
+    fun archivedCategoryIsNotCoveredByItsFund() {
+        val archivedHousing = housing.copy(isArchived = true)
+        val rich = fund.copy(openingBalance = Money.rub(10_000_000L), fundMonthly = null)
+        val month = MonthModel.build(
+            period, day, listOf(archivedHousing, gifts), listOf(rent, utilities), lines, emptyList(), listOf(card, reserve, rich), emptyList(),
+            RateTable(emptyList(), Currency.RUB), emptyMap(), null,
+        )
+
+        assertTrue(month.fromFundsPlanned.isZero)
+    }
+
+    @Test
+    fun foreignCurrencyFundCoversByRateAtPeriodStart() {
+        val vnd = Currency("VND", 0, "₫")
+        val cash = Account("vnd", "VND на квартиру", vnd, AccountKind.CASH, false, Money(30_000_000L, vnd), isFund = true, fundCategoryId = "housing", fundSubcategoryId = "rent")
+        val rentLine = listOf(BudgetLine("housing", Money.rub(5_000_000L), "rent"))
+        val pay = Transaction.Expense("rent", day, "vnd", Money(15_000_000L, vnd), "housing", "rent", Money.rub(4_772_640L), RateSource.API)
+        val all = listOf(card, cash)
+        val month = MonthModel.build(
+            period, day, listOf(housing), listOf(rent), rentLine, listOf(pay), all, emptyList(),
+            RateTable(emptyList(), Currency.RUB), all.associate { it.id to BalanceCalculator.balance(it, listOf(pay)) }, null,
+            rateOn = { currency, _ -> if (currency == vnd) 0.00315 else null },
+        )
+
+        assertEquals(Money.rub(5_000_000L), month.funds.single().covers)
+        assertEquals(Money.rub(4_772_640L), month.envelopes.single().fact)
+        assertEquals(Money.rub(4_772_640L), month.fromFundsFact)
+        assertEquals(month.available - month.unallocated, month.outPlanned)
     }
 
     @Test

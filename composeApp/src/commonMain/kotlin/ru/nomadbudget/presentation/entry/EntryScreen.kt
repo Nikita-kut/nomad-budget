@@ -97,6 +97,7 @@ class EntryFormState(today: LocalDate) {
     var date by mutableStateOf(today)
     var account by mutableStateOf<Account?>(null)
     var accountTouched by mutableStateOf(false)
+    var accountBeforeFund by mutableStateOf<Account?>(null)
     var toAccount by mutableStateOf<Account?>(null)
     var category by mutableStateOf<Category?>(null)
     var amountText by mutableStateOf("")
@@ -112,7 +113,13 @@ class EntryFormState(today: LocalDate) {
 
     val isDirty: Boolean get() = amountText.isNotBlank() || note.isNotBlank() || subcategory.isNotBlank()
 
+    fun restoreAccountAfterFund() {
+        accountBeforeFund?.let { account = it }
+        accountBeforeFund = null
+    }
+
     fun resetAfterSubmit() {
+        restoreAccountAfterFund()
         amountText = ""
         subcategory = ""
         note = ""
@@ -180,7 +187,7 @@ fun EntryScreen(
 
     LaunchedEffect(form.type, state.activeAccounts) {
         if (!form.accountTouched || form.account == null) {
-            val lastUsed = EntryDefaults.lastUsedAccountId(state.transactions, state.activeAccounts.map { it.id }.toSet(), form.type.transactionKind)
+            val lastUsed = EntryDefaults.lastUsedAccountId(state.transactions, state.activeAccounts.filterNot { it.isFund }.map { it.id }.toSet(), form.type.transactionKind)
             form.account = lastUsed?.let(state.accountsById::get) ?: form.account ?: state.activeAccounts.firstOrNull()
         }
     }
@@ -370,6 +377,7 @@ private fun EntryForm(
                 onSelect = {
                     form.account = it
                     form.accountTouched = true
+                    form.accountBeforeFund = null
                     val target = it.fundTarget
                     if (form.type == EntryType.EXPENSE && target != null && form.category == null) {
                         form.category = state.categoriesById[target.categoryId]
@@ -459,13 +467,24 @@ private fun EntryForm(
                         form.category = choice.category
                         form.subcategory = choice.subcategory.orEmpty()
                         form.debt = choice.debt
-                        if (form.type == EntryType.EXPENSE && choice.debt == null && !form.accountTouched && account?.role != AccountRole.FUND) {
-                            state.activeAccounts.firstOrNull { fund ->
-                                val target = fund.fundTarget
-                                target != null && target.categoryId == choice.category.id &&
-                                    (target.subcategoryId == null || state.subcategoryName(target.subcategoryId).equals(choice.subcategory, ignoreCase = true)) &&
-                                    (state.balances[fund.id]?.minor ?: 0L) > 0L
-                            }?.let { form.account = it }
+                        val coveringFund = state.activeAccounts.firstOrNull { fund ->
+                            val target = fund.fundTarget
+                            val balance = state.balances[fund.id]
+                            target != null && target.categoryId == choice.category.id &&
+                                (target.subcategoryId == null || state.subcategoryName(target.subcategoryId).equals(choice.subcategory, ignoreCase = true)) &&
+                                balance != null && balance.minor > 0L &&
+                                (amount == null || amount.currency == fund.currency && amount <= balance)
+                        }
+                        val autoSwitched = form.accountBeforeFund != null
+                        when {
+                            form.type != EntryType.EXPENSE || choice.debt != null -> if (autoSwitched) form.restoreAccountAfterFund()
+                            autoSwitched && coveringFund?.id != account?.id -> form.restoreAccountAfterFund()
+                            !form.accountTouched && !autoSwitched && account?.role != AccountRole.FUND && coveringFund != null &&
+                                (form.amountText.isBlank() || coveringFund.currency == account?.currency) -> {
+                                form.accountBeforeFund = account
+                                form.account = coveringFund
+                                if (form.splitAccount?.id == coveringFund.id) form.splitAccount = account
+                            }
                         }
                         if (choice.debt == null) form.debtEarly = false
                         choice.debt?.let { d ->

@@ -176,6 +176,8 @@ data class MonthModel(
             val usedIds = inPeriod.mapNotNull { it.categoryIdOrNull }.toSet()
             val visible = categories.filter { !it.isSystem && (!it.isArchived || it.id in usedIds) }
             val budgets = BudgetCalculator.categoryBudgets(visible, lines, inPeriod, period, subcategories, accounts, base)
+            val archivedIds = categories.filter { it.isArchived }.map { it.id }.toSet()
+            val plannedLines = lines.filter { it.categoryId !in archivedIds }
             val cushionIds = accounts.filter { it.role == AccountRole.CUSHION }.map { it.id }.toSet()
             val corrections = inPeriod.mapNotNull {
                 when (it) {
@@ -191,7 +193,12 @@ data class MonthModel(
                 incomeBudgets = budgets.filter { it.category.kind == CategoryKind.INCOME },
                 envelopes = budgets.filter { it.category.kind == CategoryKind.EXPENSE },
                 debts = debts.filter { DebtSchedule.inPlan(it, period, debtPayments, today) }.map { debtObligation(it, period, today, inPeriod, debtPayments, rates, cushionIds, rateOn) },
-                funds = accounts.filter { it.role == AccountRole.FUND && !it.isArchived }.map { fundState(it, period, today, inPeriod, rates, balances, systemIds, transactions, lines, rateOn) },
+                funds = shareCoverage(
+                    accounts.filter { it.role == AccountRole.FUND && !it.isArchived }
+                        .map { fundState(it, period, today, inPeriod, rates, balances, systemIds, transactions, plannedLines, rateOn) },
+                    plannedLines,
+                    base,
+                ),
                 savingsTarget = savingsTarget?.takeIf { it.minor > 0L },
                 carryOver = carryOver,
                 savedIn = BudgetCalculator.cushionInflow(inPeriod, cushionIds, systemIds, base),
@@ -203,6 +210,25 @@ data class MonthModel(
                 fundsSpentOutsideDebts = BudgetCalculator.cushionSpent(inPeriod, fundIds, systemIds, base) - fundToDebts,
                 fundToDebts = fundToDebts,
             )
+        }
+
+        private fun shareCoverage(funds: List<FundState>, lines: List<BudgetLine>, base: Currency): List<FundState> {
+            val usedByCategory = mutableMapOf<String, Money>()
+            val usedBySubcategory = mutableMapOf<Pair<String, String>, Money>()
+            fun planOf(categoryId: String, subcategoryId: String?): Money =
+                lines.filter { it.categoryId == categoryId && (subcategoryId == null || it.subcategoryId == subcategoryId) }.map { it.planned }.sumIn(base)
+            return funds.sortedBy { if (it.account.fundTarget?.subcategoryId != null) 0 else 1 }.map { fund ->
+                val target = fund.account.fundTarget ?: return@map fund
+                val zero = Money.zero(base)
+                val categoryLeft = planOf(target.categoryId, null) - (usedByCategory[target.categoryId] ?: zero)
+                val left = target.subcategoryId?.let { sub ->
+                    minOf(planOf(target.categoryId, sub) - (usedBySubcategory[target.categoryId to sub] ?: zero), categoryLeft)
+                } ?: categoryLeft
+                val covers = minOf(fund.covers, left.coerceAtLeastZero())
+                usedByCategory[target.categoryId] = (usedByCategory[target.categoryId] ?: zero) + covers
+                target.subcategoryId?.let { sub -> usedBySubcategory[target.categoryId to sub] = (usedBySubcategory[target.categoryId to sub] ?: zero) + covers }
+                fund.copy(covers = covers)
+            }.let { shared -> funds.map { original -> shared.first { it.account.id == original.account.id } } }
         }
 
         fun lifeBalanceAt(
