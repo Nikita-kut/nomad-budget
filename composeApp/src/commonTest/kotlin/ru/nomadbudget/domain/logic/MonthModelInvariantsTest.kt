@@ -109,7 +109,7 @@ class MonthModelInvariantsTest {
         val accountsById = accounts.associateBy { it.id }
         val inPeriod = tx.filter { it.date in period }
         val expectedFlexible = inPeriod.filterIsInstance<Transaction.Expense>()
-            .filter { it.categoryId != "corr" && it.debtId == null && accountsById.getValue(it.accountId).role == AccountRole.LIFE }
+            .filter { it.categoryId != "corr" && it.debtId == null && accountsById.getValue(it.accountId).role != AccountRole.CUSHION }
             .map { it.amountBase }.sumIn(Currency.RUB)
         assertEquals(expectedFlexible, m.flexibleFact, ctx)
 

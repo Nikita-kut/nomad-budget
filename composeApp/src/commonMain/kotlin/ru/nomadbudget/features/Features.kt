@@ -21,7 +21,7 @@ enum class Feature(val key: String, val module: AppModule?, val title: String, v
     CUSHION_ACCOUNTS("cushion.accounts", AppModule.CUSHION, "Резерв на экране счетов"),
     FUNDS_HEADER("funds.header", AppModule.FUNDS, "Копилки в шапке"),
     FUNDS_MONTH("funds.month", AppModule.FUNDS, "Копилки в месяце"),
-    FUNDS_PLAN("funds.plan", AppModule.FUNDS, "Взносы в копилки в плане"),
+    FUNDS_PLAN("funds.plan", AppModule.FUNDS, "Отложить в копилки в плане"),
     FUNDS_ACCOUNTS("funds.accounts", AppModule.FUNDS, "Копилки на экране счетов"),
     CAPITAL_SCREEN("capital.screen", AppModule.CAPITAL, "Экран «Капитал»"),
     CAPITAL_PLAN_FORECAST("capital.plan_forecast", AppModule.CAPITAL, "Прогноз капитала в плане"),

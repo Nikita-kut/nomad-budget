@@ -66,6 +66,7 @@ import ru.nomadbudget.presentation.components.TrashIconButton
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.runway
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.home.NewAccountDraft
@@ -285,12 +286,13 @@ private fun AccountRow(
             AccountName(account, fontWeight = FontWeight.Medium)
             if (account.isFund) {
                 val parts = listOfNotNull(
-                    account.fundTarget?.let(state::fundTargetLabel)?.let { "на «$it»" },
-                    account.fundMonthly?.takeIf { account.fundTarget == null }?.let { "взнос ${MoneyFormat.format(it, false)} в месяц" },
+                    account.fundTarget?.let(state::fundTargetLabel)?.let { "оплачивает «$it»" },
+                    state.month.funds.firstOrNull { it.account.id == account.id }?.monthsLeft?.let { runway(it) },
+                    account.fundMonthly?.let { "откладывать ${MoneyFormat.format(it, false)} в месяц" },
                     account.fundGoal?.let { goal -> account.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} $d-го" } ?: "цель ${MoneyFormat.format(goal, false)}" },
                 )
                 Text(
-                    parts.joinToString(" · ").ifEmpty { "нажми, чтобы задать взнос" },
+                    parts.joinToString(" · ").ifEmpty { "нажми, чтобы задать статью или взнос" },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -389,7 +391,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                 Dropdown("Валюта", currencies, currency, Currency::code, { currency = it })
                 MoneyField(opening, { opening = it }, "Сейчас на счёте, ${currency.code}", "0")
                 if (role == AccountRole.FUND) {
-                    MoneyField(monthly, { monthly = it }, "Взнос в месяц, ${currency.code}", "необязательно")
+                    MoneyField(monthly, { monthly = it }, "Отложить в месяц, ${currency.code}", "необязательно")
                     MoneyField(goal, { goal = it }, "Ближайшая оплата, ${currency.code}", "необязательно")
                     OutlinedTextField(
                         value = day,
@@ -401,7 +403,7 @@ private fun AddAccountDialog(currencies: List<Currency>, onDismiss: () -> Unit, 
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        "Взнос попадёт в план каждого месяца, к дню оплаты в копилке должно набраться столько, сколько указано в «Ближайшей оплате».",
+                        "Сумма попадёт в план каждого месяца как «отложить в копилки». Трату плати прямо с копилки: она войдёт в конверт своей статьи, а деньги возьмутся из копилки.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -488,7 +490,7 @@ private fun RolePicker(selected: AccountRole, onSelect: (AccountRole) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         listOf(
             AccountRole.LIFE to ("На жизнь" to "карты и наличные, из них идут обычные траты"),
-            AccountRole.FUND to ("Копилка" to "копишь на крупную регулярную трату и платишь её отсюда"),
+            AccountRole.FUND to ("Копилка" to "отложенные деньги: трата с неё — в конверте статьи, но не из дохода месяца"),
             AccountRole.CUSHION to ("Резерв" to "запас на чёрный день, переводы сюда — «Отложить»"),
         ).filter { (role, _) ->
             role == selected || when (role) {

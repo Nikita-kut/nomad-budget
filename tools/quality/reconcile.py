@@ -202,7 +202,7 @@ def main() -> int:
         closed = f" (закрыт {row['closed']})" if row["closed"] else ""
         plan = f"{rub(row['early_plan'])}{' с подушки' if row['plan_from_cushion'] else ''}" if row["early_plan"] is not None else "—"
         print(f"  {row['name']}{closed}: {rub(row['monthly_payment'])} · {rub(row['regular_paid'])} · {rub(row['early_from_cushion'])} · {rub(row['early_from_life'])} · {plan}")
-    print("\nСверь с экраном «План»: «Не распределено» = доход + остаток − кредиты (обычные платежи и досрочка с жизни) − копилки − конверты − «Себе».")
+    print("\nСверь с экраном «План»: «Не распределено» = доход + остаток + из копилок (план привязанных статей, не больше остатка копилки) − кредиты (обычные платежи и досрочка с жизни) − копилки − конверты − «Себе».")
     print("Закрытый в этом месяце кредит входит суммой, внесённой с жизни; досрочка с подушки в план не входит.")
     if failed:
         print(f"\n{failed} нарушений — релиз не делаем, сначала разобраться.")

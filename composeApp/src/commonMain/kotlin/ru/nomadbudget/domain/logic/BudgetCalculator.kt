@@ -98,7 +98,7 @@ data class CategoryBudget(
 }
 
 data class EnvelopeSpend(
-    val tx: Transaction,
+    val tx: Transaction.Expense,
     val categoryId: String,
     val subcategoryId: String?,
     val amountBase: Money,
@@ -112,30 +112,12 @@ object BudgetCalculator {
     const val PACE_TOLERANCE: Double = 0.05
 
     fun isEnvelopeSpend(tx: Transaction.Expense, accountsById: Map<String, Account>): Boolean =
-        tx.debtId == null && (accountsById[tx.accountId]?.role ?: AccountRole.LIFE) == AccountRole.LIFE
+        tx.debtId == null && (accountsById[tx.accountId]?.role ?: AccountRole.LIFE) != AccountRole.CUSHION
 
     fun envelopeSpends(transactions: List<Transaction>, accountsById: Map<String, Account>): List<EnvelopeSpend> =
-        transactions.mapNotNull { tx ->
-            when (tx) {
-                is Transaction.Expense -> EnvelopeSpend(tx, tx.categoryId, tx.subcategoryId, tx.amountBase).takeIf { isEnvelopeSpend(tx, accountsById) }
-                is Transaction.Transfer -> fundContribution(tx, tx.fromAccountId, tx.toAccountId, accountsById)
-                is Transaction.Exchange -> fundContribution(tx, tx.fromAccountId, tx.toAccountId, accountsById)
-                is Transaction.Income -> null
-            }
-        }
-
-    private fun fundContribution(tx: Transaction, fromId: String, toId: String, accountsById: Map<String, Account>): EnvelopeSpend? {
-        val from = accountsById[fromId]
-        val to = accountsById[toId]
-        val fromLife = (from?.role ?: AccountRole.LIFE) == AccountRole.LIFE
-        val toLife = (to?.role ?: AccountRole.LIFE) == AccountRole.LIFE
-        to?.fundTarget?.takeIf { fromLife }?.let { return EnvelopeSpend(tx, it.categoryId, it.subcategoryId, tx.amountBase, to) }
-        from?.fundTarget?.takeIf { toLife }?.let { return EnvelopeSpend(tx, it.categoryId, it.subcategoryId, -tx.amountBase, from) }
-        return null
-    }
-
-    fun isCoveredByFund(tx: Transaction.Expense, accountsById: Map<String, Account>): Boolean =
-        tx.debtId == null && accountsById[tx.accountId]?.fundTarget?.covers(tx.categoryId, tx.subcategoryId) == true
+        transactions.filterIsInstance<Transaction.Expense>()
+            .filter { isEnvelopeSpend(it, accountsById) }
+            .map { tx -> EnvelopeSpend(tx, tx.categoryId, tx.subcategoryId, tx.amountBase, accountsById[tx.accountId]?.takeIf { it.role == AccountRole.FUND }) }
 
     fun categoryBudgets(
         categories: List<Category>,
@@ -157,9 +139,7 @@ object BudgetCalculator {
             .map { category ->
                 val categorySpends = spends[category.id].orEmpty()
                 val categoryIncomes = incomes[category.id].orEmpty()
-                val fundSpends = inPeriod.filterIsInstance<Transaction.Expense>().filter {
-                    it.categoryId == category.id && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND && !isCoveredByFund(it, accountsById)
-                }
+                val fundSpends = categorySpends.filter { it.fund != null }
                 val categoryLines = if (category.isArchived) emptyList() else lines.filter { it.categoryId == category.id }
                 val itemLines = categoryLines.filter { it.subcategoryId != null }
                 val itemsPlanned = itemLines.map { it.planned }.sumIn(base)
@@ -183,7 +163,7 @@ object BudgetCalculator {
         itemLines: List<BudgetLine>,
         subcategoriesById: Map<String, Subcategory>,
         base: Currency,
-        fundSpends: List<Transaction.Expense> = emptyList(),
+        fundSpends: List<EnvelopeSpend> = emptyList(),
     ): List<SubcategoryBudget> {
         val factBySubcategory = spends
             .groupBy { it.subcategoryId }
@@ -200,7 +180,7 @@ object BudgetCalculator {
                 fundFact = fundBySubcategory[id] ?: Money.zero(base),
             )
         }.sortedWith(compareByDescending<SubcategoryBudget> { it.planned?.minor ?: -1L }.thenBy { it.subcategory?.name.orEmpty() })
-        val withoutSubcategory = factBySubcategory[null]?.let { SubcategoryBudget(subcategory = null, planned = null, fact = it) }
+        val withoutSubcategory = factBySubcategory[null]?.let { SubcategoryBudget(subcategory = null, planned = null, fact = it, fundFact = fundBySubcategory[null] ?: Money.zero(base)) }
         return items + listOfNotNull(withoutSubcategory)
     }
 

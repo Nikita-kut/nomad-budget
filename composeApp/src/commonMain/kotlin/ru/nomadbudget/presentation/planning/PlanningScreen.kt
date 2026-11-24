@@ -71,6 +71,7 @@ import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.components.incomeDaysHint
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.runway
 import ru.nomadbudget.presentation.format.ThousandsVisualTransformation
 import ru.nomadbudget.presentation.home.CategoryPlanDraft
 import ru.nomadbudget.presentation.home.CarryOverProjection
@@ -115,7 +116,12 @@ fun PlanningScreen(
             )
         }
         item { PlanSummaryTiles(month, state.period, twoColumns, state.carryOverProjection) }
-        item { SectionTitle("Куда распределено", hint = "от ${MoneyFormat.format(month.available, false)} на месяц") }
+        item {
+            SectionTitle(
+                "Куда распределено",
+                hint = "от ${MoneyFormat.format(month.available, false)} на месяц" + (month.fromFundsPlanned.takeUnless { it.isZero }?.let { ", из них ${MoneyFormat.format(it, false)} из копилок" } ?: ""),
+            )
+        }
         item { AllocationCard(month, onOpenModules) }
         item {
             if (!month.hasPlan) {
@@ -154,13 +160,13 @@ fun PlanningScreen(
             item { DebtsPlanCard(state, onOpenDebts, onPlanEarly = { planningEarly = it }) }
         }
         if (FeatureGate.isOn(Feature.FUNDS_PLAN)) {
-            item { SectionTitle("Копилки", hint = "взносы и траты из копилок", info = Hints.FUNDS) }
+            item { SectionTitle("Копилки", hint = "что откладываешь и какие статьи они оплачивают", info = Hints.FUNDS) }
             item { FundsPlanCard(state, onEditFund = { editingFund = it }, onOpenAccounts = onOpenAccounts) }
         }
 
         item { SectionTitle("Конверты", hint = "план и среднее за 3 месяца", info = Hints.PLAN_CATEGORY) }
         items(month.envelopes.filterNot { it.category.isArchived || state.isDebtOnlyEnvelope(it) }, key = { it.category.id }) { budget ->
-            CategoryPlanCard(budget, state.categoryHistory[budget.category.id], onClick = { editing = budget.category })
+            CategoryPlanCard(budget, state.categoryHistory[budget.category.id], fundPlanNote(budget, month), onClick = { editing = budget.category })
         }
     }
     CenteredLazyColumn() {
@@ -282,7 +288,7 @@ fun allocationParts(debts: Money, funds: Money, envelopes: Money, savings: Money
     val negative = unallocated.isNegative
     return listOfNotNull(
         AllocationPart(AllocationKind.DEBTS, "Кредиты", debts).takeIf { FeatureGate.isOn(Feature.DEBTS_PLAN) },
-        AllocationPart(AllocationKind.FUNDS, "Взносы в копилки", funds).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
+        AllocationPart(AllocationKind.FUNDS, "Отложить в копилки", funds).takeIf { FeatureGate.isOn(Feature.FUNDS_PLAN) },
         AllocationPart(AllocationKind.ENVELOPES, "Конверты", envelopes),
         AllocationPart(AllocationKind.SAVINGS, "Отложить", savings).takeIf { FeatureGate.isOn(Feature.CUSHION_PLAN) },
         hidden.takeIf { it.isNotEmpty() }?.let { list ->
@@ -468,20 +474,19 @@ private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpe
             state.fundAccounts.forEachIndexed { index, fund ->
                 if (index > 0) HorizontalDivider()
                 val target = fund.fundTarget?.let(state::fundTargetLabel)
-                val monthly = fund.fundMonthly?.takeIf { target == null }?.let(state.rates::toBaseOrNull)
+                val monthly = fund.fundMonthly?.let(state.rates::toBaseOrNull)
                 val balance = state.rates.toBaseOrNull(state.balances.getValue(fund.id))
+                val fundState = state.month.funds.firstOrNull { it.account.id == fund.id }
                 PlanRow(
                     fund.name,
                     monthly,
                     onClick = { onEditFund(fund) },
-                    empty = if (target != null) "в конверте" else "задать",
+                    empty = "не откладывать",
                     sub = listOfNotNull(
                         balance?.let { "в копилке ${MoneyFormat.format(it, false)}" },
-                        when {
-                            target != null -> "взнос — по плану «$target»"
-                            monthly == null -> "взнос в этом месяце не планируется"
-                            else -> "взнос в месяц"
-                        },
+                        target?.let { "оплачивает «$it»" },
+                        fundState?.monthsLeft?.let { runway(it) },
+                        if (monthly == null) "в этом месяце не откладываешь" else "отложить в месяц",
                         fund.fundGoal?.let { goal -> fund.fundDay?.let { d -> "оплата ${MoneyFormat.format(goal, false)} $d-го" } ?: "цель ${MoneyFormat.format(goal, false)}" },
                     ).joinToString(" · "),
                 )
@@ -490,7 +495,7 @@ private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpe
                 PlanRow("Копилок нет", null, onClick = onOpenAccounts, sub = "аренда, подарки, поездки: заведи счёт-копилку в «Счетах»")
             }
             Text(
-                "Трату, которую платишь частично из копилки, запиши двумя операциями: часть со счёта копилки, часть с карты. В плане категории оставь только часть из дохода.",
+                "Перевод на копилку — «отложено». Трату плати прямо со счёта копилки: она попадёт в конверт своей статьи, а деньги на неё придут из копилки, не из дохода месяца.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
@@ -499,8 +504,16 @@ private fun FundsPlanCard(state: HomeState, onEditFund: (Account) -> Unit, onOpe
     }
 }
 
+private fun fundPlanNote(budget: CategoryBudget, month: MonthModel): String? =
+    month.funds.filter { it.account.fundTarget?.categoryId == budget.category.id }.takeIf { it.isNotEmpty() }?.joinToString(" · ") { fund ->
+        listOfNotNull(
+            "из копилки «${fund.account.name}»" + (fund.covers.takeIf { it.minor > 0L }?.let { " ${MoneyFormat.format(it, false)}" } ?: ": пока пусто"),
+            fund.monthsLeft?.let { runway(it) },
+        ).joinToString(" · ")
+    }
+
 @Composable
-private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, onClick: () -> Unit) {
+private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, fundNote: String?, onClick: () -> Unit) {
     val colors = AppTheme.colors
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -512,6 +525,7 @@ private fun CategoryPlanCard(budget: CategoryBudget, history: CategoryHistory?, 
                     color = if (budget.hasPlan) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
                 )
             }
+            fundNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.save) }
             history?.takeIf { it.average.minor > 0L }?.let { h ->
                 val differs = budget.hasPlan && PlanCalculator.differsFromUsual(budget.planned, h)
                 Text(
