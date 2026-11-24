@@ -65,7 +65,7 @@ data class FundPlan(
     val target: FundTarget? = null,
 ) {
     fun normalized(): FundPlan = copy(
-        monthly = monthly?.takeIf { it.minor > 0L && target == null },
+        monthly = monthly?.takeIf { it.minor > 0L },
         goal = goal?.takeIf { it.minor > 0L },
     )
 }

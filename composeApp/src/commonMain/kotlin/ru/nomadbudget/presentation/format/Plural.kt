@@ -16,3 +16,5 @@ fun plural(count: Long, one: String, few: String, many: String): String {
 fun plural(count: Int, one: String, few: String, many: String): String = plural(count.toLong(), one, few, many)
 
 fun operations(count: Int): String = plural(count, "операция", "операции", "операций")
+
+fun runway(months: Int): String = if (months <= 0) "на месяц уже не хватит" else "хватит на ${plural(months, "месяц", "месяца", "месяцев")}"

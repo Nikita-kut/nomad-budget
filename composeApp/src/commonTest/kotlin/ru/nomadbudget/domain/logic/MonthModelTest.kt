@@ -79,7 +79,7 @@ class MonthModelTest {
     )
 
     @Test
-    fun envelopes_ignoreFundCushionDebtAndSystemSpends() {
+    fun envelopes_includeFundPaymentsButIgnoreCushionDebtAndSystemSpends() {
         val tx = listOf(
             expense("a", "food", 1_000_000L),
             expense("b", "housing", 4_800_000L, account = "rent"),
@@ -88,8 +88,8 @@ class MonthModelTest {
             expense("e", "corr", 50_000L),
         )
         val m = build(listOf(BudgetLine("food", Money.rub(3_000_000L))), tx, listOf(loan))
-        assertEquals(Money.rub(1_000_000L), m.flexibleFact)
-        assertEquals(Money.rub(2_000_000L), m.canSpend)
+        assertEquals(Money.rub(5_800_000L), m.flexibleFact)
+        assertEquals(Money.rub(-2_800_000L), m.canSpend)
         assertEquals(Money.rub(-50_000L), m.corrections)
         assertTrue(m.envelopes.none { it.category.isSystem })
         assertEquals(Money.rub(4_800_000L), m.funds.single().spent)

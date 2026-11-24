@@ -204,34 +204,34 @@ fun FundSettingsDialog(
     val goalMoney = if (goal.isBlank()) null else MoneyFormat.parse(goal, currency)
     val dayValue = day.toIntOrNull()
     val linked = target != null
-    val valid = (linked || monthly.isBlank() || monthlyMoney != null) && (goal.isBlank() || goalMoney != null) && (day.isBlank() || dayValue in 1..31)
+    val valid = (monthly.isBlank() || monthlyMoney != null) && (goal.isBlank() || goalMoney != null) && (day.isBlank() || dayValue in 1..31)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Копилка «${account.name}»") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CategoryPicker(
-                    label = "На что копишь",
+                    label = "Какую статью оплачивает",
                     choices = choices.map { it.second },
                     selected = choices.firstOrNull { it.first == target }?.second,
                     onSelect = { choice -> target = choices.firstOrNull { it.second == choice }?.first },
                     allowCreate = false,
                     onEnterWhenClosed = {},
-                    supporting = if (linked) "перевод в копилку идёт в план этой статьи" else "необязательно",
+                    supporting = if (linked) "план статьи покрывается из копилки, пока в ней есть деньги" else "необязательно",
                 )
                 if (linked) {
                     TextButton(onClick = { target = null }) { Text("Не привязывать к статье") }
-                } else {
-                    OutlinedTextField(
-                        value = monthly,
-                        onValueChange = { monthly = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
-                        label = { Text("Взнос в месяц, ${currency.code}") },
-                        singleLine = true,
-                        visualTransformation = transformation,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
+                OutlinedTextField(
+                    value = monthly,
+                    onValueChange = { monthly = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
+                    label = { Text("Отложить в месяц, ${currency.code}") },
+                    placeholder = { Text("необязательно") },
+                    singleLine = true,
+                    visualTransformation = transformation,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 OutlinedTextField(
                     value = goal,
                     onValueChange = { goal = ThousandsVisualTransformation.sanitize(it, currency.minorUnits) },
@@ -252,18 +252,14 @@ fun FundSettingsDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    if (linked) {
-                        "Сколько копить в месяц, задаёт план статьи. Перевод на счёт копилки считается тратой по ней, а оплата с копилки второй раз не считается."
-                    } else {
-                        "Взнос входит в обязательные платежи месяца. Переводи его на счёт копилки, а трату плати прямо с этого счёта: так она не попадёт в конверты."
-                    },
+                    "Перевод на копилку — «отложено», не трата. Трата считается в день оплаты в конверте своей статьи, а деньги на неё приходят из копилки, не из дохода месяца.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         confirmButton = {
-            PrimaryButton(onClick = { onConfirm(FundPlan(monthlyMoney.takeUnless { linked }, goalMoney, dayValue, target)) }, enabled = valid) { Text("Сохранить") }
+            PrimaryButton(onClick = { onConfirm(FundPlan(monthlyMoney, goalMoney, dayValue, target)) }, enabled = valid) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )

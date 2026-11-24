@@ -58,6 +58,7 @@ import ru.nomadbudget.presentation.components.TileRow
 import ru.nomadbudget.presentation.components.Ui
 import ru.nomadbudget.presentation.format.DateFormat
 import ru.nomadbudget.presentation.format.MoneyFormat
+import ru.nomadbudget.presentation.format.runway
 import ru.nomadbudget.presentation.format.plural
 import ru.nomadbudget.presentation.home.HomeState
 import ru.nomadbudget.presentation.theme.AppTheme
@@ -208,6 +209,13 @@ private fun IncomeCard(month: MonthModel, modifier: Modifier = Modifier) {
     }
 }
 
+private fun fundNote(budget: CategoryBudget, month: MonthModel): String? = listOfNotNull(
+    month.funds.filter { it.account.fundTarget?.categoryId == budget.category.id }.takeIf { it.isNotEmpty() }?.joinToString(", ") { fund ->
+        "оплата из копилки «${fund.account.name}»" + (fund.monthsLeft?.let { " · ${runway(it)}" } ?: "")
+    },
+    budget.fundFact.takeUnless { it.isZero }?.let { "из них ${MoneyFormat.format(it, false)} из копилки" },
+).joinToString(" · ").ifEmpty { null }
+
 private fun factOfPlan(budget: CategoryBudget): String =
     if (budget.hasPlan) "${MoneyFormat.format(budget.fact, false)} / ${MoneyFormat.format(budget.planned, false)}" else "${MoneyFormat.format(budget.fact, false)} · без плана"
 
@@ -239,9 +247,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
                     fontWeight = if (over) FontWeight.SemiBold else null,
                 )
             }
-            if (!budget.fundFact.isZero) {
-                Text("+ ${MoneyFormat.format(budget.fundFact, false)} оплачено из копилки, в конверт не входит", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            fundNote(budget, state.month)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (budget.hasPlan) {
                 ProgressTrack(
                     fraction = budget.progress.toFloat(),
@@ -267,11 +273,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
                             )
                         }
                         if (!item.fundFact.isZero) {
-                            Text(
-                                "${MoneyFormat.format(item.fact, false)} с карт + ${MoneyFormat.format(item.fundFact, false)} из копилки = ${MoneyFormat.format(item.fact + item.fundFact, false)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Text("из них ${MoneyFormat.format(item.fundFact, false)} из копилки", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         item.remainingWhole?.let { left ->
                             Text(
@@ -294,7 +296,7 @@ private fun EnvelopeCard(budget: CategoryBudget, state: HomeState, expanded: Boo
                     Text("прочее по плану ${MoneyFormat.format(budget.freePlanned, false)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 HorizontalDivider()
-                val records = envelopeRecords(state, budget.category.id, withFundPaid = false)
+                val records = envelopeRecords(state, budget.category.id)
                 if (records.isEmpty()) {
                     Text("Записей пока нет", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -327,39 +329,17 @@ private data class EnvelopeRecord(
     val base: Money,
 )
 
-private fun envelopeRecords(state: HomeState, categoryId: String, withFundPaid: Boolean): List<EnvelopeRecord> {
-    val accountsById = state.accountsById
-    val spends = BudgetCalculator.envelopeSpends(state.inPeriod, accountsById).filter { it.categoryId == categoryId }.map { spend ->
+private fun envelopeRecords(state: HomeState, categoryId: String): List<EnvelopeRecord> =
+    BudgetCalculator.envelopeSpends(state.inPeriod, state.accountsById).filter { it.categoryId == categoryId }.map { spend ->
         val tx = spend.tx
-        val fund = spend.fund
-        val source = when (tx) {
-            is Transaction.Expense -> tx.accountId
-            is Transaction.Transfer -> if (spend.amountBase.isNegative) tx.toAccountId else tx.fromAccountId
-            is Transaction.Exchange -> if (spend.amountBase.isNegative) tx.toAccountId else tx.fromAccountId
-            is Transaction.Income -> tx.accountId
-        }
-        val action = fund?.let { if (spend.amountBase.isNegative) "обратно из копилки «${it.name}»" else "в копилку «${it.name}»" }
         EnvelopeRecord(
             date = tx.date,
-            title = listOfNotNull(state.subcategoryName(spend.subcategoryId), action, tx.note.ifBlank { null }).joinToString(" · ").ifEmpty { "—" },
-            account = state.accountName(source),
-            own = if (spend.amountBase.isNegative) -tx.ownAmount else tx.ownAmount,
+            title = listOfNotNull(state.subcategoryName(spend.subcategoryId), spend.fund?.let { "из копилки «${it.name}»" }, tx.note.ifBlank { null }).joinToString(" · ").ifEmpty { "—" },
+            account = state.accountName(tx.accountId),
+            own = tx.amount,
             base = spend.amountBase,
         )
-    }
-    val fundPaid = if (!withFundPaid) emptyList() else state.inPeriod.filterIsInstance<Transaction.Expense>()
-        .filter { it.categoryId == categoryId && it.debtId == null && accountsById[it.accountId]?.role == AccountRole.FUND && !BudgetCalculator.isCoveredByFund(it, accountsById) }
-        .map { tx ->
-            EnvelopeRecord(
-                date = tx.date,
-                title = listOfNotNull(state.subcategoryName(tx.subcategoryId), tx.note.ifBlank { null }).joinToString(" · ").ifEmpty { "—" },
-                account = state.accountName(tx.accountId) + " · копилка",
-                own = tx.amount,
-                base = tx.amountBase,
-            )
-        }
-    return (spends + fundPaid).sortedByDescending { it.date }
-}
+    }.sortedByDescending { it.date }
 
 @Composable
 private fun FundsCard(funds: List<FundState>, targetLabel: (FundTarget) -> String?, onOpenPlanning: () -> Unit, modifier: Modifier = Modifier) {
@@ -375,8 +355,10 @@ private fun FundsCard(funds: List<FundState>, targetLabel: (FundTarget) -> Strin
                     }
                     val parts = buildList {
                         fund.account.fundTarget?.let(targetLabel)?.let { label ->
-                            add(if (fund.contributed.isZero) "копишь на «$label»" else "внесено ${MoneyFormat.format(fund.contributed, false)} · копишь на «$label»")
+                            add("оплачивает «$label»" + (fund.targetPlanned?.takeIf { it.minor > 0L }?.let { " по ${MoneyFormat.format(it, false)} в месяц" } ?: ""))
+                            fund.monthsLeft?.let { add(runway(it)) }
                         }
+                        if (fund.monthlyPlanned == null && !fund.contributed.isZero) add("отложено ${MoneyFormat.format(fund.contributed, false)}")
                         fund.monthlyPlanned?.let { planned ->
                             add(if (fund.contributionLeft.isZero) "взнос ${MoneyFormat.format(planned, false)} внесён" else "взнос: ещё ${MoneyFormat.format(fund.contributionLeft, false)} из ${MoneyFormat.format(planned, false)}")
                         }
@@ -413,11 +395,12 @@ private fun TotalsCard(month: MonthModel, onOpenPlanning: () -> Unit) {
             TotalsGroup("Пришло", colors.good)
             TotalsRow("Доходы", month.incomeFact, month.incomePlanned)
             if (!month.carryOver.isZero) TotalsRow("С прошлого месяца", month.carryOver, month.carryOver)
+            if (!month.fromFundsFact.isZero || !month.fromFundsPlanned.isZero) TotalsRow("Из копилок", month.fromFundsFact, month.fromFundsPlanned)
             TotalsGroup("Ушло", colors.bad)
             TotalsRow("Конверты", month.flexibleFactWhole, month.flexiblePlannedWhole)
             if (shown(Feature.DEBTS_PLAN, month.debtsPaidFromIncome, month.debtsPlanned)) TotalsRow("Кредиты", month.debtsPaidFromIncome, month.debtsPlanned)
             if (shown(Feature.CUSHION_PLAN, month.savedFromIncome, month.savingsTarget)) TotalsRow("Отложить", month.savedFromIncome, month.savingsTarget ?: Money.zero(month.base))
-            if (shown(Feature.FUNDS_PLAN, month.fundsContributed, month.fundsPlanned)) TotalsRow("Взносы в копилки", month.fundsContributed, month.fundsPlanned)
+            if (shown(Feature.FUNDS_PLAN, month.fundsContributed, month.fundsPlanned)) TotalsRow("Отложено в копилки", month.fundsContributed, month.fundsPlanned)
             TotalsRow("Всего ушло", month.outFact, month.outPlanned, bold = true)
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             TotalsRow(
@@ -430,7 +413,7 @@ private fun TotalsCard(month: MonthModel, onOpenPlanning: () -> Unit) {
             )
             val notes = listOfNotNull(
                 month.reservesToDebts.takeUnless { it.isZero }?.let { "на кредиты из резерва и копилок ещё ${MoneyFormat.format(it, false)}" },
-                month.spentFromReserves.takeUnless { it.isZero }?.let { "потрачено из резерва и копилок ${MoneyFormat.format(it, false)}" },
+                month.spentFromReserves.takeUnless { it.isZero }?.let { "потрачено из резерва ${MoneyFormat.format(it, false)}" },
             )
             if (notes.isNotEmpty()) {
                 Text("Не из денег месяца: ${notes.joinToString(", ")}.", style = MaterialTheme.typography.bodySmall, color = muted)
@@ -589,7 +572,7 @@ private fun EnvelopeTable(budgets: List<CategoryBudget>, state: HomeState, expan
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(NAME_WEIGHT)) {
                             Text(budget.category.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (!budget.fundFact.isZero) Text("+ ${MoneyFormat.format(budget.fundFact, false)} из копилки", style = MaterialTheme.typography.labelSmall, color = muted)
+                            fundNote(budget, state.month)?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = muted) }
                         }
                         Box(modifier = Modifier.weight(PROGRESS_WEIGHT).padding(end = 16.dp)) {
                             if (budget.hasPlan) {
@@ -607,7 +590,7 @@ private fun EnvelopeTable(budgets: List<CategoryBudget>, state: HomeState, expan
                             Row(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(NAME_WEIGHT).padding(start = 16.dp)) {
                                     Text(item.subcategory?.name ?: "без подкатегории", style = MaterialTheme.typography.bodyMedium)
-                                    if (!item.fundFact.isZero) Text("+ ${MoneyFormat.format(item.fundFact, false)} из копилки", style = MaterialTheme.typography.labelSmall, color = muted)
+                                    if (!item.fundFact.isZero) Text("из них ${MoneyFormat.format(item.fundFact, false)} из копилки", style = MaterialTheme.typography.labelSmall, color = muted)
                                 }
                                 Spacer(modifier = Modifier.weight(PROGRESS_WEIGHT))
                                 AmountCell(moneyOrDash(item.fact), style = MaterialTheme.typography.bodyMedium)
@@ -615,7 +598,7 @@ private fun EnvelopeTable(budgets: List<CategoryBudget>, state: HomeState, expan
                                 AmountCell(moneyOrDash(item.remainingWhole), color = item.remainingWhole?.takeIf { it.isNegative }?.let { colors.bad }, style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        val records = envelopeRecords(state, budget.category.id, withFundPaid = true)
+                        val records = envelopeRecords(state, budget.category.id)
                         if (records.isNotEmpty()) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         records.forEach { record ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {

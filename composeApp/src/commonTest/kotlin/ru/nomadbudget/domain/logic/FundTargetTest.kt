@@ -57,48 +57,41 @@ class FundTargetTest {
             .associateBy { it.category.id }
 
     @Test
-    fun transferIntoLinkedFundCountsAsSpendOfItsLine() {
+    fun transferIntoFundIsSavedNotSpent() {
         val housingBudget = budgets(listOf(transfer("t", "card", "fund", 2_235_500L))).getValue("housing")
 
-        assertEquals(Money.rub(2_235_500L), housingBudget.fact)
-        assertEquals(Money.rub(2_235_500L), housingBudget.items.single { it.subcategory?.id == "rent" }.fact)
-        assertEquals(1, housingBudget.transactionCount)
+        assertTrue(housingBudget.fact.isZero)
+        assertEquals(0, housingBudget.transactionCount)
     }
 
     @Test
-    fun paymentFromLinkedFundIsNotCountedTwice() {
+    fun paymentFromFundIsSpentInItsEnvelopeOnTheDayOfPayment() {
         val housingBudget = budgets(
             listOf(transfer("t", "card", "fund", 2_235_500L), expense("rent", "fund", "housing", "rent", 4_700_000L)),
         ).getValue("housing")
 
-        assertEquals(Money.rub(2_235_500L), housingBudget.fact)
-        assertTrue(housingBudget.fundFact.isZero)
+        assertEquals(Money.rub(4_700_000L), housingBudget.fact)
+        assertEquals(Money.rub(4_700_000L), housingBudget.fundFact)
+        assertEquals(Money.rub(4_700_000L), housingBudget.items.single { it.subcategory?.id == "rent" }.fundFact)
     }
 
     @Test
-    fun paymentFromLinkedFundForAnotherCategoryStaysOutsideEnvelopes() {
+    fun paymentFromFundForAnotherCategoryGoesToThatEnvelope() {
         val giftsBudget = budgets(listOf(expense("g", "fund", "gifts", null, 2_200_000L))).getValue("gifts")
 
-        assertTrue(giftsBudget.fact.isZero)
+        assertEquals(Money.rub(2_200_000L), giftsBudget.fact)
         assertEquals(Money.rub(2_200_000L), giftsBudget.fundFact)
     }
 
     @Test
-    fun moneyFromReserveOrAnotherFundIsNotAPlannedSpend() {
-        val housingBudget = budgets(listOf(transfer("r", "reserve", "fund", 1_000_000L), transfer("p", "plain", "fund", 500_000L))).getValue("housing")
+    fun paymentFromReserveStaysOutsideEnvelopes() {
+        val giftsBudget = budgets(listOf(expense("g", "reserve", "gifts", null, 2_200_000L))).getValue("gifts")
 
-        assertTrue(housingBudget.fact.isZero)
+        assertTrue(giftsBudget.fact.isZero)
     }
 
     @Test
-    fun takingMoneyBackFromLinkedFundReducesTheSpend() {
-        val housingBudget = budgets(listOf(transfer("t", "card", "fund", 2_000_000L), transfer("back", "fund", "card", 300_000L))).getValue("housing")
-
-        assertEquals(Money.rub(1_700_000L), housingBudget.fact)
-    }
-
-    @Test
-    fun linkedFundHasNoSeparateMonthlyContribution() {
+    fun linkedFundKeepsItsMonthlyContribution() {
         val transactions = listOf(transfer("t", "card", "fund", 2_235_500L), transfer("v", "card", "plain", 1_000_000L))
         val balances = accounts.associate { it.id to BalanceCalculator.balance(it, transactions) }
         val month = MonthModel.build(
@@ -106,19 +99,64 @@ class FundTargetTest {
             RateTable(emptyList(), Currency.RUB), balances, null,
         )
 
-        assertNull(month.funds.single { it.account.id == "fund" }.monthlyPlanned)
-        assertEquals(Money.rub(1_000_000L), month.fundsPlanned)
-        assertEquals(Money.rub(2_235_500L), month.flexibleFact)
-        assertEquals(Money.rub(2_235_500L), month.funds.single { it.account.id == "fund" }.contributed)
+        assertEquals(Money.rub(5_000_000L), month.funds.single { it.account.id == "fund" }.monthlyPlanned)
+        assertEquals(Money.rub(6_000_000L), month.fundsPlanned)
+        assertTrue(month.flexibleFact.isZero)
+        assertEquals(Money.rub(3_235_500L), month.fundsContributed)
     }
 
     @Test
-    fun savingWithTargetDropsMonthlyContribution() {
+    fun savingWithTargetKeepsMonthlyContribution() {
         val plan = FundPlan(Money.rub(5_000_000L), Money.rub(0L), 23, FundTarget("housing", "rent")).normalized()
 
-        assertNull(plan.monthly)
+        assertEquals(Money.rub(5_000_000L), plan.monthly)
         assertNull(plan.goal)
         assertEquals(FundTarget("housing", "rent"), fund.withFundPlan(plan).fundTarget)
+    }
+
+    @Test
+    fun savedOnceAndSpentOverThreeMonths() {
+        val rentOnly = fund.copy(fundMonthly = null)
+        val all = listOf(card.copy(openingBalance = Money.rub(20_000_000L)), reserve, rentOnly)
+        val months = (0..3).map { SalaryCycle.periodContaining(LocalDate(2026, 9 + it, 10), TEST_START_DAY) }
+        fun on(index: Int) = months[index].start.let { LocalDate(it.year, it.month, 10) }
+        val transactions = listOf(
+            Transaction.Transfer("save", on(0), "card", "fund", Money.rub(15_000_000L), Money.rub(15_000_000L)),
+        ) + (0..2).map { i ->
+            Transaction.Expense("rent$i", on(i), "fund", Money.rub(5_000_000L), "housing", "rent", Money.rub(5_000_000L), RateSource.API)
+        }
+        val rentPlan = listOf(BudgetLine("housing", Money.rub(5_000_000L), "rent"))
+        val built = months.mapIndexed { i, p ->
+            val upTo = transactions.filter { it.date < p.endExclusive }
+            MonthModel.build(
+                p, on(i), listOf(housing, gifts), listOf(rent, utilities), rentPlan, transactions, all, emptyList(),
+                RateTable(emptyList(), Currency.RUB), all.associate { it.id to BalanceCalculator.balance(it, upTo) }, null,
+            )
+        }
+
+        (0..2).forEach { i ->
+            val m = built[i]
+            assertEquals(Money.rub(5_000_000L), m.envelopes.single { it.category.id == "housing" }.fact, "конверт аренды, месяц $i")
+            assertEquals(Money.rub(5_000_000L), m.fromFundsFact, "пришло из копилки, месяц $i")
+            assertEquals(Money.rub(5_000_000L), m.fromFundsPlanned, "план из копилки, месяц $i")
+            assertEquals(MonthModel.lifeBalanceAt(months[i + 1].start, all, transactions, RateTable(emptyList(), Currency.RUB)), m.leftFact, "остаётся, месяц $i")
+        }
+        assertEquals(Money.rub(15_000_000L), built[0].fundsContributed)
+        assertTrue(built[1].fundsContributed.isZero)
+        assertTrue(built[2].fundsContributed.isZero)
+        assertEquals(Money.rub(10_000_000L), built[1].available)
+        assertEquals(2, built[0].funds.single().monthsLeft)
+        assertTrue(built[3].fromFundsPlanned.isZero)
+    }
+
+    @Test
+    fun fundCoversOnlyWhatItHas() {
+        val rentOnly = fund.copy(openingBalance = Money.rub(3_000_000L), fundMonthly = null)
+        val all = listOf(card, reserve, rentOnly)
+        val month = totals(all, emptyList())
+
+        assertEquals(Money.rub(2_300_000L), month.funds.single().covers)
+        assertEquals(Money.rub(2_300_000L), month.fromFundsPlanned)
     }
 
     @Test
@@ -146,9 +184,10 @@ class FundTargetTest {
         )
 
         assertEquals(Money.rub(5_000_000L), month.carryOver)
-        assertEquals(Money.rub(5_000_000L), month.flexibleFact)
+        assertEquals(Money.rub(5_400_000L), month.flexibleFact)
         assertEquals(Money.rub(100_000L), month.savedFromIncome)
-        assertEquals(Money.rub(1_400_000L), month.fundsContributed)
+        assertEquals(Money.rub(3_400_000L), month.fundsContributed)
+        assertEquals(Money.rub(2_400_000L), month.fromFundsFact)
         assertEquals(Money.rub(500_000L), month.spentFromReserves)
         assertEquals(balances.getValue("card"), month.leftFact)
         assertEquals(month.available - month.unallocated, month.outPlanned)
@@ -189,17 +228,17 @@ class FundTargetTest {
         val transactions = listOf(income(5_000_000L), transfer("p", "card", "plain", 700_000L), transfer("x", "plain", "fund", 200_000L))
         val month = totals(all, transactions)
 
-        assertEquals(Money.rub(700_000L), month.fundsContributed + month.fundInflowInEnvelopes)
+        assertEquals(Money.rub(700_000L), month.fundsContributed)
         assertEquals(BalanceCalculator.balance(card, transactions), month.leftFact)
     }
 
     @Test
-    fun fundLinkedToSubcategoryPayingAnotherSubcategoryStaysVisible() {
+    fun fundLinkedToSubcategoryPayingAnotherSubcategoryCountsThere() {
         val transactions = listOf(transfer("t", "card", "fund", 2_000_000L), expense("u", "fund", "housing", "utilities", 700_000L))
         val housingBudget = budgets(transactions).getValue("housing")
 
-        assertEquals(Money.rub(2_000_000L), housingBudget.fact)
-        assertEquals(Money.rub(700_000L), housingBudget.fundFact)
-        assertEquals(Money.rub(700_000L), totals(accounts, transactions).spentFromReserves)
+        assertEquals(Money.rub(700_000L), housingBudget.fact)
+        assertEquals(Money.rub(700_000L), housingBudget.items.single { it.subcategory?.id == "utilities" }.fundFact)
+        assertTrue(totals(accounts, transactions).spentFromReserves.isZero)
     }
 }
