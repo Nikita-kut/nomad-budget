@@ -54,6 +54,7 @@ EXCHANGE_TIMEZONE = "Europe/Moscow"
 DEFAULT_TRADE_OPEN = 10 * 60 + 30
 DEFAULT_TRADE_CLOSE = 18 * 60 + 30
 DIGEST_GRACE_MINUTES = 60
+TARGET_HOLD_MINUTES = 60  # сигнал цели за час до несделанной сводки не шлём: строку «выше цели» несёт сводка
 MINUTES_PER_CHECK = 15
 DEFAULT_GOOD_PERCENTILE = 85
 DEFAULT_IMPROVE_PERCENT = 0.5
@@ -396,6 +397,12 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
     notes = dict(state.get("notes") or {}) if digest_at is not None else {}
     signal = None
 
+    exchange_local = exchange_now(now_utc)
+    today = exchange_local.date().isoformat()
+    last_digest = state.get("last_digest_date")
+    to_digest = digest_at - minute_of_day(exchange_local) if digest_at is not None else None
+    before_digest = to_digest is not None and 0 < to_digest <= TARGET_HOLD_MINUTES and last_digest != today
+
     target = _float_or_none(watch.get("target"))
     last = _float_or_none(state.get("last"))
     above_target = target is not None and rate >= target
@@ -406,10 +413,10 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
         target_shown = format_quote(last * quote_unit(target)) if target is not None and last is not None and last >= target else None
     shown = format_quote(rate * quote_unit(target)) if target is not None else None
     if above_target and rate_changed(rate, last) and shown != target_shown:
-        if not quiet:
+        if not quiet and not before_digest:
             target_event = {"kind": "target", "target": target, "previous": last}
             target_shown = shown
-        elif digest_at is not None:
+        elif quiet and digest_at is not None:
             notes["target_max"] = max(rate, notes.get("target_max", rate))
     elif target is not None and not above_target and shown != format_quote(target * quote_unit(target)):
         target_shown = None
@@ -439,9 +446,6 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
             window["sent"] = rate
 
     events: list[dict] = []
-    exchange_local = exchange_now(now_utc)
-    today = exchange_local.date().isoformat()
-    last_digest = state.get("last_digest_date")
     due = digest_at is not None and digest_at <= minute_of_day(exchange_local) < digest_at + DIGEST_GRACE_MINUTES
     if due and not quiet and last_digest != today:
         events.append({
@@ -450,6 +454,8 @@ def evaluate(watch: dict, rate: float, cbr: float | None, state: dict, now_utc: 
         })
         notes = {}
         last_digest = today
+        if above_target:
+            target_shown = shown
     elif target_event is not None:
         events.append(target_event)
     elif signal is not None:

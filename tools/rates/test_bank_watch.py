@@ -450,6 +450,36 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("🎯 выше цели 40,00", text)
         self.assertEqual({}, state["notes"])
 
+    def test_target_before_digest_waits_for_digest(self):
+        w = watch(target=300.0, digest_at=630, trade_open=630, trade_close=1110)
+        state, events = self.step(w, 302.0, {"last": 302.0, "last_digest_date": "2026-11-10"}, msk(17, 45))
+        state, events = self.step(w, 283.0, state, msk(18, 45))
+        self.assertEqual([], events)
+        state, events = self.step(w, 283.0, state, msk(9, 45, day=11))
+        self.assertEqual([], events)
+        state, events = self.step(w, 302.0, state, msk(10, 0, day=11))
+        self.assertEqual([], events, "ночной курс вернулся к дневному за полчаса до сводки — цель скажет сводка")
+        state, events = self.step(w, 302.0, state, msk(10, 15, day=11))
+        self.assertEqual([], events)
+        state, events = self.step(w, 302.0, state, msk(10, 30, day=11))
+        self.assertEqual(["digest"], self.kinds(events))
+        self.assertEqual(300.0, events[0]["target"])
+        state, events = self.step(w, 302.0, state, msk(10, 45, day=11))
+        self.assertEqual([], events, "после сводки тот же курс не повторяем")
+        state, events = self.step(w, 304.0, state, msk(11, day=11))
+        self.assertEqual(["target"], self.kinds(events))
+
+    def test_target_far_from_digest_or_after_it_is_sent_at_once(self):
+        w = watch(target=300.0, digest_at=630, trade_open=630, trade_close=1110)
+        _, events = self.step(w, 302.0, {"last": 283.0}, msk(10, 0, day=SATURDAY), history=[])
+        self.assertEqual([], events)
+        _, events = self.step(w, 302.0, {"last": 283.0, "last_digest_date": "2026-11-10"}, msk(10))
+        self.assertEqual(["target"], self.kinds(events))
+        _, events = self.step(watch(target=300.0, digest_at=720, trade_open=630, trade_close=1110), 302.0, {"last": 283.0}, msk(10))
+        self.assertEqual(["target"], self.kinds(events))
+        _, events = self.step(watch(target=300.0, digest_at=None), 302.0, {"last": 283.0}, msk(10))
+        self.assertEqual(["target"], self.kinds(events))
+
     def test_target_wins_over_window_message_but_window_state_moves(self):
         w = watch(target=80.0)
         state, events = self.step(w, 90.0, {}, msk(11))
